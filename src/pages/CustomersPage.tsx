@@ -9,7 +9,8 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Users, Calendar, Eye } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, Calendar, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { isBefore } from 'date-fns';
 
 interface Customer {
   id: string; customer_no: string; name: string; civil_id: string; mobile: string;
@@ -19,6 +20,8 @@ interface Customer {
 
 interface ContractDetail {
   id: string; contract_no: string; sale_price: number; paid_amount: number; remaining_amount: number; status: string;
+  installment_schedule: any[]; item_name: string; start_date: string; end_date: string; duration_months: number;
+  installment_amount: number; file_opening_charges: number;
 }
 
 const emptyCustomer = {
@@ -52,9 +55,12 @@ export default function CustomersPage() {
     setLoading(false);
   }
 
+  const [expandedContract, setExpandedContract] = useState<string | null>(null);
+
   async function loadCustomerContracts(customerId: string) {
-    const { data } = await supabase.from('contracts').select('id, contract_no, sale_price, paid_amount, remaining_amount, status').eq('customer_id', customerId);
+    const { data } = await supabase.from('contracts').select('id, contract_no, sale_price, paid_amount, remaining_amount, status, installment_schedule, item_name, start_date, end_date, duration_months, installment_amount, file_opening_charges').eq('customer_id', customerId);
     setCustomerContracts(data || []);
+    setExpandedContract(null);
   }
 
   function validate() {
@@ -198,28 +204,114 @@ export default function CustomersPage() {
                 {customerContracts.length === 0 ? (
                   <p className="text-slate-400 text-sm">{t('noData')}</p>
                 ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-slate-50">
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('contractNo')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('contractValue')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('paidAmount')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('remainingAmount')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customerContracts.map(ct => (
-                        <tr key={ct.id} className="border-b border-slate-100">
-                          <td className="py-2 px-3 font-medium text-blue-600">{ct.contract_no}</td>
-                          <td className="py-2 px-3">{ct.sale_price?.toLocaleString()} {t('kd')}</td>
-                          <td className="py-2 px-3 text-green-600">{ct.paid_amount?.toLocaleString()} {t('kd')}</td>
-                          <td className="py-2 px-3 text-red-600">{ct.remaining_amount?.toLocaleString()} {t('kd')}</td>
-                          <td className="py-2 px-3"><Badge className={ct.status === 'ongoing' ? 'bg-blue-100 text-blue-700' : ct.status === 'finished' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} variant="secondary">{ct.status}</Badge></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="space-y-3">
+                    {customerContracts.map(ct => {
+                      const schedule = ct.installment_schedule || [];
+                      const paidCount = schedule.filter((s: any) => s.status === 'paid').length;
+                      const isExpanded = expandedContract === ct.id;
+                      const today = new Date();
+                      return (
+                        <div key={ct.id} className="border rounded-lg overflow-hidden">
+                          {/* Contract Header Row */}
+                          <div
+                            className="flex items-center justify-between p-3 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
+                            onClick={() => setExpandedContract(isExpanded ? null : ct.id)}
+                          >
+                            <div className="flex items-center gap-4 flex-wrap">
+                              <span className="font-medium text-blue-600">{ct.contract_no}</span>
+                              <span className="text-sm text-slate-500">{ct.item_name}</span>
+                              <Badge className={ct.status === 'ongoing' ? 'bg-blue-100 text-blue-700' : ct.status === 'finished' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} variant="secondary">{t(ct.status as any)}</Badge>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right text-sm">
+                                <span className="text-green-600 font-medium">{ct.paid_amount?.toLocaleString()}</span>
+                                <span className="text-slate-400 mx-1">/</span>
+                                <span className="font-medium">{ct.sale_price?.toLocaleString()} {t('kd')}</span>
+                              </div>
+                              {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                            </div>
+                          </div>
+
+                          {/* Expanded Installment Plan */}
+                          {isExpanded && (
+                            <div className="p-3 space-y-3">
+                              {/* Contract Summary */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                <div className="bg-blue-50 rounded p-2">
+                                  <p className="text-xs text-blue-600">{t('contractValue')}</p>
+                                  <p className="font-semibold">{ct.sale_price?.toLocaleString()} {t('kd')}</p>
+                                </div>
+                                <div className="bg-green-50 rounded p-2">
+                                  <p className="text-xs text-green-600">{t('paidAmount')}</p>
+                                  <p className="font-semibold text-green-700">{ct.paid_amount?.toLocaleString()} {t('kd')}</p>
+                                </div>
+                                <div className="bg-red-50 rounded p-2">
+                                  <p className="text-xs text-red-600">{t('remainingAmount')}</p>
+                                  <p className="font-semibold text-red-700">{ct.remaining_amount?.toLocaleString()} {t('kd')}</p>
+                                </div>
+                                <div className="bg-slate-50 rounded p-2">
+                                  <p className="text-xs text-slate-500">{t('paidInstallments')}</p>
+                                  <p className="font-semibold">{paidCount} / {schedule.length}</p>
+                                </div>
+                              </div>
+
+                              {/* Progress Bar */}
+                              <div>
+                                <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                  <span>{t('paid')}: {paidCount}/{schedule.length}</span>
+                                  <span>{Math.round(paidCount / Math.max(1, schedule.length) * 100)}%</span>
+                                </div>
+                                <div className="w-full bg-slate-200 rounded-full h-2">
+                                  <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${paidCount / Math.max(1, schedule.length) * 100}%` }} />
+                                </div>
+                              </div>
+
+                              {/* Installment Table */}
+                              {schedule.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="border-b bg-slate-50">
+                                        <th className="text-start py-2 px-2 font-medium text-slate-600">#</th>
+                                        <th className="text-start py-2 px-2 font-medium text-slate-600">{t('dueDate')}</th>
+                                        <th className="text-start py-2 px-2 font-medium text-slate-600">{t('amount')}</th>
+                                        <th className="text-start py-2 px-2 font-medium text-slate-600">{t('status')}</th>
+                                        <th className="text-start py-2 px-2 font-medium text-slate-600">{t('paymentDate')}</th>
+                                        <th className="text-start py-2 px-2 font-medium text-slate-600">{t('runningBalance')}</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {schedule.map((inst: any, idx: number) => {
+                                        const runningPaid = schedule.slice(0, idx + 1).filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+                                        const balance = (ct.sale_price || 0) - runningPaid;
+                                        const isOverdue = inst.status !== 'paid' && isBefore(new Date(inst.due_date), today);
+                                        return (
+                                          <tr key={idx} className={`border-b border-slate-100 ${inst.status === 'paid' ? 'bg-green-50/50' : isOverdue ? 'bg-red-50/50' : ''}`}>
+                                            <td className="py-1.5 px-2">{inst.month || idx + 1}</td>
+                                            <td className="py-1.5 px-2">{inst.due_date}</td>
+                                            <td className="py-1.5 px-2 font-medium">{inst.amount?.toLocaleString()} {t('kd')}</td>
+                                            <td className="py-1.5 px-2">
+                                              <Badge className={inst.status === 'paid' ? 'bg-green-100 text-green-700 text-[10px]' : isOverdue ? 'bg-red-100 text-red-700 text-[10px]' : 'bg-amber-100 text-amber-700 text-[10px]'} variant="secondary">
+                                                {inst.status === 'paid' ? t('paid') : isOverdue ? t('overdue') : t('pending')}
+                                              </Badge>
+                                            </td>
+                                            <td className="py-1.5 px-2 text-slate-500">{inst.paid_date || '-'}</td>
+                                            <td className="py-1.5 px-2 font-medium">{balance.toLocaleString()} {t('kd')}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-400">{t('noData')}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
                 <div className="mt-3 p-3 bg-amber-50 rounded-lg">
                   <p className="text-sm font-medium text-amber-800">{t('totalDues')}: <span className="text-lg">{totalDues.toLocaleString()} {t('kd')}</span></p>

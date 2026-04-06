@@ -9,8 +9,8 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, ShoppingCart, Calendar, X } from 'lucide-react';
-import { format, addMonths } from 'date-fns';
+import { Plus, Search, Pencil, Trash2, ShoppingCart, Calendar, X, Check, Clock } from 'lucide-react';
+import { format, addMonths, isBefore } from 'date-fns';
 
 interface Contract {
   id: string; contract_no: string; customer_id: string; customer_name: string;
@@ -265,44 +265,130 @@ export default function SalesPage() {
 
       {/* Installment Schedule Modal */}
       <Dialog open={!!showSchedule} onOpenChange={() => setShowSchedule(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{showSchedule?.contract_no} - {t('installmentSchedule')}</DialogTitle>
+            <DialogTitle>{showSchedule?.contract_no} - {t('installmentPlan')}</DialogTitle>
           </DialogHeader>
-          {showSchedule && (
-            <div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-sm">
-                <div><span className="text-slate-500">{t('customerName')}:</span><p className="font-medium">{showSchedule.customer_name}</p></div>
-                <div><span className="text-slate-500">{t('salePrice')}:</span><p className="font-medium">{showSchedule.sale_price?.toLocaleString()} {t('kd')}</p></div>
-                <div><span className="text-slate-500">{t('paidAmount')}:</span><p className="font-medium text-green-600">{showSchedule.paid_amount?.toLocaleString()} {t('kd')}</p></div>
-                <div><span className="text-slate-500">{t('remainingAmount')}:</span><p className="font-medium text-red-600">{showSchedule.remaining_amount?.toLocaleString()} {t('kd')}</p></div>
+          {showSchedule && (() => {
+            const schedule = showSchedule.installment_schedule || [];
+            const paidCount = schedule.filter((inst: any) => inst.status === 'paid').length;
+            const pendingCount = schedule.length - paidCount;
+            const totalPaidAmt = schedule.filter((inst: any) => inst.status === 'paid').reduce((s: number, inst: any) => s + (inst.amount || 0), 0);
+            const totalPendingAmt = schedule.filter((inst: any) => inst.status !== 'paid').reduce((s: number, inst: any) => s + (inst.amount || 0), 0);
+            const today = new Date();
+            const overdueCount = schedule.filter((inst: any) => inst.status !== 'paid' && isBefore(new Date(inst.due_date), today)).length;
+            return (
+            <div className="space-y-4">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-slate-500">{t('customerName')}</p>
+                  <p className="font-semibold text-sm mt-1">{showSchedule.customer_name}</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-blue-600">{t('salePrice')}</p>
+                  <p className="font-semibold text-sm mt-1">{showSchedule.sale_price?.toLocaleString()} {t('kd')}</p>
+                </div>
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-green-600">{t('paidInstallments')}</p>
+                  <p className="font-semibold text-sm mt-1 text-green-700">{paidCount} / {schedule.length}</p>
+                </div>
+                <div className="bg-amber-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-amber-600">{t('pendingInstallments')}</p>
+                  <p className="font-semibold text-sm mt-1 text-amber-700">{pendingCount}</p>
+                </div>
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-green-600">{t('totalPaidAmount')}</p>
+                  <p className="font-semibold text-sm mt-1 text-green-700">{totalPaidAmt.toLocaleString()} {t('kd')}</p>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-red-600">{t('totalPendingAmount')}</p>
+                  <p className="font-semibold text-sm mt-1 text-red-700">{totalPendingAmt.toLocaleString()} {t('kd')}</p>
+                </div>
               </div>
+
+              {overdueCount > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-red-500" />
+                  <span className="text-sm text-red-700 font-medium">{overdueCount} {t('overdue')} installment{overdueCount > 1 ? 's' : ''}</span>
+                </div>
+              )}
+
+              {/* Progress Bar */}
+              <div>
+                <div className="flex justify-between text-xs text-slate-500 mb-1">
+                  <span>{t('paid')}: {paidCount}/{schedule.length}</span>
+                  <span>{Math.round(paidCount / Math.max(1, schedule.length) * 100)}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2.5">
+                  <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${paidCount / Math.max(1, schedule.length) * 100}%` }} />
+                </div>
+              </div>
+
+              {/* Installment Table */}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-slate-50">
-                    <th className="text-start py-2 px-3">#</th>
-                    <th className="text-start py-2 px-3">{t('dueDate')}</th>
-                    <th className="text-start py-2 px-3">{t('amount')}</th>
-                    <th className="text-start py-2 px-3">{t('status')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">#</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('dueDate')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('amount')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('status')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('paymentDate')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('runningBalance')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(showSchedule.installment_schedule || []).map((inst: any, i: number) => (
-                    <tr key={i} className="border-b border-slate-100">
-                      <td className="py-2 px-3">{inst.month || i + 1}</td>
-                      <td className="py-2 px-3">{inst.due_date}</td>
-                      <td className="py-2 px-3">{inst.amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-2 px-3">
-                        <Badge className={inst.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'} variant="secondary">
-                          {inst.status === 'paid' ? t('paid') : t('pending')}
+                  {schedule.map((inst: any, i: number) => {
+                    const runningPaid = schedule.slice(0, i + 1).filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+                    const balance = (showSchedule.sale_price || 0) - runningPaid;
+                    const isOverdue = inst.status !== 'paid' && isBefore(new Date(inst.due_date), today);
+                    return (
+                    <tr key={i} className={`border-b border-slate-100 ${inst.status === 'paid' ? 'bg-green-50/50' : isOverdue ? 'bg-red-50/50' : ''}`}>
+                      <td className="py-2.5 px-3 font-medium">{inst.month || i + 1}</td>
+                      <td className="py-2.5 px-3">{inst.due_date}</td>
+                      <td className="py-2.5 px-3 font-medium">{inst.amount?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-2.5 px-3">
+                        <Badge className={inst.status === 'paid' ? 'bg-green-100 text-green-700' : isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'} variant="secondary">
+                          {inst.status === 'paid' ? t('paid') : isOverdue ? t('overdue') : t('pending')}
                         </Badge>
                       </td>
+                      <td className="py-2.5 px-3 text-slate-500">{inst.paid_date || '-'}</td>
+                      <td className="py-2.5 px-3 font-medium">{balance.toLocaleString()} {t('kd')}</td>
+                      <td className="py-2.5 px-3">
+                        <Button
+                          variant={inst.status === 'paid' ? 'outline' : 'default'}
+                          size="sm"
+                          className={inst.status === 'paid' ? 'text-xs h-7' : 'text-xs h-7 bg-green-600 hover:bg-green-700'}
+                          onClick={async () => {
+                            const updatedSchedule = [...schedule];
+                            if (inst.status === 'paid') {
+                              updatedSchedule[i] = { ...updatedSchedule[i], status: 'pending', paid_date: null };
+                            } else {
+                              updatedSchedule[i] = { ...updatedSchedule[i], status: 'paid', paid_date: format(new Date(), 'yyyy-MM-dd') };
+                            }
+                            const newPaidTotal = updatedSchedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+                            await supabase.from('contracts').update({
+                              installment_schedule: updatedSchedule,
+                              paid_amount: newPaidTotal,
+                              remaining_amount: (showSchedule.sale_price || 0) - newPaidTotal,
+                              status: newPaidTotal >= (showSchedule.sale_price || 0) ? 'finished' : showSchedule.status === 'finished' ? 'ongoing' : showSchedule.status,
+                            }).eq('id', showSchedule.id);
+                            setShowSchedule({ ...showSchedule, installment_schedule: updatedSchedule, paid_amount: newPaidTotal, remaining_amount: (showSchedule.sale_price || 0) - newPaidTotal });
+                            loadData();
+                          }}
+                        >
+                          {inst.status === 'paid' ? <><X className="h-3 w-3 me-1" />{t('markAsUnpaid')}</> : <><Check className="h-3 w-3 me-1" />{t('markAsPaid')}</>}
+                        </Button>
+                      </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
-          )}
+          );
+          })()}
         </DialogContent>
       </Dialog>
 
