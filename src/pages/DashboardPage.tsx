@@ -4,7 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, ShoppingCart, TrendingUp, DollarSign, Receipt, Scale, Calendar } from 'lucide-react';
+import { Users, ShoppingCart, TrendingUp, DollarSign, Receipt, Scale, Calendar, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { isBefore } from 'date-fns';
 
 export default function DashboardPage() {
   const { t } = useLang();
@@ -14,6 +16,7 @@ export default function DashboardPage() {
     totalCustomers: 0, activeContracts: 0, totalRevenue: 0, totalDue: 0, totalExpenses: 0, legalCases: 0,
   });
   const [contracts, setContracts] = useState<any[]>([]);
+  const [dueInstallments, setDueInstallments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
@@ -46,6 +49,35 @@ export default function DashboardPage() {
       const activeContracts = allContracts.filter((c: any) => c.status === 'ongoing').length;
       setStats({ totalCustomers: custRes.count || 0, activeContracts, totalRevenue, totalDue, totalExpenses, legalCases: legalRes.count || 0 });
       setContracts(allContracts.slice(0, 10));
+
+      // Extract due installments from all contracts
+      const today = new Date();
+      const allDue: any[] = [];
+      allContracts.forEach((c: any) => {
+        const schedule = c.installment_schedule || c.installments || [];
+        if (!Array.isArray(schedule)) return;
+        schedule.forEach((inst: any, idx: number) => {
+          if (inst.status !== 'paid') {
+            const dueDate = inst.due_date ? new Date(inst.due_date) : null;
+            const isOverdue = dueDate ? isBefore(dueDate, today) : false;
+            allDue.push({
+              contractNo: c.contract_no,
+              customerName: c.customer_name,
+              installmentNo: inst.month || (idx + 1),
+              dueDate: inst.due_date,
+              amount: inst.amount || 0,
+              isOverdue,
+            });
+          }
+        });
+      });
+      // Sort: overdue first, then by due date ascending
+      allDue.sort((a, b) => {
+        if (a.isOverdue && !b.isOverdue) return -1;
+        if (!a.isOverdue && b.isOverdue) return 1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
+      setDueInstallments(allDue);
     } catch (err) { console.error('Dashboard load error:', err); }
     setLoading(false);
   }
@@ -132,6 +164,80 @@ export default function DashboardPage() {
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Due Installments Section */}
+          <div>
+            <Card className="border-0 shadow-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    {t('dueInstallments')}
+                  </CardTitle>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="flex items-center gap-1 text-red-600">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {t('overdue')}: {dueInstallments.filter(d => d.isOverdue).length}
+                    </span>
+                    <span className="flex items-center gap-1 text-amber-600">
+                      <Clock className="h-3.5 w-3.5" />
+                      {t('upcoming')}: {dueInstallments.filter(d => !d.isOverdue).length}
+                    </span>
+                    <span className="flex items-center gap-1 text-slate-600">
+                      {t('total')}: {dueInstallments.reduce((s, d) => s + d.amount, 0).toLocaleString()} {t('kd')}
+                    </span>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="text-start py-2 px-3 font-medium text-slate-600">#</th>
+                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('contractNo')}</th>
+                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('customerName')}</th>
+                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('installmentNo')}</th>
+                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('dueDate')}</th>
+                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('amount')}</th>
+                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('status')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dueInstallments.length === 0 ? (
+                        <tr><td colSpan={7} className="py-8 text-center text-slate-400">
+                          <div className="flex flex-col items-center gap-2">
+                            <CheckCircle className="h-8 w-8 text-green-400" />
+                            <span>{t('noDueInstallments')}</span>
+                          </div>
+                        </td></tr>
+                      ) : dueInstallments.map((d, i) => (
+                        <tr key={i} className={`border-b border-slate-100 ${d.isOverdue ? 'bg-red-50/50' : 'hover:bg-blue-50/50'}`}>
+                          <td className="py-2 px-3 text-slate-400">{i + 1}</td>
+                          <td className="py-2 px-3 font-medium text-blue-600">{d.contractNo}</td>
+                          <td className="py-2 px-3">{d.customerName}</td>
+                          <td className="py-2 px-3">{d.installmentNo}</td>
+                          <td className="py-2 px-3">{d.dueDate}</td>
+                          <td className="py-2 px-3 font-medium">{d.amount.toLocaleString()} {t('kd')}</td>
+                          <td className="py-2 px-3">
+                            {d.isOverdue ? (
+                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100" variant="secondary">
+                                <AlertTriangle className="h-3 w-3 mr-1" /> {t('overdue')}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100" variant="secondary">
+                                <Clock className="h-3 w-3 mr-1" /> {t('upcoming')}
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

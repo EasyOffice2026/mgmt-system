@@ -311,4 +311,7 @@ export const en = {
   totalPaidAmount: 'Total Paid',
   totalPendingAmount: 'Total Pending',
   installmentDetails: 'Installment Details',
+  dueInstallments: 'Due Installments',
+  upcoming: 'Upcoming',
+  noDueInstallments: 'All installments are paid! No dues pending.',
 } as const;

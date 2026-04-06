@@ -285,4 +285,7 @@ export const ar = {
   totalPaidAmount: 'إجمالي المدفوع',
   totalPendingAmount: 'إجمالي المعلق',
   installmentDetails: 'تفاصيل الأقساط',
+  dueInstallments: 'الأقساط المستحقة',
+  upcoming: 'قادم',
+  noDueInstallments: 'جميع الأقساط مدفوعة! لا توجد مستحقات.',
 } as const;
