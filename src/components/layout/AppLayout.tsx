@@ -5,7 +5,7 @@ import { useLang } from '@/contexts/LangContext';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard, Users, ShoppingCart, Package, Warehouse,
-  Scale, Receipt, FileText, Calculator, Settings, LogOut,
+  Scale, Receipt, FileText, Calculator, TrendingUp, Settings, LogOut,
   Menu, X, Globe, ChevronRight
 } from 'lucide-react';
 
@@ -18,6 +18,7 @@ const navItems = [
   { key: 'legalCases', icon: Scale, path: '/legal-cases' },
   { key: 'expenses', icon: Receipt, path: '/expenses' },
   { key: 'receipts', icon: FileText, path: '/receipts' },
+  { key: 'revenueRecognition', icon: TrendingUp, path: '/revenue-recognition' },
   { key: 'accounting', icon: Calculator, path: '/accounting' },
   { key: 'users', icon: Settings, path: '/users' },
 ] as const;
@@ -39,7 +40,7 @@ export function AppLayout() {
       {/* Logo / Brand */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-700">
         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
-          MS
+          AB
         </div>
         {sidebarOpen && (
           <span className="text-white font-semibold text-sm tracking-tight">{t('appName')}</span>

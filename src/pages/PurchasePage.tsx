@@ -9,24 +9,17 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Package } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Package, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Purchase {
-  id: string;
-  purchase_date: string;
-  supplier_name: string;
-  invoice_no: string;
-  shop_location: string;
-  category: string;
-  item_name: string;
-  model_type: string;
-  purchase_price: number;
-  payment_mode: string;
-  status: string;
-  attachments: string[];
-  created_at: string;
+  id: string; purchase_date: string; supplier_name: string; invoice_no: string;
+  shop_location: string; category: string; item_name: string; model_type: string;
+  purchase_price: number; payment_mode: string; status: string; attachments: string[]; created_at: string;
 }
+
+const defaultCategories = ['Mobile', 'Car', 'Furniture', 'Electronics', 'Jewelry', 'Other'];
+const paymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 const defaultForm = {
   purchase_date: format(new Date(), 'yyyy-MM-dd'),
@@ -35,25 +28,58 @@ const defaultForm = {
   status: 'in_stock', attachments: [] as string[],
 };
 
-const categories = ['Mobile', 'Car', 'Furniture', 'Electronics', 'Jewelry', 'Other'];
-const paymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
-
 export default function PurchasePage() {
   const { t } = useLang();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [search, setSearch] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [showDialog, setShowDialog] = useState(false);
   const [editing, setEditing] = useState<Purchase | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<string[]>(defaultCategories);
+  const [supplierNames, setSupplierNames] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState('');
+  const [newSupplier, setNewSupplier] = useState('');
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [showNewSupplier, setShowNewSupplier] = useState(false);
 
-  useEffect(() => { loadPurchases(); }, []);
+  useEffect(() => { loadPurchases(); }, [fromDate, toDate]);
 
   async function loadPurchases() {
     setLoading(true);
-    const { data } = await supabase.from('purchases').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('purchases').select('*').order('created_at', { ascending: false });
+    if (fromDate) query = query.gte('purchase_date', fromDate);
+    if (toDate) query = query.lte('purchase_date', toDate);
+    const { data } = await query;
     setPurchases(data || []);
+    // Collect unique categories and supplier names
+    const cats = new Set(defaultCategories);
+    const sups = new Set<string>();
+    (data || []).forEach((p: any) => {
+      if (p.category) cats.add(p.category);
+      if (p.supplier_name) sups.add(p.supplier_name);
+    });
+    setCategories([...cats]);
+    setSupplierNames([...sups]);
     setLoading(false);
+  }
+
+  function addNewCategory() {
+    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
+      setCategories([...categories, newCategory.trim()]);
+      setForm({ ...form, category: newCategory.trim() });
+    }
+    setNewCategory(''); setShowNewCategory(false);
+  }
+
+  function addNewSupplier() {
+    if (newSupplier.trim() && !supplierNames.includes(newSupplier.trim())) {
+      setSupplierNames([...supplierNames, newSupplier.trim()]);
+      setForm({ ...form, supplier_name: newSupplier.trim() });
+    }
+    setNewSupplier(''); setShowNewSupplier(false);
   }
 
   async function handleSave() {
@@ -62,10 +88,7 @@ export default function PurchasePage() {
     } else {
       await supabase.from('purchases').insert(form);
     }
-    setShowDialog(false);
-    setForm(defaultForm);
-    setEditing(null);
-    loadPurchases();
+    setShowDialog(false); setForm(defaultForm); setEditing(null); loadPurchases();
   }
 
   async function handleDelete(id: string) {
@@ -109,9 +132,17 @@ export default function PurchasePage() {
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-slate-400" />
+          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <span className="text-slate-400">-</span>
+          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+        </div>
       </div>
 
       <Card className="border-0 shadow-md">
@@ -120,8 +151,7 @@ export default function PurchasePage() {
             <div className="py-20 text-center text-slate-400">{t('loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="py-20 text-center text-slate-400">
-              <Package className="h-12 w-12 mx-auto mb-3" />
-              <p className="text-lg font-medium">{t('noData')}</p>
+              <Package className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -180,7 +210,19 @@ export default function PurchasePage() {
               </div>
               <div>
                 <Label>{t('supplierName')} *</Label>
-                <Input value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })} />
+                <div className="flex gap-2">
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })}>
+                    <option value="">Select or type</option>
+                    {supplierNames.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setShowNewSupplier(true)}><Plus className="h-3 w-3" /></Button>
+                </div>
+                {showNewSupplier && (
+                  <div className="flex gap-2 mt-2">
+                    <Input placeholder={t('newSupplierName')} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} className="h-8 text-sm" />
+                    <Button size="sm" onClick={addNewSupplier} className="h-8">{t('add')}</Button>
+                  </div>
+                )}
               </div>
               <div>
                 <Label>{t('invoiceNo')}</Label>
@@ -192,10 +234,19 @@ export default function PurchasePage() {
               </div>
               <div>
                 <Label>{t('category')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                  <option value="">Select</option>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <div className="flex gap-2">
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                    <option value="">Select</option>
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setShowNewCategory(true)}><Plus className="h-3 w-3" /></Button>
+                </div>
+                {showNewCategory && (
+                  <div className="flex gap-2 mt-2">
+                    <Input placeholder={t('newCategory')} value={newCategory} onChange={e => setNewCategory(e.target.value)} className="h-8 text-sm" />
+                    <Button size="sm" onClick={addNewCategory} className="h-8">{t('add')}</Button>
+                  </div>
+                )}
               </div>
               <div>
                 <Label>{t('itemName')} *</Label>
@@ -216,9 +267,7 @@ export default function PurchasePage() {
                 </select>
               </div>
             </div>
-
             <FileAttachment bucket="purchases" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
-
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button variant="outline" onClick={() => setShowDialog(false)}>{t('cancel')}</Button>
               <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-indigo-600">{t('save')}</Button>

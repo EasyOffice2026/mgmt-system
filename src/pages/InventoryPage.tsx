@@ -5,39 +5,43 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
-import { Search, Warehouse } from 'lucide-react';
+import { Search, Warehouse, Calendar } from 'lucide-react';
 
 interface InventoryItem {
-  id: string;
-  item_name: string;
-  model_type: string;
-  category: string;
-  purchase_price: number;
-  supplier_name: string;
-  purchase_date: string;
-  status: string;
+  id: string; item_name: string; model_type: string; category: string;
+  purchase_price: number; supplier_name: string; purchase_date: string; status: string;
 }
 
 export default function InventoryPage() {
   const { t } = useLang();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadInventory(); }, []);
+  useEffect(() => { loadInventory(); }, [fromDate, toDate]);
 
   async function loadInventory() {
     setLoading(true);
-    const { data } = await supabase.from('purchases').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('purchases').select('*').order('created_at', { ascending: false });
+    if (fromDate) query = query.gte('purchase_date', fromDate);
+    if (toDate) query = query.lte('purchase_date', toDate);
+    const { data } = await query;
     setItems(data || []);
     setLoading(false);
   }
 
-  const filtered = items.filter(i =>
-    i.item_name?.toLowerCase().includes(search.toLowerCase()) ||
-    i.category?.toLowerCase().includes(search.toLowerCase()) ||
-    i.supplier_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const categories = [...new Set(items.map(i => i.category).filter(Boolean))];
+
+  const filtered = items.filter(i => {
+    const matchSearch = i.item_name?.toLowerCase().includes(search.toLowerCase()) ||
+      i.category?.toLowerCase().includes(search.toLowerCase()) ||
+      i.supplier_name?.toLowerCase().includes(search.toLowerCase());
+    const matchCategory = !categoryFilter || i.category === categoryFilter;
+    return matchSearch && matchCategory;
+  });
 
   const inStock = filtered.filter(i => i.status === 'in_stock').length;
   const soldCount = filtered.filter(i => i.status === 'sold').length;
@@ -50,35 +54,32 @@ export default function InventoryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('inventory')}</h1>
-          <p className="text-slate-500 text-sm">{inStock} {t('inStock')} · {soldCount} {t('sold')}</p>
+          <p className="text-slate-500 text-sm">{inStock} {t('inStock')} &middot; {soldCount} {t('sold')}</p>
         </div>
         <DataExport title={t('inventory')} headers={exportHeaders} rows={exportRows} filename="inventory" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-0 shadow-md">
-          <CardContent className="p-5">
-            <p className="text-sm text-slate-500">{t('total')}</p>
-            <p className="text-2xl font-bold">{filtered.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-md">
-          <CardContent className="p-5">
-            <p className="text-sm text-slate-500">{t('inStock')}</p>
-            <p className="text-2xl font-bold text-green-600">{inStock}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-md">
-          <CardContent className="p-5">
-            <p className="text-sm text-slate-500">{t('sold')}</p>
-            <p className="text-2xl font-bold text-slate-500">{soldCount}</p>
-          </CardContent>
-        </Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('total')}</p><p className="text-2xl font-bold">{filtered.length}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('inStock')}</p><p className="text-2xl font-bold text-green-600">{inStock}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('sold')}</p><p className="text-2xl font-bold text-slate-500">{soldCount}</p></CardContent></Card>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+        </div>
+        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-40" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+          <option value="">{t('allCategories')}</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-slate-400" />
+          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <span className="text-slate-400">-</span>
+          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+        </div>
       </div>
 
       <Card className="border-0 shadow-md">
@@ -87,8 +88,7 @@ export default function InventoryPage() {
             <div className="py-20 text-center text-slate-400">{t('loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="py-20 text-center text-slate-400">
-              <Warehouse className="h-12 w-12 mx-auto mb-3" />
-              <p className="text-lg font-medium">{t('noData')}</p>
+              <Warehouse className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

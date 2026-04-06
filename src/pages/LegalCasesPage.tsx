@@ -8,70 +8,64 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Scale } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Scale, Calendar } from 'lucide-react';
 
 interface LegalCase {
-  id: string;
-  legal_case_no: string;
-  customer_id: string;
-  customer_name: string;
-  contract_id: string;
-  contract_no: string;
-  case_no: string;
-  purchase_price: number;
-  original_amount: number;
-  remaining_from_customer: number;
-  case_amount: number;
-  rcvd_from_customer: number;
-  rcvd_from_court: number;
-  excess_amount: number;
-  attachments: string[];
-  created_at: string;
+  id: string; legal_case_no: string; customer_id: string; customer_name: string;
+  contract_id: string; contract_no: string; case_no: string; purchase_price: number;
+  original_amount: number; remaining_from_customer: number; case_amount: number;
+  rcvd_from_customer: number; rcvd_from_court: number; balance_amount: number;
+  case_date: string; court_fees: number; attachments: string[]; created_at: string;
 }
 
 interface Contract {
-  id: string;
-  contract_no: string;
-  customer_id: string;
-  customer_name: string;
-  sale_price: number;
-  remaining_amount: number;
-  purchase_price: number;
-  status: string;
+  id: string; contract_no: string; customer_id: string; customer_name: string;
+  sale_price: number; remaining_amount: number; purchase_price: number; status: string;
 }
 
 const defaultForm = {
   customer_id: '', contract_id: '', case_no: '', purchase_price: 0,
   original_amount: 0, remaining_from_customer: 0, case_amount: 0,
-  rcvd_from_customer: 0, rcvd_from_court: 0, attachments: [] as string[],
+  rcvd_from_customer: 0, rcvd_from_court: 0, case_date: '', attachments: [] as string[],
 };
 
 export default function LegalCasesPage() {
   const { t } = useLang();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [showDialog, setShowDialog] = useState(false);
   const [editing, setEditing] = useState<LegalCase | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [fromDate, toDate]);
 
   async function loadData() {
     setLoading(true);
-    const [casesRes, contractsRes] = await Promise.all([
-      supabase.from('legal_cases').select('*').order('created_at', { ascending: false }),
+    let casesQuery = supabase.from('legal_cases').select('*').order('created_at', { ascending: false });
+    if (fromDate) casesQuery = casesQuery.gte('created_at', fromDate);
+    if (toDate) casesQuery = casesQuery.lte('created_at', toDate + 'T23:59:59');
+    const [casesRes, contractsRes, expRes] = await Promise.all([
+      casesQuery,
       supabase.from('contracts').select('*').eq('status', 'legal_case'),
+      supabase.from('expenses').select('amount, case_no, expense_type').in('expense_type', ['courtFees']),
     ]);
     setCases(casesRes.data || []);
     setContracts(contractsRes.data || []);
+    setExpenses(expRes.data || []);
     setLoading(false);
   }
 
-  function calculateExcess() {
-    const excess = (form.rcvd_from_court + form.rcvd_from_customer) - form.remaining_from_customer;
-    return Math.max(0, excess);
+  function getCourtFees(caseNo: string) {
+    return expenses.filter(e => e.case_no === caseNo).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+  }
+
+  function calculateBalance() {
+    return Math.max(0, (form.rcvd_from_court + form.rcvd_from_customer) - form.remaining_from_customer);
   }
 
   async function handleSave() {
@@ -79,28 +73,20 @@ export default function LegalCasesPage() {
     const data = {
       customer_id: form.customer_id || contract?.customer_id || '',
       customer_name: contract?.customer_name || '',
-      contract_id: form.contract_id,
-      contract_no: contract?.contract_no || '',
-      case_no: form.case_no,
-      purchase_price: form.purchase_price || contract?.purchase_price || 0,
+      contract_id: form.contract_id, contract_no: contract?.contract_no || '',
+      case_no: form.case_no, purchase_price: form.purchase_price || contract?.purchase_price || 0,
       original_amount: form.original_amount || contract?.sale_price || 0,
       remaining_from_customer: form.remaining_from_customer || contract?.remaining_amount || 0,
-      case_amount: form.case_amount,
-      rcvd_from_customer: form.rcvd_from_customer,
-      rcvd_from_court: form.rcvd_from_court,
-      excess_amount: calculateExcess(),
-      attachments: form.attachments,
+      case_amount: form.case_amount, rcvd_from_customer: form.rcvd_from_customer,
+      rcvd_from_court: form.rcvd_from_court, balance_amount: calculateBalance(),
+      case_date: form.case_date, attachments: form.attachments,
     };
-
     if (editing) {
       await supabase.from('legal_cases').update(data).eq('id', editing.id);
     } else {
       await supabase.from('legal_cases').insert(data);
     }
-    setShowDialog(false);
-    setForm(defaultForm);
-    setEditing(null);
-    loadData();
+    setShowDialog(false); setForm(defaultForm); setEditing(null); loadData();
   }
 
   async function handleDelete(id: string) {
@@ -116,7 +102,7 @@ export default function LegalCasesPage() {
       purchase_price: c.purchase_price, original_amount: c.original_amount,
       remaining_from_customer: c.remaining_from_customer, case_amount: c.case_amount,
       rcvd_from_customer: c.rcvd_from_customer, rcvd_from_court: c.rcvd_from_court,
-      attachments: c.attachments || [],
+      case_date: c.case_date || '', attachments: c.attachments || [],
     });
     setShowDialog(true);
   }
@@ -127,15 +113,24 @@ export default function LegalCasesPage() {
     c.case_no?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const exportHeaders = [t('legalCaseNo'), t('customerName'), t('contractNo'), t('caseNo'), t('originalAmount'), t('remainingFromCustomer'), t('caseAmount'), t('rcvdFromCustomer'), t('rcvdFromCourt'), t('excessAmount')];
-  const exportRows = filtered.map(c => [c.legal_case_no, c.customer_name, c.contract_no, c.case_no, c.original_amount, c.remaining_from_customer, c.case_amount, c.rcvd_from_customer, c.rcvd_from_court, c.excess_amount]);
+  const totalCases = filtered.length;
+  const totalClaimed = filtered.reduce((s, c) => s + (c.case_amount || 0), 0);
+  const totalActual = filtered.reduce((s, c) => s + (c.original_amount || 0), 0);
+  const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0) + (c.rcvd_from_customer || 0), 0);
+
+  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('courtFees'), t('receivedAmount'), t('outstanding'), t('caseDate')];
+  const exportRows = filtered.map(c => {
+    const cf = getCourtFees(c.case_no);
+    const rcvd = (c.rcvd_from_customer || 0) + (c.rcvd_from_court || 0);
+    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, cf, rcvd, c.case_amount - rcvd, c.case_date];
+  });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('legalCases')}</h1>
-          <p className="text-slate-500 text-sm">{filtered.length} cases</p>
+          <p className="text-slate-500 text-sm">{totalCases} cases</p>
         </div>
         <div className="flex items-center gap-3">
           <DataExport title={t('legalCases')} headers={exportHeaders} rows={exportRows} filename="legal-cases" />
@@ -145,9 +140,25 @@ export default function LegalCasesPage() {
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+      {/* KPI Dashboard */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalCases')}</p><p className="text-xl font-bold text-blue-600">{totalCases}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalClaimedAmount')}</p><p className="text-xl font-bold text-amber-600">{totalClaimed.toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('actualAmount')}</p><p className="text-xl font-bold text-slate-700">{totalActual.toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('amountRecovered')}</p><p className="text-xl font-bold text-green-600">{totalRecovered.toLocaleString()} {t('kd')}</p></CardContent></Card>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-slate-400" />
+          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <span className="text-slate-400">-</span>
+          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+        </div>
       </div>
 
       <Card className="border-0 shadow-md">
@@ -156,44 +167,48 @@ export default function LegalCasesPage() {
             <div className="py-20 text-center text-slate-400">{t('loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="py-20 text-center text-slate-400">
-              <Scale className="h-12 w-12 mx-auto mb-3" />
-              <p className="text-lg font-medium">{t('noData')}</p>
+              <Scale className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('legalCaseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customerName')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseNo')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('originalAmount')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('remainingFromCustomer')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('rcvdFromCourt')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('excessAmount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actualAmount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('claimedAmount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtFees')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('outstanding')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseDate')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => (
-                    <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
-                      <td className="py-3 px-4 font-medium text-blue-600">{c.legal_case_no}</td>
-                      <td className="py-3 px-4">{c.customer_name}</td>
-                      <td className="py-3 px-4">{c.contract_no}</td>
-                      <td className="py-3 px-4">{c.case_no}</td>
-                      <td className="py-3 px-4">{c.original_amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4 text-red-600">{c.remaining_from_customer?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4 text-green-600">{c.rcvd_from_court?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4 font-medium">{c.excess_amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(c)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map(c => {
+                    const cf = getCourtFees(c.case_no);
+                    const rcvd = (c.rcvd_from_customer || 0) + (c.rcvd_from_court || 0);
+                    const outstanding = (c.case_amount || 0) - rcvd;
+                    return (
+                      <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
+                        <td className="py-3 px-4 font-medium">{c.customer_name}</td>
+                        <td className="py-3 px-4 text-blue-600">{c.case_no}</td>
+                        <td className="py-3 px-4">{c.original_amount?.toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4">{c.case_amount?.toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4 text-red-600">{cf.toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4 text-green-600">{rcvd.toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4 font-medium">{outstanding.toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4">{c.case_date}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(c)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -212,11 +227,7 @@ export default function LegalCasesPage() {
                 <Label>{t('contractNo')} *</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => {
                   const contract = contracts.find(c => c.id === e.target.value);
-                  setForm({
-                    ...form, contract_id: e.target.value, customer_id: contract?.customer_id || '',
-                    purchase_price: contract?.purchase_price || 0, original_amount: contract?.sale_price || 0,
-                    remaining_from_customer: contract?.remaining_amount || 0,
-                  });
+                  setForm({ ...form, contract_id: e.target.value, customer_id: contract?.customer_id || '', purchase_price: contract?.purchase_price || 0, original_amount: contract?.sale_price || 0, remaining_from_customer: contract?.remaining_amount || 0 });
                 }}>
                   <option value="">Select Contract</option>
                   {contracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
@@ -225,6 +236,10 @@ export default function LegalCasesPage() {
               <div>
                 <Label>{t('caseNo')} *</Label>
                 <Input value={form.case_no} onChange={e => setForm({ ...form, case_no: e.target.value })} />
+              </div>
+              <div>
+                <Label>{t('caseDate')}</Label>
+                <Input type="date" value={form.case_date} onChange={e => setForm({ ...form, case_date: e.target.value })} />
               </div>
               <div>
                 <Label>{t('purchasePrice')}</Label>
@@ -251,15 +266,12 @@ export default function LegalCasesPage() {
                 <Input type="number" value={form.rcvd_from_court} onChange={e => setForm({ ...form, rcvd_from_court: Number(e.target.value) })} />
               </div>
             </div>
-
             <div className="bg-blue-50 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-1">{t('excessAmount')}</h4>
-              <p className="text-2xl font-bold text-blue-700">{calculateExcess().toLocaleString()} {t('kd')}</p>
+              <h4 className="font-medium text-blue-900 mb-1">{t('balanceAmount')}</h4>
+              <p className="text-2xl font-bold text-blue-700">{calculateBalance().toLocaleString()} {t('kd')}</p>
               <p className="text-xs text-blue-600 mt-1">({t('rcvdFromCourt')} + {t('rcvdFromCustomer')}) - {t('remainingFromCustomer')}</p>
             </div>
-
             <FileAttachment bucket="legal" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
-
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button variant="outline" onClick={() => setShowDialog(false)}>{t('cancel')}</Button>
               <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-indigo-600">{t('save')}</Button>

@@ -10,28 +10,19 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, FileText } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ReceiptVoucher {
-  id: string;
-  receipt_voucher_no: string;
-  receipt_date: string;
-  receipt_type: string;
-  customer_id: string;
-  customer_name: string;
-  contract_id: string;
-  contract_no: string;
-  court_case_no: string;
-  received_amount: number;
-  payment_mode: string;
-  notes: string;
-  attachments: string[];
-  created_at: string;
+  id: string; receipt_voucher_no: string; receipt_date: string; receipt_type: string;
+  customer_id: string; customer_name: string; contract_id: string; contract_no: string;
+  court_case_no: string; received_amount: number; payment_mode: string;
+  notes: string; attachments: string[]; created_at: string;
 }
 
 interface Customer { id: string; customer_no: string; name: string; }
 interface Contract { id: string; contract_no: string; customer_name: string; customer_id: string; }
+interface LegalCase { id: string; case_no: string; customer_id: string; customer_name: string; case_amount: number; rcvd_from_court: number; }
 
 const defaultForm = {
   receipt_date: format(new Date(), 'yyyy-MM-dd'),
@@ -47,65 +38,78 @@ export default function ReceiptsPage() {
   const { t } = useLang();
   const [receipts, setReceipts] = useState<ReceiptVoucher[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [allContracts, setAllContracts] = useState<Contract[]>([]);
+  const [legalCases, setLegalCases] = useState<LegalCase[]>([]);
   const [search, setSearch] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [showDialog, setShowDialog] = useState(false);
+  const [showCaseReceipts, setShowCaseReceipts] = useState<string | null>(null);
   const [editing, setEditing] = useState<ReceiptVoucher | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [fromDate, toDate]);
 
   async function loadData() {
     setLoading(true);
-    const [recRes, custRes, contRes] = await Promise.all([
-      supabase.from('receipt_vouchers').select('*').order('created_at', { ascending: false }),
+    let recQuery = supabase.from('receipt_vouchers').select('*').order('created_at', { ascending: false });
+    if (fromDate) recQuery = recQuery.gte('receipt_date', fromDate);
+    if (toDate) recQuery = recQuery.lte('receipt_date', toDate);
+    const [recRes, custRes, contRes, legalRes] = await Promise.all([
+      recQuery,
       supabase.from('customers').select('id, customer_no, name'),
       supabase.from('contracts').select('id, contract_no, customer_name, customer_id'),
+      supabase.from('legal_cases').select('id, case_no, customer_id, customer_name, case_amount, rcvd_from_court'),
     ]);
     setReceipts(recRes.data || []);
     setCustomers(custRes.data || []);
-    setContracts(contRes.data || []);
+    setAllContracts(contRes.data || []);
+    setLegalCases(legalRes.data || []);
     setLoading(false);
   }
 
+  // Filter contracts by selected customer
+  const filteredContracts = form.customer_id
+    ? allContracts.filter(c => c.customer_id === form.customer_id)
+    : allContracts;
+
+  // Filter legal cases by selected customer
+  const filteredCases = form.customer_id
+    ? legalCases.filter(lc => lc.customer_id === form.customer_id)
+    : legalCases;
+
   async function handleSave() {
     const customer = customers.find(c => c.id === form.customer_id);
-    const contract = contracts.find(c => c.id === form.contract_id);
+    const contract = allContracts.find(c => c.id === form.contract_id);
     const data = {
-      receipt_date: form.receipt_date,
-      receipt_type: form.receipt_type,
-      customer_id: form.customer_id || null,
-      customer_name: customer?.name || '',
-      contract_id: form.contract_id || null,
-      contract_no: contract?.contract_no || '',
-      court_case_no: form.court_case_no,
-      received_amount: form.received_amount,
-      payment_mode: form.payment_mode,
-      notes: form.notes,
-      attachments: form.attachments,
+      receipt_date: form.receipt_date, receipt_type: form.receipt_type,
+      customer_id: form.customer_id || null, customer_name: customer?.name || '',
+      contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
+      court_case_no: form.court_case_no, received_amount: form.received_amount,
+      payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
     };
-
     if (editing) {
       await supabase.from('receipt_vouchers').update(data).eq('id', editing.id);
     } else {
       await supabase.from('receipt_vouchers').insert(data);
-      // Update contract paid amount if linked to a contract
+      // Update contract paid amount if installment
       if (form.contract_id && form.receipt_type === 'installment') {
         const { data: contractData } = await supabase.from('contracts').select('paid_amount, sale_price').eq('id', form.contract_id).single();
         if (contractData) {
           const newPaid = (contractData.paid_amount || 0) + form.received_amount;
-          await supabase.from('contracts').update({
-            paid_amount: newPaid,
-            remaining_amount: contractData.sale_price - newPaid,
-          }).eq('id', form.contract_id);
+          await supabase.from('contracts').update({ paid_amount: newPaid, remaining_amount: contractData.sale_price - newPaid }).eq('id', form.contract_id);
+        }
+      }
+      // Update legal case rcvd amounts if court money
+      if (form.court_case_no && form.receipt_type === 'courtMoney') {
+        const lc = legalCases.find(l => l.case_no === form.court_case_no);
+        if (lc) {
+          await supabase.from('legal_cases').update({ rcvd_from_court: (lc.rcvd_from_court || 0) + form.received_amount }).eq('id', lc.id);
         }
       }
     }
-    setShowDialog(false);
-    setForm(defaultForm);
-    setEditing(null);
-    loadData();
+    setShowDialog(false); setForm(defaultForm); setEditing(null); loadData();
   }
 
   async function handleDelete(id: string) {
@@ -128,20 +132,26 @@ export default function ReceiptsPage() {
   const filtered = receipts.filter(r =>
     r.receipt_voucher_no?.toLowerCase().includes(search.toLowerCase()) ||
     r.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
-    r.contract_no?.toLowerCase().includes(search.toLowerCase())
+    r.contract_no?.toLowerCase().includes(search.toLowerCase()) ||
+    r.court_case_no?.toLowerCase().includes(search.toLowerCase())
   );
 
   const totalReceived = filtered.reduce((sum, r) => sum + (r.received_amount || 0), 0);
 
-  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('customerName'), t('contractNo'), t('receivedAmount'), t('paymentMode')];
-  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.customer_name, r.contract_no, r.received_amount, r.payment_mode]);
+  // Group receipts by case for court installment schedule view
+  function getCaseReceipts(caseNo: string) {
+    return receipts.filter(r => r.court_case_no === caseNo).sort((a, b) => a.receipt_date.localeCompare(b.receipt_date));
+  }
+
+  function getCaseInfo(caseNo: string) {
+    return legalCases.find(lc => lc.case_no === caseNo);
+  }
+
+  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('customerName'), t('contractNo'), t('courtCaseNo'), t('receivedAmount'), t('paymentMode')];
+  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.customer_name, r.contract_no, r.court_case_no, r.received_amount, r.payment_mode]);
 
   const typeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      fileOpening: 'bg-blue-100 text-blue-700',
-      installment: 'bg-green-100 text-green-700',
-      courtMoney: 'bg-purple-100 text-purple-700',
-    };
+    const colors: Record<string, string> = { fileOpening: 'bg-blue-100 text-blue-700', installment: 'bg-green-100 text-green-700', courtMoney: 'bg-purple-100 text-purple-700' };
     return colors[type] || 'bg-gray-100 text-gray-700';
   };
 
@@ -160,9 +170,17 @@ export default function ReceiptsPage() {
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-slate-400" />
+          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <span className="text-slate-400">-</span>
+          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+        </div>
       </div>
 
       <Card className="border-0 shadow-md">
@@ -171,8 +189,7 @@ export default function ReceiptsPage() {
             <div className="py-20 text-center text-slate-400">{t('loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="py-20 text-center text-slate-400">
-              <FileText className="h-12 w-12 mx-auto mb-3" />
-              <p className="text-lg font-medium">{t('noData')}</p>
+              <FileText className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -184,8 +201,8 @@ export default function ReceiptsPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptType')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customerName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtCaseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('paymentMode')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
@@ -194,13 +211,15 @@ export default function ReceiptsPage() {
                     <tr key={r.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600">{r.receipt_voucher_no}</td>
                       <td className="py-3 px-4">{r.receipt_date}</td>
-                      <td className="py-3 px-4">
-                        <Badge className={typeColor(r.receipt_type)} variant="secondary">{t(r.receipt_type as keyof typeof t)}</Badge>
-                      </td>
+                      <td className="py-3 px-4"><Badge className={typeColor(r.receipt_type)} variant="secondary">{r.receipt_type}</Badge></td>
                       <td className="py-3 px-4">{r.customer_name}</td>
                       <td className="py-3 px-4">{r.contract_no}</td>
+                      <td className="py-3 px-4">
+                        {r.court_case_no && (
+                          <span className="text-purple-600 cursor-pointer underline" onClick={() => setShowCaseReceipts(r.court_case_no)}>{r.court_case_no}</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 font-medium text-green-600">{r.received_amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4">{r.payment_mode}</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
@@ -216,6 +235,54 @@ export default function ReceiptsPage() {
         </CardContent>
       </Card>
 
+      {/* Court Case Receipts / Installment Schedule */}
+      <Dialog open={!!showCaseReceipts} onOpenChange={() => setShowCaseReceipts(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('courtInstallmentSchedule')} - {showCaseReceipts}</DialogTitle>
+          </DialogHeader>
+          {showCaseReceipts && (() => {
+            const caseInfo = getCaseInfo(showCaseReceipts);
+            const caseRcpts = getCaseReceipts(showCaseReceipts);
+            const totalRcvd = caseRcpts.reduce((s, r) => s + (r.received_amount || 0), 0);
+            const balance = (caseInfo?.case_amount || 0) - totalRcvd;
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="bg-blue-50 rounded-lg p-3"><p className="text-blue-600 text-xs">{t('caseAmount')}</p><p className="font-bold">{caseInfo?.case_amount?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-green-50 rounded-lg p-3"><p className="text-green-600 text-xs">{t('totalReceived')}</p><p className="font-bold text-green-700">{totalRcvd.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-amber-50 rounded-lg p-3"><p className="text-amber-600 text-xs">{t('balanceAmount')}</p><p className="font-bold text-amber-700">{balance.toLocaleString()} {t('kd')}</p></div>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-slate-50">
+                      <th className="text-start py-2 px-3">#</th>
+                      <th className="text-start py-2 px-3">{t('receiptDate')}</th>
+                      <th className="text-start py-2 px-3">{t('receivedAmount')}</th>
+                      <th className="text-start py-2 px-3">{t('balanceAmount')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {caseRcpts.map((r, i) => {
+                      const running = (caseInfo?.case_amount || 0) - caseRcpts.slice(0, i + 1).reduce((s, x) => s + (x.received_amount || 0), 0);
+                      return (
+                        <tr key={r.id} className="border-b border-slate-100">
+                          <td className="py-2 px-3">{i + 1}</td>
+                          <td className="py-2 px-3">{r.receipt_date}</td>
+                          <td className="py-2 px-3 text-green-600">{r.received_amount?.toLocaleString()} {t('kd')}</td>
+                          <td className="py-2 px-3">{running.toLocaleString()} {t('kd')}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Receipt Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -230,30 +297,30 @@ export default function ReceiptsPage() {
               <div>
                 <Label>{t('receiptType')} *</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.receipt_type} onChange={e => setForm({ ...form, receipt_type: e.target.value })}>
-                  {receiptTypes.map(rt => <option key={rt} value={rt}>{t(rt as keyof typeof t)}</option>)}
+                  {receiptTypes.map(rt => <option key={rt} value={rt}>{rt}</option>)}
                 </select>
               </div>
               <div>
                 <Label>{t('customer')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value, contract_id: '', court_case_no: '' })}>
                   <option value="">Select</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
                 </select>
               </div>
               <div>
                 <Label>{t('contractNo')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => {
-                  const contract = contracts.find(c => c.id === e.target.value);
-                  setForm({ ...form, contract_id: e.target.value, customer_id: contract?.customer_id || form.customer_id });
-                }}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value })}>
                   <option value="">Select</option>
-                  {contracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
+                  {filteredContracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
                 </select>
               </div>
-              {form.receipt_type === 'courtMoney' && (
+              {(form.receipt_type === 'courtMoney') && (
                 <div>
                   <Label>{t('courtCaseNo')}</Label>
-                  <Input value={form.court_case_no} onChange={e => setForm({ ...form, court_case_no: e.target.value })} />
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.court_case_no} onChange={e => setForm({ ...form, court_case_no: e.target.value })}>
+                    <option value="">Select</option>
+                    {filteredCases.map(lc => <option key={lc.id} value={lc.case_no}>{lc.case_no} - {lc.customer_name}</option>)}
+                  </select>
                 </div>
               )}
               <div>
@@ -271,9 +338,7 @@ export default function ReceiptsPage() {
               <Label>{t('notes')}</Label>
               <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
             </div>
-
             <FileAttachment bucket="receipts" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
-
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button variant="outline" onClick={() => setShowDialog(false)}>{t('cancel')}</Button>
               <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-indigo-600">{t('save')}</Button>

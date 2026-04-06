@@ -12,6 +12,7 @@ import LegalCasesPage from '@/pages/LegalCasesPage';
 import ExpensesPage from '@/pages/ExpensesPage';
 import ReceiptsPage from '@/pages/ReceiptsPage';
 import AccountingPage from '@/pages/AccountingPage';
+import RevenueRecognitionPage from '@/pages/RevenueRecognitionPage';
 import UsersPage from '@/pages/UsersPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4 animate-pulse">
-            MS
+            AB
           </div>
           <p className="text-slate-500">Loading...</p>
         </div>
@@ -53,6 +54,7 @@ export default function App() {
               <Route path="legal-cases" element={<LegalCasesPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="receipts" element={<ReceiptsPage />} />
+              <Route path="revenue-recognition" element={<RevenueRecognitionPage />} />
               <Route path="accounting" element={<AccountingPage />} />
               <Route path="users" element={<UsersPage />} />
             </Route>
