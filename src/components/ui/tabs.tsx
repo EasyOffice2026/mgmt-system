@@ -12,7 +12,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-oklch(0.967 0.001 286.375) p-1 text-oklch(0.552 0.016 285.938) dark:bg-oklch(0.274 0.006 286.033) dark:text-oklch(0.705 0.015 286.067)",
+      "inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 p-1 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
       className
     )}
     {...props}
@@ -27,7 +27,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-oklch(1 0 0) transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oklch(0.705 0.015 286.067) focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-oklch(1 0 0) data-[state=active]:text-oklch(0.141 0.005 285.823) data-[state=active]:shadow dark:ring-offset-oklch(0.141 0.005 285.823) dark:focus-visible:ring-oklch(0.552 0.016 285.938) dark:data-[state=active]:bg-oklch(0.141 0.005 285.823) dark:data-[state=active]:text-oklch(0.985 0 0)",
+      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow dark:ring-offset-gray-950 dark:focus-visible:ring-gray-500 dark:data-[state=active]:bg-gray-950 dark:data-[state=active]:text-gray-50",
       className
     )}
     {...props}
@@ -42,7 +42,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-2 ring-offset-oklch(1 0 0) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oklch(0.705 0.015 286.067) focus-visible:ring-offset-2 dark:ring-offset-oklch(0.141 0.005 285.823) dark:focus-visible:ring-oklch(0.552 0.016 285.938)",
+      "mt-2 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:ring-offset-gray-950 dark:focus-visible:ring-gray-500",
       className
     )}
     {...props}
