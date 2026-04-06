@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { Users, ShoppingCart, TrendingUp, DollarSign, Receipt, Scale, Calendar } from 'lucide-react';
@@ -15,7 +14,6 @@ export default function DashboardPage() {
     totalCustomers: 0, activeContracts: 0, totalRevenue: 0, totalDue: 0, totalExpenses: 0, legalCases: 0,
   });
   const [contracts, setContracts] = useState<any[]>([]);
-  const [contractsByStatus, setContractsByStatus] = useState({ ongoing: 0, finished: 0, legal_case: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
@@ -45,15 +43,9 @@ export default function DashboardPage() {
       const totalRevenue = (recRes.data || []).reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
       const totalDue = allContracts.reduce((s: number, c: any) => s + (c.remaining_amount || 0), 0);
       const totalExpenses = (expRes.data || []).reduce((s: number, e: any) => s + (e.amount || 0), 0);
-      const sc = { ongoing: 0, finished: 0, legal_case: 0 };
-      allContracts.forEach((c: any) => {
-        if (c.status === 'ongoing') sc.ongoing++;
-        else if (c.status === 'finished') sc.finished++;
-        else if (c.status === 'legal_case') sc.legal_case++;
-      });
-      setStats({ totalCustomers: custRes.count || 0, activeContracts: sc.ongoing, totalRevenue, totalDue, totalExpenses, legalCases: legalRes.count || 0 });
+      const activeContracts = allContracts.filter((c: any) => c.status === 'ongoing').length;
+      setStats({ totalCustomers: custRes.count || 0, activeContracts, totalRevenue, totalDue, totalExpenses, legalCases: legalRes.count || 0 });
       setContracts(allContracts.slice(0, 10));
-      setContractsByStatus(sc);
     } catch (err) { console.error('Dashboard load error:', err); }
     setLoading(false);
   }
@@ -66,8 +58,6 @@ export default function DashboardPage() {
     { title: t('totalExpenses'), value: `${stats.totalExpenses.toLocaleString()} ${t('kd')}`, icon: Receipt, color: 'from-red-500 to-red-600', tc: 'text-red-600' },
     { title: t('legalCases'), value: stats.legalCases, icon: Scale, color: 'from-purple-500 to-purple-600', tc: 'text-purple-600' },
   ];
-  const total = contractsByStatus.ongoing + contractsByStatus.finished + contractsByStatus.legal_case;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -104,30 +94,8 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div>
             <Card className="border-0 shadow-md">
-              <CardHeader><CardTitle className="text-base">{t('contractsByStatus')}</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { label: t('ongoing'), count: contractsByStatus.ongoing, color: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700' },
-                    { label: t('finished'), count: contractsByStatus.finished, color: 'bg-green-500', badge: 'bg-green-100 text-green-700' },
-                    { label: t('legalCase'), count: contractsByStatus.legal_case, color: 'bg-red-500', badge: 'bg-red-100 text-red-700' },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm text-slate-600">{item.label}</span>
-                        <Badge className={item.badge} variant="secondary">{item.count}</Badge>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2">
-                        <div className={`${item.color} h-2 rounded-full`} style={{ width: `${item.count / Math.max(1, total) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="lg:col-span-2 border-0 shadow-md">
               <CardHeader><CardTitle className="text-base">{t('recentContracts')}</CardTitle></CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
