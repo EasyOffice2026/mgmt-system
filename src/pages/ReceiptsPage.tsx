@@ -170,12 +170,32 @@ export default function ReceiptsPage() {
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
       installment_no: form.installment_no,
     };
+    // Helper to try insert/update, falling back without installment_no if column doesn't exist
+    async function tryUpsert(isEdit: boolean) {
+      if (isEdit) {
+        const { error } = await supabase.from('receipt_vouchers').update(data).eq('id', editing!.id);
+        if (error && error.message?.includes('installment_no')) {
+          const { installment_no, ...dataWithout } = data;
+          await supabase.from('receipt_vouchers').update(dataWithout).eq('id', editing!.id);
+        } else if (error) {
+          console.error('Receipt update error:', error);
+        }
+      } else {
+        const { error } = await supabase.from('receipt_vouchers').insert(data);
+        if (error && error.message?.includes('installment_no')) {
+          const { installment_no, ...dataWithout } = data;
+          await supabase.from('receipt_vouchers').insert(dataWithout);
+        } else if (error) {
+          console.error('Receipt insert error:', error);
+        }
+      }
+    }
     if (editing) {
       await reverseReceiptEffects(editing);
-      await supabase.from('receipt_vouchers').update(data).eq('id', editing.id);
+      await tryUpsert(true);
       await applyReceiptEffects(form);
     } else {
-      await supabase.from('receipt_vouchers').insert(data);
+      await tryUpsert(false);
       await applyReceiptEffects(form);
     }
     setShowDialog(false); setForm(defaultForm); setEditing(null); loadData();
