@@ -204,6 +204,8 @@ export const ar = {
   receivedAmount: 'المبلغ المستلم',
   addReceipt: 'إضافة سند قبض',
   editReceipt: 'تعديل سند قبض',
+  selectInstallment: 'اختر القسط',
+  allInstallmentsPaid: 'جميع الأقساط مدفوعة بالفعل لهذا العقد',
   monthlySummary: 'الملخص الشهري',
   totalSales: 'إجمالي المبيعات',
   totalPurchases: 'إجمالي المشتريات',

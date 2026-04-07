@@ -17,17 +17,27 @@ interface ReceiptVoucher {
   id: string; receipt_voucher_no: string; receipt_date: string; receipt_type: string;
   customer_id: string; customer_name: string; contract_id: string; contract_no: string;
   court_case_no: string; received_amount: number; payment_mode: string;
+  installment_no: number | null;
   notes: string; attachments: string[]; created_at: string;
 }
 
 interface Customer { id: string; customer_no: string; name: string; }
-interface Contract { id: string; contract_no: string; customer_name: string; customer_id: string; }
-interface LegalCase { id: string; case_no: string; customer_id: string; customer_name: string; case_amount: number; rcvd_from_court: number; }
+interface FullContract {
+  id: string; contract_no: string; customer_name: string; customer_id: string;
+  sale_price: number; paid_amount: number; remaining_amount: number;
+  installment_schedule: any[]; status: string;
+}
+interface LegalCase {
+  id: string; case_no: string; customer_id: string; customer_name: string;
+  case_amount: number; rcvd_from_court: number; rcvd_from_customer: number;
+  balance_amount: number; claimed_amount: number;
+}
 
 const defaultForm = {
   receipt_date: format(new Date(), 'yyyy-MM-dd'),
   receipt_type: 'installment', customer_id: '', contract_id: '',
   court_case_no: '', received_amount: 0, payment_mode: 'cash',
+  installment_no: null as number | null,
   notes: '', attachments: [] as string[],
 };
 
@@ -38,7 +48,7 @@ export default function ReceiptsPage() {
   const { t } = useLang();
   const [receipts, setReceipts] = useState<ReceiptVoucher[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [allContracts, setAllContracts] = useState<Contract[]>([]);
+  const [allContracts, setAllContracts] = useState<FullContract[]>([]);
   const [legalCases, setLegalCases] = useState<LegalCase[]>([]);
   const [search, setSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -59,8 +69,8 @@ export default function ReceiptsPage() {
     const [recRes, custRes, contRes, legalRes] = await Promise.all([
       recQuery,
       supabase.from('customers').select('id, customer_no, name'),
-      supabase.from('contracts').select('id, contract_no, customer_name, customer_id'),
-      supabase.from('legal_cases').select('id, case_no, customer_id, customer_name, case_amount, rcvd_from_court'),
+      supabase.from('contracts').select('id, contract_no, customer_name, customer_id, sale_price, paid_amount, remaining_amount, installment_schedule, status'),
+      supabase.from('legal_cases').select('id, case_no, customer_id, customer_name, case_amount, rcvd_from_court, rcvd_from_customer, balance_amount, claimed_amount'),
     ]);
     setReceipts(recRes.data || []);
     setCustomers(custRes.data || []);
@@ -79,41 +89,102 @@ export default function ReceiptsPage() {
     ? legalCases.filter(lc => lc.customer_id === form.customer_id)
     : legalCases;
 
+  // Get pending installments for selected contract
+  const selectedContract = allContracts.find(c => c.id === form.contract_id);
+  const pendingInstallments = selectedContract?.installment_schedule
+    ? (selectedContract.installment_schedule || [])
+        .map((inst: any, idx: number) => ({ ...inst, index: idx }))
+        .filter((inst: any) => inst.status !== 'paid')
+    : [];
+
+  // Apply effects of a receipt on contracts/legal cases
+  async function applyReceiptEffects(formData: typeof form) {
+    if (formData.contract_id && (formData.receipt_type === 'installment' || formData.receipt_type === 'fileOpening')) {
+      const { data: contractData } = await supabase.from('contracts')
+        .select('paid_amount, sale_price, installment_schedule, status')
+        .eq('id', formData.contract_id).single();
+      if (contractData) {
+        const schedule = [...(contractData.installment_schedule || [])];
+        if (formData.receipt_type === 'installment' && formData.installment_no !== null && formData.installment_no !== undefined) {
+          const instIdx = formData.installment_no;
+          if (schedule[instIdx] && schedule[instIdx].status !== 'paid') {
+            schedule[instIdx] = { ...schedule[instIdx], status: 'paid', paid_date: formData.receipt_date || format(new Date(), 'yyyy-MM-dd') };
+          }
+        }
+        const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+        const finalPaid = formData.receipt_type === 'fileOpening' ? schedulePaidTotal + formData.received_amount : schedulePaidTotal;
+        const finalRemaining = (contractData.sale_price || 0) - finalPaid;
+        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
+        await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: finalPaid, remaining_amount: finalRemaining, status: newStatus }).eq('id', formData.contract_id);
+      }
+    }
+    if (formData.court_case_no && formData.receipt_type === 'courtMoney') {
+      const lc = legalCases.find(l => l.case_no === formData.court_case_no);
+      if (lc) {
+        const newRcvd = (lc.rcvd_from_court || 0) + formData.received_amount;
+        const newBalance = (lc.claimed_amount || lc.case_amount || 0) - newRcvd;
+        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', lc.id);
+      }
+    }
+  }
+
+  // Reverse effects of a receipt (for edit/delete)
+  async function reverseReceiptEffects(receipt: ReceiptVoucher) {
+    if (receipt.contract_id && (receipt.receipt_type === 'installment' || receipt.receipt_type === 'fileOpening')) {
+      const { data: contractData } = await supabase.from('contracts')
+        .select('paid_amount, sale_price, installment_schedule, status')
+        .eq('id', receipt.contract_id).single();
+      if (contractData) {
+        const schedule = [...(contractData.installment_schedule || [])];
+        if (receipt.receipt_type === 'installment' && receipt.installment_no !== null && receipt.installment_no !== undefined) {
+          const instIdx = receipt.installment_no;
+          if (schedule[instIdx] && schedule[instIdx].status === 'paid') {
+            schedule[instIdx] = { ...schedule[instIdx], status: 'pending', paid_date: null };
+          }
+        }
+        const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+        const finalPaid = receipt.receipt_type === 'fileOpening' ? Math.max(0, schedulePaidTotal - receipt.received_amount) : schedulePaidTotal;
+        const finalRemaining = (contractData.sale_price || 0) - finalPaid;
+        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
+        await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: finalPaid, remaining_amount: finalRemaining, status: newStatus }).eq('id', receipt.contract_id);
+      }
+    }
+    if (receipt.court_case_no && receipt.receipt_type === 'courtMoney') {
+      const lc = legalCases.find(l => l.case_no === receipt.court_case_no);
+      if (lc) {
+        const newRcvd = Math.max(0, (lc.rcvd_from_court || 0) - receipt.received_amount);
+        const newBalance = (lc.claimed_amount || lc.case_amount || 0) - newRcvd;
+        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', lc.id);
+      }
+    }
+  }
+
   async function handleSave() {
     const customer = customers.find(c => c.id === form.customer_id);
     const contract = allContracts.find(c => c.id === form.contract_id);
-    const data = {
+    const data: any = {
       receipt_date: form.receipt_date, receipt_type: form.receipt_type,
       customer_id: form.customer_id || null, customer_name: customer?.name || '',
       contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
       court_case_no: form.court_case_no, received_amount: form.received_amount,
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
+      installment_no: form.installment_no,
     };
     if (editing) {
+      await reverseReceiptEffects(editing);
       await supabase.from('receipt_vouchers').update(data).eq('id', editing.id);
+      await applyReceiptEffects(form);
     } else {
       await supabase.from('receipt_vouchers').insert(data);
-      // Update contract paid amount if installment
-      if (form.contract_id && form.receipt_type === 'installment') {
-        const { data: contractData } = await supabase.from('contracts').select('paid_amount, sale_price').eq('id', form.contract_id).single();
-        if (contractData) {
-          const newPaid = (contractData.paid_amount || 0) + form.received_amount;
-          await supabase.from('contracts').update({ paid_amount: newPaid, remaining_amount: contractData.sale_price - newPaid }).eq('id', form.contract_id);
-        }
-      }
-      // Update legal case rcvd amounts if court money
-      if (form.court_case_no && form.receipt_type === 'courtMoney') {
-        const lc = legalCases.find(l => l.case_no === form.court_case_no);
-        if (lc) {
-          await supabase.from('legal_cases').update({ rcvd_from_court: (lc.rcvd_from_court || 0) + form.received_amount }).eq('id', lc.id);
-        }
-      }
+      await applyReceiptEffects(form);
     }
     setShowDialog(false); setForm(defaultForm); setEditing(null); loadData();
   }
 
   async function handleDelete(id: string) {
     if (!window.confirm('Are you sure?')) return;
+    const receipt = receipts.find(r => r.id === id);
+    if (receipt) { await reverseReceiptEffects(receipt); }
     await supabase.from('receipt_vouchers').delete().eq('id', id);
     loadData();
   }
@@ -125,6 +196,7 @@ export default function ReceiptsPage() {
       customer_id: r.customer_id || '', contract_id: r.contract_id || '',
       court_case_no: r.court_case_no || '', received_amount: r.received_amount,
       payment_mode: r.payment_mode, notes: r.notes || '', attachments: r.attachments || [],
+      installment_no: r.installment_no ?? null,
     });
     setShowDialog(true);
   }
@@ -147,8 +219,8 @@ export default function ReceiptsPage() {
     return legalCases.find(lc => lc.case_no === caseNo);
   }
 
-  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('customerName'), t('contractNo'), t('courtCaseNo'), t('receivedAmount'), t('paymentMode')];
-  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.customer_name, r.contract_no, r.court_case_no, r.received_amount, r.payment_mode]);
+  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('customerName'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('receivedAmount'), t('paymentMode')];
+  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.customer_name, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, r.received_amount, r.payment_mode]);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = { fileOpening: 'bg-blue-100 text-blue-700', installment: 'bg-green-100 text-green-700', courtMoney: 'bg-purple-100 text-purple-700' };
@@ -201,6 +273,7 @@ export default function ReceiptsPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptType')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customerName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('installmentNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtCaseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
@@ -214,6 +287,7 @@ export default function ReceiptsPage() {
                       <td className="py-3 px-4"><Badge className={typeColor(r.receipt_type)} variant="secondary">{r.receipt_type}</Badge></td>
                       <td className="py-3 px-4">{r.customer_name}</td>
                       <td className="py-3 px-4">{r.contract_no}</td>
+                      <td className="py-3 px-4">{r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '-'}</td>
                       <td className="py-3 px-4">
                         {r.court_case_no && (
                           <span className="text-purple-600 cursor-pointer underline" onClick={() => setShowCaseReceipts(r.court_case_no)}>{r.court_case_no}</span>
@@ -296,24 +370,80 @@ export default function ReceiptsPage() {
               </div>
               <div>
                 <Label>{t('receiptType')} *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.receipt_type} onChange={e => setForm({ ...form, receipt_type: e.target.value })}>
-                  {receiptTypes.map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.receipt_type} onChange={e => setForm({ ...form, receipt_type: e.target.value, installment_no: null })}>
+                  {receiptTypes.map(rt => <option key={rt} value={rt}>{t(rt as any) || rt}</option>)}
                 </select>
               </div>
               <div>
                 <Label>{t('customer')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value, contract_id: '', court_case_no: '' })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value, contract_id: '', court_case_no: '', installment_no: null })}>
                   <option value="">Select</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
                 </select>
               </div>
               <div>
                 <Label>{t('contractNo')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value, installment_no: null })}>
                   <option value="">Select</option>
                   {filteredContracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
                 </select>
               </div>
+            </div>
+
+            {/* Installment Selector */}
+            {form.receipt_type === 'installment' && form.contract_id && (
+              <div>
+                <Label>{t('selectInstallment')} *</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={form.installment_no ?? ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '') { setForm({ ...form, installment_no: null }); }
+                    else {
+                      const idx = Number(val);
+                      const inst = selectedContract?.installment_schedule?.[idx];
+                      setForm({ ...form, installment_no: idx, received_amount: inst?.amount || form.received_amount });
+                    }
+                  }}
+                >
+                  <option value="">{t('selectInstallment')}</option>
+                  {pendingInstallments.map((inst: any) => (
+                    <option key={inst.index} value={inst.index}>
+                      #{inst.month || inst.index + 1} - {t('dueDate')}: {inst.due_date} - {inst.amount?.toLocaleString()} {t('kd')}
+                    </option>
+                  ))}
+                </select>
+                {pendingInstallments.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">{t('allInstallmentsPaid')}</p>
+                )}
+                {form.installment_no !== null && form.installment_no !== undefined && selectedContract?.installment_schedule?.[form.installment_no] && (
+                  <div className="mt-2 bg-blue-50 rounded-lg p-3 text-sm">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div><span className="text-blue-600 text-xs">{t('installmentNo')}</span><p className="font-medium">#{(selectedContract.installment_schedule[form.installment_no].month || form.installment_no + 1)}</p></div>
+                      <div><span className="text-blue-600 text-xs">{t('dueDate')}</span><p className="font-medium">{selectedContract.installment_schedule[form.installment_no].due_date}</p></div>
+                      <div><span className="text-blue-600 text-xs">{t('amount')}</span><p className="font-medium">{selectedContract.installment_schedule[form.installment_no].amount?.toLocaleString()} {t('kd')}</p></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Contract Summary */}
+            {form.contract_id && selectedContract && (
+              <div className="bg-slate-50 rounded-lg p-4 text-sm">
+                <h4 className="font-medium mb-2">{t('contractDetails')}</h4>
+                <div className="grid grid-cols-4 gap-3">
+                  <div><span className="text-slate-500 text-xs">{t('contractNo')}</span><p className="font-medium">{selectedContract.contract_no}</p></div>
+                  <div><span className="text-slate-500 text-xs">{t('salePrice')}</span><p className="font-medium">{selectedContract.sale_price?.toLocaleString()} {t('kd')}</p></div>
+                  <div><span className="text-slate-500 text-xs">{t('paidAmount')}</span><p className="font-medium text-green-600">{selectedContract.paid_amount?.toLocaleString()} {t('kd')}</p></div>
+                  <div><span className="text-slate-500 text-xs">{t('remainingAmount')}</span><p className="font-medium text-red-600">{selectedContract.remaining_amount?.toLocaleString()} {t('kd')}</p></div>
+                </div>
+                <div className="mt-2"><div className="w-full bg-slate-200 rounded-full h-1.5"><div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${(selectedContract.paid_amount || 0) / Math.max(1, selectedContract.sale_price) * 100}%` }} /></div></div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(form.receipt_type === 'courtMoney') && (
                 <div>
                   <Label>{t('courtCaseNo')}</Label>
@@ -330,7 +460,7 @@ export default function ReceiptsPage() {
               <div>
                 <Label>{t('paymentMode')}</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
-                  {paymentModes.map(m => <option key={m} value={m}>{m}</option>)}
+                  {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
                 </select>
               </div>
             </div>

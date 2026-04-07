@@ -220,6 +220,8 @@ export const en = {
   receivedAmount: 'Received Amount',
   addReceipt: 'Add Receipt',
   editReceipt: 'Edit Receipt',
+  selectInstallment: 'Select Installment',
+  allInstallmentsPaid: 'All installments are already paid for this contract',
 
   // Accounting
   monthlySummary: 'Monthly Summary',
