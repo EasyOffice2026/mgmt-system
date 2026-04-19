@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, ShoppingCart, TrendingUp, DollarSign, Receipt, Scale, Calendar, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Receipt, Scale, Calendar, AlertTriangle, Clock, CheckCircle, Briefcase, CheckSquare, Gavel } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { isBefore } from 'date-fns';
 
@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [toDate, setToDate] = useState('');
   const [stats, setStats] = useState({
     totalCustomers: 0, activeContracts: 0, totalRevenue: 0, totalDue: 0, totalExpenses: 0, legalCases: 0,
+    operationalCases: 0, finishedCases: 0, legalFinishedCases: 0, lateCases: 0,
   });
   const [contracts, setContracts] = useState<any[]>([]);
   const [dueInstallments, setDueInstallments] = useState<any[]>([]);
@@ -28,7 +29,7 @@ export default function DashboardPage() {
       let contQuery = supabase.from('contracts').select('*');
       let expQuery = supabase.from('expenses').select('amount');
       let recQuery = supabase.from('receipt_vouchers').select('received_amount');
-      const legalQuery = supabase.from('legal_cases').select('id', { count: 'exact', head: true });
+      const legalQuery = supabase.from('legal_cases').select('*');
       if (fromDate) {
         contQuery = contQuery.gte('start_date', fromDate);
         expQuery = expQuery.gte('expense_date', fromDate);
@@ -43,23 +44,33 @@ export default function DashboardPage() {
         custQuery, contQuery.order('created_at', { ascending: false }), expQuery, recQuery, legalQuery,
       ]);
       const allContracts = contRes.data || [];
+      const allLegalCases = legalRes.data || [];
       const totalRevenue = (recRes.data || []).reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
       const totalDue = allContracts.reduce((s: number, c: any) => s + (c.remaining_amount || 0), 0);
       const totalExpenses = (expRes.data || []).reduce((s: number, e: any) => s + (e.amount || 0), 0);
-      const activeContracts = allContracts.filter((c: any) => c.status === 'ongoing').length;
-      setStats({ totalCustomers: custRes.count || 0, activeContracts, totalRevenue, totalDue, totalExpenses, legalCases: legalRes.count || 0 });
-      setContracts(allContracts.slice(0, 10));
 
-      // Extract due installments from all contracts
+      // Case counts by status
+      const operationalCases = allContracts.filter((c: any) => c.status === 'ongoing').length;
+      const finishedCases = allContracts.filter((c: any) => c.status === 'finished').length;
+      const legalCasesCount = allContracts.filter((c: any) => c.status === 'legal_case').length;
+      const legalFinishedCases = allLegalCases.filter((lc: any) => {
+        const rcvd = (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0);
+        return rcvd >= (lc.case_amount || 0) && (lc.case_amount || 0) > 0;
+      }).length;
+
+      // Count late payment cases (contracts with overdue installments)
       const today = new Date();
+      let lateCases = 0;
       const allDue: any[] = [];
       allContracts.forEach((c: any) => {
         const schedule = c.installment_schedule || c.installments || [];
         if (!Array.isArray(schedule)) return;
+        let hasOverdue = false;
         schedule.forEach((inst: any, idx: number) => {
           if (inst.status !== 'paid') {
             const dueDate = inst.due_date ? new Date(inst.due_date) : null;
             const isOverdue = dueDate ? isBefore(dueDate, today) : false;
+            if (isOverdue) hasOverdue = true;
             allDue.push({
               contractNo: c.contract_no,
               customerName: c.customer_name,
@@ -70,6 +81,7 @@ export default function DashboardPage() {
             });
           }
         });
+        if (hasOverdue) lateCases++;
       });
       // Sort: overdue first, then by due date ascending
       allDue.sort((a, b) => {
@@ -77,6 +89,15 @@ export default function DashboardPage() {
         if (!a.isOverdue && b.isOverdue) return 1;
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       });
+
+      setStats({
+        totalCustomers: custRes.count || 0,
+        activeContracts: allContracts.length,
+        totalRevenue, totalDue, totalExpenses,
+        legalCases: legalCasesCount,
+        operationalCases, finishedCases, legalFinishedCases, lateCases,
+      });
+      setContracts(allContracts.slice(0, 10));
       setDueInstallments(allDue);
     } catch (err) { console.error('Dashboard load error:', err); }
     setLoading(false);
@@ -84,11 +105,14 @@ export default function DashboardPage() {
 
   const kpiCards = [
     { title: t('totalCustomers'), value: stats.totalCustomers, icon: Users, color: 'from-blue-500 to-blue-600', tc: 'text-blue-600' },
-    { title: t('activeContracts'), value: stats.activeContracts, icon: ShoppingCart, color: 'from-emerald-500 to-emerald-600', tc: 'text-emerald-600' },
-    { title: t('totalRevenue'), value: `${stats.totalRevenue.toLocaleString()} ${t('kd')}`, icon: TrendingUp, color: 'from-green-500 to-green-600', tc: 'text-green-600' },
-    { title: t('totalDue'), value: `${stats.totalDue.toLocaleString()} ${t('kd')}`, icon: DollarSign, color: 'from-amber-500 to-amber-600', tc: 'text-amber-600' },
-    { title: t('totalExpenses'), value: `${stats.totalExpenses.toLocaleString()} ${t('kd')}`, icon: Receipt, color: 'from-red-500 to-red-600', tc: 'text-red-600' },
+    { title: t('operationalCases'), value: stats.operationalCases, icon: Briefcase, color: 'from-emerald-500 to-emerald-600', tc: 'text-emerald-600' },
+    { title: t('finishedCases'), value: stats.finishedCases, icon: CheckSquare, color: 'from-green-500 to-green-600', tc: 'text-green-600' },
     { title: t('legalCases'), value: stats.legalCases, icon: Scale, color: 'from-purple-500 to-purple-600', tc: 'text-purple-600' },
+    { title: t('legalFinishedCases'), value: stats.legalFinishedCases, icon: Gavel, color: 'from-indigo-500 to-indigo-600', tc: 'text-indigo-600' },
+    { title: t('lateCases'), value: stats.lateCases, icon: AlertTriangle, color: 'from-red-500 to-red-600', tc: 'text-red-600' },
+    { title: t('totalRevenue'), value: `${stats.totalRevenue.toLocaleString()} ${t('kd')}`, icon: TrendingUp, color: 'from-teal-500 to-teal-600', tc: 'text-teal-600' },
+    { title: t('totalDue'), value: `${stats.totalDue.toLocaleString()} ${t('kd')}`, icon: DollarSign, color: 'from-amber-500 to-amber-600', tc: 'text-amber-600' },
+    { title: t('totalExpenses'), value: `${stats.totalExpenses.toLocaleString()} ${t('kd')}`, icon: Receipt, color: 'from-rose-500 to-rose-600', tc: 'text-rose-600' },
   ];
   return (
     <div className="space-y-6">

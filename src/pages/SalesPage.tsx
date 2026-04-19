@@ -9,7 +9,7 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, ShoppingCart, Calendar, X, Check, Clock } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ShoppingCart, Calendar, X, Clock } from 'lucide-react';
 import { format, addMonths, isBefore } from 'date-fns';
 
 interface Contract {
@@ -38,7 +38,7 @@ const defaultForm = {
   payment_mode: 'cash', status: 'ongoing', attachments: [] as string[],
 };
 
-const paymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
+const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function SalesPage() {
   const { t } = useLang();
@@ -53,8 +53,29 @@ export default function SalesPage() {
   const [editing, setEditing] = useState<Contract | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
+  const [newPaymentMode, setNewPaymentMode] = useState('');
+  const [showAddMode, setShowAddMode] = useState(false);
 
-  useEffect(() => { loadData(); }, [fromDate, toDate]);
+  useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
+
+  async function loadPaymentModes() {
+    const { data } = await supabase.from('payment_modes').select('name').order('name');
+    if (data && data.length > 0) {
+      const dbModes = data.map((d: any) => d.name);
+      const merged = [...new Set([...defaultPaymentModes, ...dbModes])];
+      setPaymentModes(merged);
+    }
+  }
+
+  async function addPaymentMode() {
+    if (!newPaymentMode.trim()) return;
+    const modeName = newPaymentMode.trim().toLowerCase().replace(/\s+/g, '_');
+    await supabase.from('payment_modes').upsert({ name: modeName }, { onConflict: 'name' });
+    setNewPaymentMode('');
+    setShowAddMode(false);
+    await loadPaymentModes();
+  }
 
   async function loadData() {
     setLoading(true);
@@ -335,7 +356,6 @@ export default function SalesPage() {
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('status')}</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('paymentDate')}</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('runningBalance')}</th>
-                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -355,32 +375,6 @@ export default function SalesPage() {
                       </td>
                       <td className="py-2.5 px-3 text-slate-500">{inst.paid_date || '-'}</td>
                       <td className="py-2.5 px-3 font-medium">{balance.toLocaleString()} {t('kd')}</td>
-                      <td className="py-2.5 px-3">
-                        <Button
-                          variant={inst.status === 'paid' ? 'outline' : 'default'}
-                          size="sm"
-                          className={inst.status === 'paid' ? 'text-xs h-7' : 'text-xs h-7 bg-green-600 hover:bg-green-700'}
-                          onClick={async () => {
-                            const updatedSchedule = [...schedule];
-                            if (inst.status === 'paid') {
-                              updatedSchedule[i] = { ...updatedSchedule[i], status: 'pending', paid_date: null };
-                            } else {
-                              updatedSchedule[i] = { ...updatedSchedule[i], status: 'paid', paid_date: format(new Date(), 'yyyy-MM-dd') };
-                            }
-                            const newPaidTotal = updatedSchedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
-                            await supabase.from('contracts').update({
-                              installment_schedule: updatedSchedule,
-                              paid_amount: newPaidTotal,
-                              remaining_amount: (showSchedule.sale_price || 0) - newPaidTotal,
-                              status: newPaidTotal >= (showSchedule.sale_price || 0) ? 'finished' : showSchedule.status === 'finished' ? 'ongoing' : showSchedule.status,
-                            }).eq('id', showSchedule.id);
-                            setShowSchedule({ ...showSchedule, installment_schedule: updatedSchedule, paid_amount: newPaidTotal, remaining_amount: (showSchedule.sale_price || 0) - newPaidTotal });
-                            loadData();
-                          }}
-                        >
-                          {inst.status === 'paid' ? <><X className="h-3 w-3 me-1" />{t('markAsUnpaid')}</> : <><Check className="h-3 w-3 me-1" />{t('markAsPaid')}</>}
-                        </Button>
-                      </td>
                     </tr>
                   );
                   })}
@@ -485,9 +479,20 @@ export default function SalesPage() {
               </div>
               <div>
                 <Label>{t('paymentMode')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
-                  {paymentModes.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <div className="flex gap-2">
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
+                    {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
+                  </select>
+                  <Button type="button" variant="outline" size="sm" className="h-10 px-3 shrink-0" onClick={() => setShowAddMode(!showAddMode)}>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+                {showAddMode && (
+                  <div className="flex gap-2 mt-2">
+                    <Input placeholder={t('addPaymentMode')} value={newPaymentMode} onChange={e => setNewPaymentMode(e.target.value)} className="h-8 text-xs" />
+                    <Button type="button" size="sm" className="h-8 text-xs" onClick={addPaymentMode}>{t('add')}</Button>
+                  </div>
+                )}
               </div>
               <div>
                 <Label>{t('status')}</Label>

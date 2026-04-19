@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard, Users, ShoppingCart, Package, Warehouse,
   Scale, Receipt, FileText, Calculator, TrendingUp, Settings, LogOut,
-  Menu, X, Globe, ChevronRight
+  Menu, X, Globe, ChevronRight, FileSearch, Landmark
 } from 'lucide-react';
 
 const navItems = [
@@ -18,8 +18,10 @@ const navItems = [
   { key: 'legalCases', icon: Scale, path: '/legal-cases' },
   { key: 'expenses', icon: Receipt, path: '/expenses' },
   { key: 'receipts', icon: FileText, path: '/receipts' },
+  { key: 'contractLookup', icon: FileSearch, path: '/contract-lookup' },
   { key: 'revenueRecognition', icon: TrendingUp, path: '/revenue-recognition' },
   { key: 'accounting', icon: Calculator, path: '/accounting' },
+  { key: 'ownersPartners', icon: Landmark, path: '/owners-partners' },
   { key: 'users', icon: Settings, path: '/users' },
 ] as const;
 

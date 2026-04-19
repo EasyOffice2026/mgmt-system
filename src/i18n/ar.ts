@@ -290,4 +290,44 @@ export const ar = {
   dueInstallments: 'الأقساط المستحقة',
   upcoming: 'قادم',
   noDueInstallments: 'جميع الأقساط مدفوعة! لا توجد مستحقات.',
+
+  // Dashboard - New KPIs
+  operationalCases: 'القضايا التشغيلية',
+  finishedCases: 'القضايا المنتهية',
+  legalFinishedCases: 'القضايا القانونية المنتهية',
+  lateCases: 'حالات التأخر في الدفع',
+
+  // Customer - Work Place
+  workPlace: 'مكان العمل',
+
+  // Contract Lookup
+  contractLookup: 'البحث عن عقد',
+  searchByNameMobileCivil: 'بحث بالاسم أو الجوال أو الرقم المدني',
+
+  // Owners / Partners
+  ownersPartners: 'المالكون / الشركاء',
+  capitalTracking: 'المساهمات الرأسمالية والسحوبات',
+  addPartner: 'إضافة شريك',
+  editPartner: 'تعديل شريك',
+  selectPartner: 'اختر الشريك',
+  addTransaction: 'إضافة معاملة',
+  editTransaction: 'تعديل معاملة',
+  transactionType: 'نوع المعاملة',
+  capital_in: 'رأس مال وارد',
+  capital_out: 'رأس مال صادر',
+  received_against_client: 'مستلم مقابل عميل',
+  totalCapitalIn: 'إجمالي رأس المال الوارد',
+  totalCapitalOut: 'إجمالي رأس المال الصادر',
+  receivedAgainstClients: 'المستلم مقابل العملاء',
+  netCapital: 'صافي رأس المال',
+  capitalPaid: 'رأس المال المدفوع',
+  capitalWithdrawn: 'رأس المال المسحوب',
+  transactions: 'المعاملات',
+  clientName: 'اسم العميل',
+  referenceNo: 'رقم المرجع',
+
+  // Legal Cases - Payment Details
+  paymentDetails: 'تفاصيل الدفع',
+  paymentHistory: 'سجل المدفوعات',
+  legal_case: 'قضية قانونية',
 } as const;

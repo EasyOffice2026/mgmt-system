@@ -316,4 +316,44 @@ export const en = {
   dueInstallments: 'Due Installments',
   upcoming: 'Upcoming',
   noDueInstallments: 'All installments are paid! No dues pending.',
+
+  // Dashboard - New KPIs
+  operationalCases: 'Operational Cases',
+  finishedCases: 'Finished Cases',
+  legalFinishedCases: 'Legal Finished Cases',
+  lateCases: 'Late Payment Cases',
+
+  // Customer - Work Place
+  workPlace: 'Work Place',
+
+  // Contract Lookup
+  contractLookup: 'Contract Lookup',
+  searchByNameMobileCivil: 'Search by Name, Mobile or Civil ID',
+
+  // Owners / Partners
+  ownersPartners: 'Owners / Partners',
+  capitalTracking: 'Capital Contributions & Withdrawals',
+  addPartner: 'Add Partner',
+  editPartner: 'Edit Partner',
+  selectPartner: 'Select Partner',
+  addTransaction: 'Add Transaction',
+  editTransaction: 'Edit Transaction',
+  transactionType: 'Transaction Type',
+  capital_in: 'Capital In',
+  capital_out: 'Capital Out',
+  received_against_client: 'Received Against Client',
+  totalCapitalIn: 'Total Capital In',
+  totalCapitalOut: 'Total Capital Out',
+  receivedAgainstClients: 'Received Against Clients',
+  netCapital: 'Net Capital',
+  capitalPaid: 'Capital Paid',
+  capitalWithdrawn: 'Capital Withdrawn',
+  transactions: 'Transactions',
+  clientName: 'Client Name',
+  referenceNo: 'Reference No.',
+
+  // Legal Cases - Payment Details
+  paymentDetails: 'Payment Details',
+  paymentHistory: 'Payment History',
+  legal_case: 'Legal Case',
 } as const;

@@ -14,7 +14,7 @@ import { isBefore } from 'date-fns';
 
 interface Customer {
   id: string; customer_no: string; name: string; civil_id: string; mobile: string;
-  passport_no: string; email: string; area_name: string; block_no: string;
+  passport_no: string; email: string; work_place: string; area_name: string; block_no: string;
   street_no: string; house_no: string; attachments: string[]; created_at: string;
 }
 
@@ -25,7 +25,7 @@ interface ContractDetail {
 }
 
 const emptyCustomer = {
-  name: '', civil_id: '', mobile: '', passport_no: '', email: '',
+  name: '', civil_id: '', mobile: '', passport_no: '', email: '', work_place: '',
   area_name: '', block_no: '', street_no: '', house_no: '', attachments: [] as string[],
 };
 
@@ -92,7 +92,7 @@ export default function CustomersPage() {
 
   function openEdit(c: Customer) {
     setEditing(c);
-    setForm({ name: c.name, civil_id: c.civil_id, mobile: c.mobile, passport_no: c.passport_no, email: c.email, area_name: c.area_name, block_no: c.block_no, street_no: c.street_no, house_no: c.house_no, attachments: c.attachments || [] });
+    setForm({ name: c.name, civil_id: c.civil_id, mobile: c.mobile, passport_no: c.passport_no, email: c.email, work_place: c.work_place || '', area_name: c.area_name, block_no: c.block_no, street_no: c.street_no, house_no: c.house_no, attachments: c.attachments || [] });
     setErrors({}); setShowDialog(true);
   }
 
@@ -352,6 +352,10 @@ export default function CustomersPage() {
                 <Label>{t('emailAddress')}</Label>
                 <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
                 {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+              </div>
+              <div>
+                <Label>{t('workPlace')}</Label>
+                <Input value={form.work_place} onChange={e => setForm({ ...form, work_place: e.target.value })} placeholder={t('workPlace')} />
               </div>
             </div>
             <div className="border-t pt-4">

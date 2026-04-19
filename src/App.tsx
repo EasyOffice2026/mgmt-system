@@ -14,6 +14,8 @@ import ReceiptsPage from '@/pages/ReceiptsPage';
 import AccountingPage from '@/pages/AccountingPage';
 import RevenueRecognitionPage from '@/pages/RevenueRecognitionPage';
 import UsersPage from '@/pages/UsersPage';
+import ContractLookupPage from '@/pages/ContractLookupPage';
+import OwnersPartnersPage from '@/pages/OwnersPartnersPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -54,8 +56,10 @@ export default function App() {
               <Route path="legal-cases" element={<LegalCasesPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="receipts" element={<ReceiptsPage />} />
+              <Route path="contract-lookup" element={<ContractLookupPage />} />
               <Route path="revenue-recognition" element={<RevenueRecognitionPage />} />
               <Route path="accounting" element={<AccountingPage />} />
+              <Route path="owners-partners" element={<OwnersPartnersPage />} />
               <Route path="users" element={<UsersPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
