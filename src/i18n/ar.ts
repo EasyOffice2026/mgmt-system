@@ -330,4 +330,20 @@ export const ar = {
   paymentDetails: 'تفاصيل الدفع',
   paymentHistory: 'سجل المدفوعات',
   legal_case: 'قضية قانونية',
+
+  // Contract - Profit Percentage
+  profitPercentage: 'نسبة الربح',
+
+  // Receipt Vouchers - Discount
+  discount: 'خصم',
+  netAmount: 'المبلغ الصافي',
+
+  // Customer - Client Check
+  clientCheck: 'تصنيف العميل',
+  selectClientCheck: 'اختر تصنيف العميل',
+  premium: 'ممتاز',
+  good: 'جيد',
+  average: 'متوسط',
+  poor: 'ضعيف',
+  black_list: 'قائمة سوداء',
 } as const;

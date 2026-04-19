@@ -14,9 +14,11 @@ import { isBefore } from 'date-fns';
 
 interface Customer {
   id: string; customer_no: string; name: string; civil_id: string; mobile: string;
-  passport_no: string; email: string; work_place: string; area_name: string; block_no: string;
+  passport_no: string; email: string; work_place: string; client_check: string; area_name: string; block_no: string;
   street_no: string; house_no: string; attachments: string[]; created_at: string;
 }
+
+const clientCheckOptions = ['premium', 'good', 'average', 'poor', 'black_list'];
 
 interface ContractDetail {
   id: string; contract_no: string; sale_price: number; paid_amount: number; remaining_amount: number; status: string;
@@ -25,7 +27,7 @@ interface ContractDetail {
 }
 
 const emptyCustomer = {
-  name: '', civil_id: '', mobile: '', passport_no: '', email: '', work_place: '',
+  name: '', civil_id: '', mobile: '', passport_no: '', email: '', work_place: '', client_check: '',
   area_name: '', block_no: '', street_no: '', house_no: '', attachments: [] as string[],
 };
 
@@ -92,7 +94,7 @@ export default function CustomersPage() {
 
   function openEdit(c: Customer) {
     setEditing(c);
-    setForm({ name: c.name, civil_id: c.civil_id, mobile: c.mobile, passport_no: c.passport_no, email: c.email, work_place: c.work_place || '', area_name: c.area_name, block_no: c.block_no, street_no: c.street_no, house_no: c.house_no, attachments: c.attachments || [] });
+    setForm({ name: c.name, civil_id: c.civil_id, mobile: c.mobile, passport_no: c.passport_no, email: c.email, work_place: c.work_place || '', client_check: (c as any).client_check || '', area_name: c.area_name, block_no: c.block_no, street_no: c.street_no, house_no: c.house_no, attachments: c.attachments || [] });
     setErrors({}); setShowDialog(true);
   }
 
@@ -159,6 +161,7 @@ export default function CustomersPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('civilId')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('mobileNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('emailAddress')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('clientCheck')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
@@ -170,6 +173,17 @@ export default function CustomersPage() {
                       <td className="py-3 px-4 font-mono text-xs">{c.civil_id}</td>
                       <td className="py-3 px-4">{c.mobile}</td>
                       <td className="py-3 px-4 text-slate-500">{c.email}</td>
+                      <td className="py-3 px-4">
+                        {(c as any).client_check && (
+                          <Badge className={
+                            (c as any).client_check === 'premium' ? 'bg-purple-100 text-purple-700' :
+                            (c as any).client_check === 'good' ? 'bg-green-100 text-green-700' :
+                            (c as any).client_check === 'average' ? 'bg-blue-100 text-blue-700' :
+                            (c as any).client_check === 'poor' ? 'bg-amber-100 text-amber-700' :
+                            (c as any).client_check === 'black_list' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                          } variant="secondary">{t((c as any).client_check as any) || (c as any).client_check}</Badge>
+                        )}
+                      </td>
                       <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" onClick={() => openCustomerDetails(c)}><Eye className="h-4 w-4 text-blue-500" /></Button>
@@ -356,6 +370,13 @@ export default function CustomersPage() {
               <div>
                 <Label>{t('workPlace')}</Label>
                 <Input value={form.work_place} onChange={e => setForm({ ...form, work_place: e.target.value })} placeholder={t('workPlace')} />
+              </div>
+              <div>
+                <Label>{t('clientCheck')}</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.client_check} onChange={e => setForm({ ...form, client_check: e.target.value })}>
+                  <option value="">{t('selectClientCheck')}</option>
+                  {clientCheckOptions.map(opt => <option key={opt} value={opt}>{t(opt as any) || opt}</option>)}
+                </select>
               </div>
             </div>
             <div className="border-t pt-4">

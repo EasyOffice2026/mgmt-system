@@ -26,9 +26,9 @@ interface Contract {
 interface Customer { id: string; customer_no: string; name: string; }
 interface Purchase { id: string; item_name: string; model_type: string; category: string; purchase_price: number; status: string; }
 
-interface ContractItem { purchase_id: string; item_name: string; model_type: string; category: string; purchase_price: number; sale_price: number; }
+interface ContractItem { purchase_id: string; item_name: string; model_type: string; category: string; purchase_price: number; profit_percentage: number; sale_price: number; }
 
-const emptyItem: ContractItem = { purchase_id: '', item_name: '', model_type: '', category: '', purchase_price: 0, sale_price: 0 };
+const emptyItem: ContractItem = { purchase_id: '', item_name: '', model_type: '', category: '', purchase_price: 0, profit_percentage: 0, sale_price: 0 };
 
 const defaultForm = {
   customer_id: '', items: [{ ...emptyItem }] as ContractItem[],
@@ -112,6 +112,15 @@ export default function SalesPage() {
         newItems[index] = { ...newItems[index], item_name: purchase.item_name, model_type: purchase.model_type, category: purchase.category, purchase_price: purchase.purchase_price };
       }
     }
+    // Auto-calculate sale price when purchase price or profit percentage changes
+    if (field === 'purchase_price' || field === 'profit_percentage') {
+      const item = newItems[index];
+      const pp = field === 'purchase_price' ? Number(value) : item.purchase_price;
+      const pct = field === 'profit_percentage' ? Number(value) : item.profit_percentage;
+      if (pp > 0 && pct > 0) {
+        newItems[index] = { ...newItems[index], sale_price: Math.round(pp * (1 + pct / 100) * 1000) / 1000 };
+      }
+    }
     setForm({ ...form, items: newItems });
   }
 
@@ -184,7 +193,7 @@ export default function SalesPage() {
     setEditing(c);
     setForm({
       customer_id: c.customer_id,
-      items: c.items && c.items.length > 0 ? c.items : [{ purchase_id: '', item_name: c.item_name || '', model_type: c.model_type || '', category: c.category || '', purchase_price: c.purchase_price || 0, sale_price: c.sale_price || 0 }],
+      items: c.items && c.items.length > 0 ? c.items.map((i: any) => ({ ...emptyItem, ...i })) : [{ purchase_id: '', item_name: c.item_name || '', model_type: c.model_type || '', category: c.category || '', purchase_price: c.purchase_price || 0, profit_percentage: 0, sale_price: c.sale_price || 0 }],
       file_opening_charges: c.file_opening_charges, client_type: c.client_type,
       duration_months: c.duration_months, start_date: c.start_date,
       first_installment_date: c.first_installment_date, payment_mode: c.payment_mode,
@@ -447,6 +456,10 @@ export default function SalesPage() {
                     <div>
                       <Label className="text-xs">{t('purchasePrice')}</Label>
                       <Input className="h-9" type="number" value={item.purchase_price} onChange={e => updateItem(idx, 'purchase_price', Number(e.target.value))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">{t('profitPercentage')} %</Label>
+                      <Input className="h-9" type="number" value={item.profit_percentage} onChange={e => updateItem(idx, 'profit_percentage', Number(e.target.value))} placeholder="e.g. 20" />
                     </div>
                     <div>
                       <Label className="text-xs">{t('salePrice')} *</Label>

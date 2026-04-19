@@ -16,7 +16,8 @@ import { format } from 'date-fns';
 interface ReceiptVoucher {
   id: string; receipt_voucher_no: string; receipt_date: string; receipt_type: string;
   customer_id: string; customer_name: string; contract_id: string; contract_no: string;
-  court_case_no: string; received_amount: number; payment_mode: string;
+  court_case_no: string; received_amount: number; discount_amount: number; net_amount: number;
+  payment_mode: string;
   installment_no: number | null;
   notes: string; attachments: string[]; created_at: string;
 }
@@ -36,7 +37,7 @@ interface LegalCase {
 const defaultForm = {
   receipt_date: format(new Date(), 'yyyy-MM-dd'),
   receipt_type: 'installment', customer_id: '', contract_id: '',
-  court_case_no: '', received_amount: 0, payment_mode: 'cash',
+  court_case_no: '', received_amount: 0, discount_amount: 0, payment_mode: 'cash',
   installment_no: null as number | null,
   notes: '', attachments: [] as string[],
 };
@@ -167,6 +168,8 @@ export default function ReceiptsPage() {
       customer_id: form.customer_id || null, customer_name: customer?.name || '',
       contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
       court_case_no: form.court_case_no, received_amount: form.received_amount,
+      discount_amount: form.discount_amount || 0,
+      net_amount: (form.received_amount || 0) - (form.discount_amount || 0),
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
       installment_no: form.installment_no,
     };
@@ -215,6 +218,7 @@ export default function ReceiptsPage() {
       receipt_date: r.receipt_date, receipt_type: r.receipt_type,
       customer_id: r.customer_id || '', contract_id: r.contract_id || '',
       court_case_no: r.court_case_no || '', received_amount: r.received_amount,
+      discount_amount: (r as any).discount_amount || 0,
       payment_mode: r.payment_mode, notes: r.notes || '', attachments: r.attachments || [],
       installment_no: r.installment_no ?? null,
     });
@@ -296,6 +300,8 @@ export default function ReceiptsPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('installmentNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtCaseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('discount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('netAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
@@ -314,6 +320,8 @@ export default function ReceiptsPage() {
                         )}
                       </td>
                       <td className="py-3 px-4 font-medium text-green-600">{r.received_amount?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4 text-orange-600">{(r as any).discount_amount ? `${(r as any).discount_amount.toLocaleString()} ${t('kd')}` : '-'}</td>
+                      <td className="py-3 px-4 font-medium text-blue-600">{((r.received_amount || 0) - ((r as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
@@ -477,6 +485,18 @@ export default function ReceiptsPage() {
                 <Label>{t('receivedAmount')} *</Label>
                 <Input type="number" value={form.received_amount} onChange={e => setForm({ ...form, received_amount: Number(e.target.value) })} />
               </div>
+              <div>
+                <Label>{t('discount')}</Label>
+                <Input type="number" value={form.discount_amount} onChange={e => setForm({ ...form, discount_amount: Number(e.target.value) })} placeholder="0" />
+              </div>
+              {(form.received_amount > 0 && form.discount_amount > 0) && (
+                <div className="md:col-span-2">
+                  <div className="bg-blue-50 rounded-lg p-3 text-sm flex items-center justify-between">
+                    <span className="text-blue-600 font-medium">{t('netAmount')}:</span>
+                    <span className="font-bold text-blue-700">{((form.received_amount || 0) - (form.discount_amount || 0)).toLocaleString()} {t('kd')}</span>
+                  </div>
+                </div>
+              )}
               <div>
                 <Label>{t('paymentMode')}</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>

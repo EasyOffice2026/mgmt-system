@@ -356,4 +356,20 @@ export const en = {
   paymentDetails: 'Payment Details',
   paymentHistory: 'Payment History',
   legal_case: 'Legal Case',
+
+  // Contract - Profit Percentage
+  profitPercentage: 'Profit %',
+
+  // Receipt Vouchers - Discount
+  discount: 'Discount',
+  netAmount: 'Net Amount',
+
+  // Customer - Client Check
+  clientCheck: 'Client Check',
+  selectClientCheck: 'Select Client Check',
+  premium: 'Premium',
+  good: 'Good',
+  average: 'Average',
+  poor: 'Poor',
+  black_list: 'Black List',
 } as const;
