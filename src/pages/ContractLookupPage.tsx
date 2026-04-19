@@ -40,7 +40,7 @@ export default function ContractLookupPage() {
   async function loadData() {
     setLoading(true);
     const [custRes, contRes] = await Promise.all([
-      supabase.from('customers').select('id, customer_no, name, civil_id, mobile, email, work_place').order('name'),
+      supabase.from('customers').select('*').order('name'),
       supabase.from('contracts').select('*').order('created_at', { ascending: false }),
     ]);
     setCustomers(custRes.data || []);
