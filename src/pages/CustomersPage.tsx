@@ -234,7 +234,7 @@ export default function CustomersPage() {
                             <div className="flex items-center gap-4 flex-wrap">
                               <span className="font-medium text-blue-600">{ct.contract_no}</span>
                               <span className="text-sm text-slate-500">{ct.item_name}</span>
-                              <Badge className={ct.status === 'ongoing' ? 'bg-blue-100 text-blue-700' : ct.status === 'finished' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} variant="secondary">{t(ct.status as any)}</Badge>
+                              <Badge className={ct.status === 'functional' ? 'bg-blue-100 text-blue-700' : ct.status === 'finished' ? 'bg-green-100 text-green-700' : ct.status === 'case_closed' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'} variant="secondary">{t(ct.status as any)}</Badge>
                             </div>
                             <div className="flex items-center gap-4">
                               <div className="text-right text-sm">

@@ -50,7 +50,7 @@ export default function DashboardPage() {
       const totalExpenses = (expRes.data || []).reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
       // Case counts by status
-      const operationalCases = allContracts.filter((c: any) => c.status === 'ongoing').length;
+      const operationalCases = allContracts.filter((c: any) => c.status === 'functional').length;
       const finishedCases = allContracts.filter((c: any) => c.status === 'finished').length;
       const legalCasesCount = allContracts.filter((c: any) => c.status === 'legal_case').length;
       const legalFinishedCases = allLegalCases.filter((lc: any) => {

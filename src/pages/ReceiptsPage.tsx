@@ -115,7 +115,7 @@ export default function ReceiptsPage() {
         const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
         const finalPaid = formData.receipt_type === 'fileOpening' ? schedulePaidTotal + formData.received_amount : schedulePaidTotal;
         const finalRemaining = (contractData.sale_price || 0) - finalPaid;
-        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
+        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: finalPaid, remaining_amount: finalRemaining, status: newStatus }).eq('id', formData.contract_id);
       }
     }
@@ -146,7 +146,7 @@ export default function ReceiptsPage() {
         const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
         const finalPaid = receipt.receipt_type === 'fileOpening' ? Math.max(0, schedulePaidTotal - receipt.received_amount) : schedulePaidTotal;
         const finalRemaining = (contractData.sale_price || 0) - finalPaid;
-        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
+        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: finalPaid, remaining_amount: finalRemaining, status: newStatus }).eq('id', receipt.contract_id);
       }
     }

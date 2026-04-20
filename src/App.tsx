@@ -12,7 +12,6 @@ import LegalCasesPage from '@/pages/LegalCasesPage';
 import ExpensesPage from '@/pages/ExpensesPage';
 import ReceiptsPage from '@/pages/ReceiptsPage';
 import AccountingPage from '@/pages/AccountingPage';
-import RevenueRecognitionPage from '@/pages/RevenueRecognitionPage';
 import UsersPage from '@/pages/UsersPage';
 import ContractLookupPage from '@/pages/ContractLookupPage';
 import OwnersPartnersPage from '@/pages/OwnersPartnersPage';
@@ -57,7 +56,6 @@ export default function App() {
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="receipts" element={<ReceiptsPage />} />
               <Route path="contract-lookup" element={<ContractLookupPage />} />
-              <Route path="revenue-recognition" element={<RevenueRecognitionPage />} />
               <Route path="accounting" element={<AccountingPage />} />
               <Route path="owners-partners" element={<OwnersPartnersPage />} />
               <Route path="users" element={<UsersPage />} />
