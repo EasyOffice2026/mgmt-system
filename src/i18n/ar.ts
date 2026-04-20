@@ -349,4 +349,7 @@ export const ar = {
   average: 'متوسط',
   poor: 'ضعيف',
   black_list: 'قائمة سوداء',
+
+  // Accounting - Enhanced
+  receiptVouchers: 'سندات القبض',
 } as const;

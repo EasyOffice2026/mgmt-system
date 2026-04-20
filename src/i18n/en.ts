@@ -375,4 +375,7 @@ export const en = {
   average: 'Average',
   poor: 'Poor',
   black_list: 'Black List',
+
+  // Accounting - Enhanced
+  receiptVouchers: 'Receipt Vouchers',
 } as const;
