@@ -352,4 +352,19 @@ export const ar = {
 
   // Accounting - Enhanced
   receiptVouchers: 'سندات القبض',
+  componentReports: 'تقارير المكونات',
+  incomeStatement: 'قائمة الدخل',
+  financialReports: 'التقارير المالية والتحليل',
+  clickToView: 'انقر لعرض التقرير',
+  topItems: 'أعلى العناصر',
+  backToReports: 'العودة للتقارير',
+  costOfGoodsSold: 'تكلفة البضاعة المباعة',
+  grossProfit: 'إجمالي الربح',
+  receivablesCollections: 'المستحقات والتحصيلات',
+  revenueVsExpenses: 'الإيرادات مقابل المصروفات',
+  caseStatusBreakdown: 'توزيع حالة القضايا',
+  courtRecovery: 'استرداد المحكمة',
+  netLoss: 'صافي الخسارة',
+  count: 'العدد',
+  print: 'طباعة',
 } as const;

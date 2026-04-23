@@ -378,4 +378,19 @@ export const en = {
 
   // Accounting - Enhanced
   receiptVouchers: 'Receipt Vouchers',
+  componentReports: 'Component Reports',
+  incomeStatement: 'Income Statement',
+  financialReports: 'Financial Reports & Analysis',
+  clickToView: 'Click to view report',
+  topItems: 'Top Items',
+  backToReports: 'Back to Reports',
+  costOfGoodsSold: 'Cost of Goods Sold',
+  grossProfit: 'Gross Profit',
+  receivablesCollections: 'Receivables & Collections',
+  revenueVsExpenses: 'Revenue vs Expenses',
+  caseStatusBreakdown: 'Case Status Breakdown',
+  courtRecovery: 'Court Recovery',
+  netLoss: 'Net Loss',
+  count: 'Count',
+  print: 'Print',
 } as const;
