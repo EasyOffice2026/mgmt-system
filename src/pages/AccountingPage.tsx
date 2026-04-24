@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
 import {
-  Plus, Trash2, Calculator, TrendingUp, TrendingDown, DollarSign, Users,
+  Calculator, TrendingUp, TrendingDown, DollarSign,
   ShoppingCart, Receipt, FileText, BarChart3, ArrowUpRight, ArrowDownRight,
   Briefcase, Gavel, Lock, Calendar, ChevronRight, Printer
 } from 'lucide-react';
@@ -55,17 +54,6 @@ interface IncomeStatement {
   closedValue: number;
 }
 
-interface Partner {
-  id: string;
-  partner_name: string;
-  contribution: number;
-  amount_received: number;
-  share_percentage: number;
-  created_at: string;
-}
-
-const defaultPartner = { partner_name: '', contribution: 0, amount_received: 0, share_percentage: 0 };
-
 const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
 export default function AccountingPage() {
@@ -83,16 +71,6 @@ export default function AccountingPage() {
   const [income, setIncome] = useState<IncomeStatement | null>(null);
   const [incomeLoading, setIncomeLoading] = useState(false);
 
-  const [partners, setPartners] = useState<Partner[]>([]);
-  const [showPartnerDialog, setShowPartnerDialog] = useState(false);
-  const [partnerForm, setPartnerForm] = useState(defaultPartner);
-
-  useEffect(() => { loadPartners(); }, []);
-
-  async function loadPartners() {
-    const res = await supabase.from('partners').select('*').order('created_at', { ascending: true });
-    setPartners(res.data || []);
-  }
 
   const reportTypes: { key: ReportType; label: string; icon: typeof BarChart3; color: string; gradient: string }[] = [
     { key: 'sales', label: t('totalSales'), icon: TrendingUp, color: 'text-blue-600', gradient: 'from-blue-500 to-blue-600' },
@@ -227,18 +205,6 @@ export default function AccountingPage() {
     setIncomeLoading(false);
   }
 
-  async function handleSavePartner() {
-    await supabase.from('partners').insert(partnerForm);
-    setShowPartnerDialog(false);
-    setPartnerForm(defaultPartner);
-    loadPartners();
-  }
-
-  async function handleDeletePartner(id: string) {
-    if (!window.confirm('Are you sure?')) return;
-    await supabase.from('partners').delete().eq('id', id);
-    loadPartners();
-  }
 
   const detailTotal = detailRows.reduce((s, r) => s + r.amount, 0);
   const detailAvg = detailRows.length > 0 ? detailTotal / detailRows.length : 0;
@@ -307,47 +273,6 @@ export default function AccountingPage() {
             ))}
           </div>
 
-          {/* Partners Section */}
-          <Card className="border-0 shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">{t('partnerContributions')}</CardTitle>
-              <Button size="sm" onClick={() => setShowPartnerDialog(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600">
-                <Plus className="h-4 w-4 me-1" /> {t('add')}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {partners.length === 0 ? (
-                <div className="py-10 text-center text-slate-400"><Users className="h-10 w-10 mx-auto mb-2" /><p>{t('noData')}</p></div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('partnerName')}</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contribution')} ({t('kd')})</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('amountReceived')} ({t('kd')})</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('share')} (%)</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {partners.map(p => (
-                        <tr key={p.id} className="border-b border-slate-100 hover:bg-blue-50/50">
-                          <td className="py-3 px-4 font-medium">{p.partner_name}</td>
-                          <td className="py-3 px-4">{p.contribution.toLocaleString()}</td>
-                          <td className="py-3 px-4">{p.amount_received.toLocaleString()}</td>
-                          <td className="py-3 px-4">{p.share_percentage}%</td>
-                          <td className="py-3 px-4">
-                            <Button variant="ghost" size="sm" onClick={() => handleDeletePartner(p.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
 
@@ -412,33 +337,6 @@ export default function AccountingPage() {
                   </CardContent>
                 </Card>
               </div>
-
-              {detailRows.length > 0 && (
-                <Card className="border-0 shadow-md">
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" /> {t('topItems')}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {detailRows.slice(0, 10).map((row, i) => {
-                      const maxAmt = Math.max(...detailRows.map(r => r.amount), 1);
-                      const pct = (row.amount / maxAmt) * 100;
-                      return (
-                        <div key={row.id || i} className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-slate-600 truncate max-w-[60%]">{row.description}</span>
-                            <span className="font-semibold">{fmt(row.amount)} {t('kd')}</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-4">
-                            <div className={`bg-gradient-to-r ${currentReportDef?.gradient || 'from-blue-500 to-blue-600'} h-4 rounded-full transition-all duration-500`} style={{ width: `${Math.max(pct, 2)}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-              )}
 
               <Card className="border-0 shadow-md">
                 <CardContent className="p-0">
@@ -692,39 +590,6 @@ export default function AccountingPage() {
                 </CardContent>
               </Card>
 
-              {/* Revenue vs Expenses Visual */}
-              <Card className="border-0 shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" /> {t('revenueVsExpenses')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {[
-                    { label: t('totalRevenue'), value: income.totalRevenue, color: 'from-green-500 to-emerald-600', textColor: 'text-green-600' },
-                    { label: t('costOfGoodsSold'), value: income.purchaseCost, color: 'from-amber-500 to-orange-600', textColor: 'text-amber-600' },
-                    { label: t('totalExpenses'), value: income.operatingExpenses, color: 'from-red-500 to-pink-600', textColor: 'text-red-600' },
-                    { label: t('receiptVouchers'), value: income.receiptVouchers, color: 'from-blue-500 to-indigo-600', textColor: 'text-blue-600' },
-                  ].map((item, i) => {
-                    const maxVal = Math.max(income.totalRevenue, income.purchaseCost, income.operatingExpenses, income.receiptVouchers, 1);
-                    const pct = (item.value / maxVal) * 100;
-                    return (
-                      <div key={i} className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">{item.label}</span>
-                          <span className={`font-semibold ${item.textColor}`}>{fmt(item.value)} {t('kd')}</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-5">
-                          <div className={`bg-gradient-to-r ${item.color} h-5 rounded-full transition-all duration-700 flex items-center justify-end pe-2`} style={{ width: `${Math.max(pct, 2)}%` }}>
-                            {pct > 15 && <span className="text-[10px] text-white font-medium">{pct.toFixed(0)}%</span>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-
               <Button variant="outline" onClick={() => setActiveView('overview')} className="mt-2">
                 &larr; {t('backToReports')}
               </Button>
@@ -733,36 +598,6 @@ export default function AccountingPage() {
         </div>
       )}
 
-      {/* Add Partner Dialog */}
-      <Dialog open={showPartnerDialog} onOpenChange={setShowPartnerDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('add')} {t('partnerContributions')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>{t('partnerName')} *</Label>
-              <Input value={partnerForm.partner_name} onChange={e => setPartnerForm({ ...partnerForm, partner_name: e.target.value })} />
-            </div>
-            <div>
-              <Label>{t('contribution')} ({t('kd')})</Label>
-              <Input type="number" value={partnerForm.contribution} onChange={e => setPartnerForm({ ...partnerForm, contribution: Number(e.target.value) })} />
-            </div>
-            <div>
-              <Label>{t('amountReceived')} ({t('kd')})</Label>
-              <Input type="number" value={partnerForm.amount_received} onChange={e => setPartnerForm({ ...partnerForm, amount_received: Number(e.target.value) })} />
-            </div>
-            <div>
-              <Label>{t('share')} (%)</Label>
-              <Input type="number" value={partnerForm.share_percentage} onChange={e => setPartnerForm({ ...partnerForm, share_percentage: Number(e.target.value) })} />
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowPartnerDialog(false)}>{t('cancel')}</Button>
-              <Button onClick={handleSavePartner} className="bg-gradient-to-r from-blue-600 to-indigo-600">{t('save')}</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
