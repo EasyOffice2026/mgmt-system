@@ -34,7 +34,7 @@ export default function LoginPage() {
             {lang === 'en' ? 'العربية' : 'English'}
           </button>
         </div>
-        <div className="login-logo">M</div>
+        <div className="login-logo">T</div>
         <div className="login-title">{t('appTitle')}</div>
         <div className="login-subtitle">{t('appSubtitle')}</div>
 

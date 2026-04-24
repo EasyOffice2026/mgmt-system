@@ -2,7 +2,7 @@
 export const translations = {
   en: {
     // App
-    appTitle: 'Management System',
+    appTitle: 'Trot Data Management System',
     appSubtitle: 'Sales · Purchase · Expenses · HRD',
 
     // Navigation
@@ -319,7 +319,7 @@ export const translations = {
   },
 
   ar: {
-    appTitle: 'نظام الإدارة',
+    appTitle: 'نظام تروت لإدارة البيانات',
     appSubtitle: 'المبيعات · المشتريات · المصاريف · الموارد البشرية',
     dashboard: 'لوحة التحكم',
     customers: 'العملاء',

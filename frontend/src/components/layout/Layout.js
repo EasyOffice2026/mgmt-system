@@ -49,7 +49,7 @@ export default function Layout() {
       {/* Topbar */}
       <header className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div className="topbar-logo">M</div>
+          <div className="topbar-logo">T</div>
           <div>
             <div className="topbar-title">{t('appTitle')}</div>
             <div className="topbar-subtitle">{t('appSubtitle')}</div>

@@ -1,10 +1,10 @@
 # ================================================================
-# MANAGEMENT SYSTEM — COMPLETE DEPLOYMENT GUIDE
+# TROT DATA MANAGEMENT SYSTEM — COMPLETE DEPLOYMENT GUIDE
 # For Developer / IT Person
 # ================================================================
 
 ## Overview
-A cloud-based business management system for Kuwait operations.
+A cloud-based data management system for business operations.
 - Frontend: React.js (deployed on Vercel — free)
 - Database + Auth + Storage: Supabase (free tier)
 - Languages: English + Arabic (RTL)

@@ -1,5 +1,5 @@
 -- ============================================================
--- MANAGEMENT SYSTEM - COMPLETE DATABASE SCHEMA
+-- TROT DATA MANAGEMENT SYSTEM - COMPLETE DATABASE SCHEMA
 -- Platform: Supabase (PostgreSQL)
 -- ============================================================
 
