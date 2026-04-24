@@ -71,9 +71,18 @@ export default function CustomersPage() {
     if (!/^\d{12}$/.test(form.civil_id)) errs.civil_id = t('civilIdInvalid');
     if (!/^\d{8}$/.test(form.mobile)) errs.mobile = t('mobileInvalid');
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = t('emailInvalid');
+    if (!form.work_place.trim()) errs.work_place = 'Required';
+    if (!form.client_check) errs.client_check = 'Required';
     if (!form.area_name.trim()) errs.area_name = 'Required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
+  }
+
+  function handleClientCheckChange(newValue: string) {
+    if (form.client_check && newValue !== form.client_check) {
+      if (!window.confirm(t('confirmClientCheckChange'))) return;
+    }
+    setForm({ ...form, client_check: newValue });
   }
 
   async function handleSave() {
@@ -368,15 +377,17 @@ export default function CustomersPage() {
                 {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
               <div>
-                <Label>{t('workPlace')}</Label>
+                <Label>{t('workPlace')} *</Label>
                 <Input value={form.work_place} onChange={e => setForm({ ...form, work_place: e.target.value })} placeholder={t('workPlace')} />
+                {errors.work_place && <p className="text-red-500 text-xs mt-1">{errors.work_place}</p>}
               </div>
               <div>
-                <Label>{t('clientCheck')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.client_check} onChange={e => setForm({ ...form, client_check: e.target.value })}>
+                <Label>{t('clientCheck')} *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.client_check} onChange={e => handleClientCheckChange(e.target.value)}>
                   <option value="">{t('selectClientCheck')}</option>
                   {clientCheckOptions.map(opt => <option key={opt} value={opt}>{t(opt as any) || opt}</option>)}
                 </select>
+                {errors.client_check && <p className="text-red-500 text-xs mt-1">{errors.client_check}</p>}
               </div>
             </div>
             <div className="border-t pt-4">

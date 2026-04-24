@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, TrendingUp, DollarSign, Receipt, Scale, Calendar, AlertTriangle, Clock, CheckCircle, Briefcase, CheckSquare, Gavel } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, Clock, CheckCircle, Briefcase, CheckSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { isBefore } from 'date-fns';
 
@@ -13,7 +13,7 @@ export default function DashboardPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [stats, setStats] = useState({
-    totalCustomers: 0, activeContracts: 0, totalRevenue: 0, totalDue: 0, totalExpenses: 0, legalCases: 0,
+    totalCustomers: 0, activeContracts: 0, totalRevenue: 0, totalRemaining: 0, totalExpenses: 0, legalCases: 0,
     operationalCases: 0, finishedCases: 0, legalFinishedCases: 0, lateCases: 0,
   });
   const [contracts, setContracts] = useState<any[]>([]);
@@ -45,8 +45,9 @@ export default function DashboardPage() {
       ]);
       const allContracts = contRes.data || [];
       const allLegalCases = legalRes.data || [];
-      const totalRevenue = (recRes.data || []).reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
-      const totalDue = allContracts.reduce((s: number, c: any) => s + (c.remaining_amount || 0), 0);
+      const totalRevenue = allContracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
+      const totalReceivedAmounts = (recRes.data || []).reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+      const totalRemaining = totalRevenue - totalReceivedAmounts;
       const totalExpenses = (expRes.data || []).reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
       // Case counts by status
@@ -93,7 +94,7 @@ export default function DashboardPage() {
       setStats({
         totalCustomers: custRes.count || 0,
         activeContracts: allContracts.length,
-        totalRevenue, totalDue, totalExpenses,
+        totalRevenue, totalRemaining, totalExpenses,
         legalCases: legalCasesCount,
         operationalCases, finishedCases, legalFinishedCases, lateCases,
       });
@@ -105,13 +106,10 @@ export default function DashboardPage() {
 
   const kpiCards = [
     { title: t('totalCustomers'), value: stats.totalCustomers, icon: Users, color: 'from-blue-500 to-blue-600', tc: 'text-blue-600' },
-    { title: t('operationalCases'), value: stats.operationalCases, icon: Briefcase, color: 'from-emerald-500 to-emerald-600', tc: 'text-emerald-600' },
-    { title: t('finishedCases'), value: stats.finishedCases, icon: CheckSquare, color: 'from-green-500 to-green-600', tc: 'text-green-600' },
-    { title: t('legalCases'), value: stats.legalCases, icon: Scale, color: 'from-purple-500 to-purple-600', tc: 'text-purple-600' },
-    { title: t('legalFinishedCases'), value: stats.legalFinishedCases, icon: Gavel, color: 'from-indigo-500 to-indigo-600', tc: 'text-indigo-600' },
-    { title: t('lateCases'), value: stats.lateCases, icon: AlertTriangle, color: 'from-red-500 to-red-600', tc: 'text-red-600' },
+    { title: t('functional'), value: stats.operationalCases, icon: Briefcase, color: 'from-emerald-500 to-emerald-600', tc: 'text-emerald-600' },
+    { title: t('finished'), value: stats.finishedCases, icon: CheckSquare, color: 'from-green-500 to-green-600', tc: 'text-green-600' },
     { title: t('totalRevenue'), value: `${stats.totalRevenue.toLocaleString()} ${t('kd')}`, icon: TrendingUp, color: 'from-teal-500 to-teal-600', tc: 'text-teal-600' },
-    { title: t('totalDue'), value: `${stats.totalDue.toLocaleString()} ${t('kd')}`, icon: DollarSign, color: 'from-amber-500 to-amber-600', tc: 'text-amber-600' },
+    { title: t('totalRemaining'), value: `${stats.totalRemaining.toLocaleString()} ${t('kd')}`, icon: DollarSign, color: 'from-amber-500 to-amber-600', tc: 'text-amber-600' },
     { title: t('totalExpenses'), value: `${stats.totalExpenses.toLocaleString()} ${t('kd')}`, icon: Receipt, color: 'from-rose-500 to-rose-600', tc: 'text-rose-600' },
   ];
   return (

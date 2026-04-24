@@ -9,15 +9,19 @@ export function exportToPdf(
   filename: string
 ) {
   const doc = new jsPDF();
-  doc.setFontSize(16);
-  doc.text(title, 14, 20);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Approve Trading Company', 14, 15);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(14);
+  doc.text(title, 14, 25);
   doc.setFontSize(10);
-  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 28);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 33);
 
   autoTable(doc, {
     head: [headers],
     body: rows,
-    startY: 35,
+    startY: 40,
     styles: { fontSize: 8, cellPadding: 3 },
     headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 250, 252] },

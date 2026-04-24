@@ -245,6 +245,7 @@ export const ar = {
   activeContracts: 'العقود النشطة',
   totalRevenue: 'إجمالي الإيرادات',
   totalDue: 'إجمالي المستحق',
+  totalRemaining: 'إجمالي المتبقي',
   recentContracts: 'العقود الأخيرة',
   recentExpenses: 'المصروفات الأخيرة',
   recentReceipts: 'سندات القبض الأخيرة',
@@ -336,6 +337,8 @@ export const ar = {
 
   // Contract - Profit Percentage
   profitPercentage: 'نسبة الربح',
+  confirmStatusChange: 'هل أنت متأكد من تغيير الحالة؟',
+  confirmClientCheckChange: 'هل أنت متأكد من تغيير حالة تصنيف العميل؟',
 
   // Receipt Vouchers - Discount
   discount: 'خصم',

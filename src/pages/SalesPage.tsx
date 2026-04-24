@@ -32,7 +32,7 @@ const emptyItem: ContractItem = { purchase_id: '', item_name: '', model_type: ''
 
 const defaultForm = {
   customer_id: '', items: [{ ...emptyItem }] as ContractItem[],
-  file_opening_charges: 0, client_type: 'new', duration_months: 12,
+  file_opening_charges: 0, duration_months: 12,
   start_date: format(new Date(), 'yyyy-MM-dd'),
   first_installment_date: format(addMonths(new Date(), 1), 'yyyy-MM-dd'),
   payment_mode: 'cash', status: 'functional', attachments: [] as string[],
@@ -54,8 +54,6 @@ export default function SalesPage() {
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
   const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
-  const [newPaymentMode, setNewPaymentMode] = useState('');
-  const [showAddMode, setShowAddMode] = useState(false);
 
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
 
@@ -68,14 +66,6 @@ export default function SalesPage() {
     }
   }
 
-  async function addPaymentMode() {
-    if (!newPaymentMode.trim()) return;
-    const modeName = newPaymentMode.trim().toLowerCase().replace(/\s+/g, '_');
-    await supabase.from('payment_modes').upsert({ name: modeName }, { onConflict: 'name' });
-    setNewPaymentMode('');
-    setShowAddMode(false);
-    await loadPaymentModes();
-  }
 
   async function loadData() {
     setLoading(true);
@@ -159,7 +149,7 @@ export default function SalesPage() {
       purchase_price: form.items.reduce((s, i) => s + (i.purchase_price || 0), 0),
       sale_price: totalSalePrice,
       file_opening_charges: form.file_opening_charges,
-      client_type: form.client_type, duration_months: form.duration_months,
+      duration_months: form.duration_months,
       start_date: form.start_date, first_installment_date: form.first_installment_date,
       last_installment_date: lastDate, end_date: lastDate,
       installment_amount: Math.round(instAmount * 1000) / 1000,
@@ -194,7 +184,7 @@ export default function SalesPage() {
     setForm({
       customer_id: c.customer_id,
       items: c.items && c.items.length > 0 ? c.items.map((i: any) => ({ ...emptyItem, ...i })) : [{ purchase_id: '', item_name: c.item_name || '', model_type: c.model_type || '', category: c.category || '', purchase_price: c.purchase_price || 0, profit_percentage: 0, sale_price: c.sale_price || 0 }],
-      file_opening_charges: c.file_opening_charges, client_type: c.client_type,
+      file_opening_charges: c.file_opening_charges,
       duration_months: c.duration_months, start_date: c.start_date,
       first_installment_date: c.first_installment_date, payment_mode: c.payment_mode,
       status: c.status, attachments: c.attachments || [],
@@ -403,21 +393,12 @@ export default function SalesPage() {
             <DialogTitle>{editing ? t('editContract') : t('addContract')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>{t('customer')} *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
-                  <option value="">Select Customer</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>{t('clientType')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.client_type} onChange={e => setForm({ ...form, client_type: e.target.value })}>
-                  <option value="new">{t('newClient')}</option>
-                  <option value="existing">{t('existingClient')}</option>
-                </select>
-              </div>
+            <div>
+              <Label>{t('customer')} *</Label>
+              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
+                <option value="">Select Customer</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
+              </select>
             </div>
 
             {/* Multiple Items Section */}
@@ -435,7 +416,7 @@ export default function SalesPage() {
                     )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
+                    <div className="md:col-span-3">
                       <Label className="text-xs">{t('selectProduct')}</Label>
                       <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={item.purchase_id} onChange={e => updateItem(idx, 'purchase_id', e.target.value)}>
                         <option value="">Select from inventory</option>
@@ -443,23 +424,11 @@ export default function SalesPage() {
                       </select>
                     </div>
                     <div>
-                      <Label className="text-xs">{t('itemName')}</Label>
-                      <Input className="h-9" value={item.item_name} onChange={e => updateItem(idx, 'item_name', e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">{t('category')}</Label>
-                      <Input className="h-9" value={item.category} onChange={e => updateItem(idx, 'category', e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">{t('modelType')}</Label>
-                      <Input className="h-9" value={item.model_type} onChange={e => updateItem(idx, 'model_type', e.target.value)} />
-                    </div>
-                    <div>
                       <Label className="text-xs">{t('purchasePrice')}</Label>
                       <Input className="h-9" type="number" value={item.purchase_price} onChange={e => updateItem(idx, 'purchase_price', Number(e.target.value))} />
                     </div>
                     <div>
-                      <Label className="text-xs">{t('profitPercentage')} %</Label>
+                      <Label className="text-xs">{t('profitPercentage')}</Label>
                       <Input className="h-9" type="number" value={item.profit_percentage} onChange={e => updateItem(idx, 'profit_percentage', Number(e.target.value))} placeholder="e.g. 20" />
                     </div>
                     <div>
@@ -480,7 +449,7 @@ export default function SalesPage() {
                 <Input type="number" value={form.file_opening_charges} onChange={e => setForm({ ...form, file_opening_charges: Number(e.target.value) })} />
               </div>
               <div>
-                <Label>{t('duration')} ({t('months')})</Label>
+                <Label>{t('duration')}</Label>
                 <Input type="number" value={form.duration_months} onChange={e => setForm({ ...form, duration_months: Number(e.target.value) })} />
               </div>
               <div>
@@ -493,24 +462,18 @@ export default function SalesPage() {
               </div>
               <div>
                 <Label>{t('paymentMode')}</Label>
-                <div className="flex gap-2">
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
-                    {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
-                  </select>
-                  <Button type="button" variant="outline" size="sm" className="h-10 px-3 shrink-0" onClick={() => setShowAddMode(!showAddMode)}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-                {showAddMode && (
-                  <div className="flex gap-2 mt-2">
-                    <Input placeholder={t('addPaymentMode')} value={newPaymentMode} onChange={e => setNewPaymentMode(e.target.value)} className="h-8 text-xs" />
-                    <Button type="button" size="sm" className="h-8 text-xs" onClick={addPaymentMode}>{t('add')}</Button>
-                  </div>
-                )}
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
+                  {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
+                </select>
               </div>
               <div>
-                <Label>{t('status')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                <Label>{t('status')} *</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.status} onChange={e => {
+                  if (form.status && e.target.value !== form.status) {
+                    if (!window.confirm(t('confirmStatusChange'))) return;
+                  }
+                  setForm({ ...form, status: e.target.value });
+                }}>
                   <option value="functional">{t('functional')}</option>
                   <option value="finished">{t('finished')}</option>
                   <option value="legal_case">{t('legalCase')}</option>

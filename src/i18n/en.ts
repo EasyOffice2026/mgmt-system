@@ -267,6 +267,7 @@ export const en = {
   activeContracts: 'Active Contracts',
   totalRevenue: 'Total Revenue',
   totalDue: 'Total Due',
+  totalRemaining: 'Total Remaining',
   recentContracts: 'Recent Contracts',
   recentExpenses: 'Recent Expenses',
   recentReceipts: 'Recent Receipts',
@@ -362,6 +363,8 @@ export const en = {
 
   // Contract - Profit Percentage
   profitPercentage: 'Profit %',
+  confirmStatusChange: 'Are you sure to change the Status?',
+  confirmClientCheckChange: 'Are you sure to change the client check Status?',
 
   // Receipt Vouchers - Discount
   discount: 'Discount',
