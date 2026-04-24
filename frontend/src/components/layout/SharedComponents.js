@@ -119,7 +119,20 @@ export function StatusBadge({ status }) {
     approved: ['success', 'approved'], rejected: ['danger', 'rejected'],
     present: ['success', 'present'], absent: ['danger', 'absent'],
     late: ['warning', 'late'], half_day: ['info', 'halfDay'],
-    cancelled: ['danger', 'terminated'],
+    cancelled: ['danger', 'cancelled'],
+    vip: ['purple', 'vip'],
+    placed: ['info', 'placed'],
+    preparing: ['warning', 'preparing'],
+    ready: ['success', 'ready'],
+    served: ['success', 'served'],
+    booked: ['info', 'booked'],
+    seated: ['warning', 'seated'],
+    completed: ['success', 'completed'],
+    available: ['success', 'available'],
+    unavailable: ['gray', 'unavailable'],
+    occupied: ['danger', 'occupied'],
+    reserved: ['warning', 'reserved'],
+    maintenance: ['gray', 'maintenance'],
   };
   const [cls, key] = map[status] || ['gray', status];
   return <span className={`badge badge-${cls}`}>{t(key) || status}</span>;

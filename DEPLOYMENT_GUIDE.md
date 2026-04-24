@@ -1,232 +1,89 @@
 # ================================================================
-# MANAGEMENT SYSTEM — COMPLETE DEPLOYMENT GUIDE
-# For Developer / IT Person
+# RESTAURANT MANAGEMENT SYSTEM - DEPLOYMENT GUIDE
 # ================================================================
 
 ## Overview
-A cloud-based business management system for Kuwait operations.
-- Frontend: React.js (deployed on Vercel — free)
-- Database + Auth + Storage: Supabase (free tier)
+Cloud-based Restaurant Management System with:
+- Frontend: React (deployed on Vercel)
+- Database/Auth/Storage: Supabase
 - Languages: English + Arabic (RTL)
-- Modules: Customers, Sales/Contracts, Purchase, Inventory, Legal Cases,
-  Expenses, Receipts, Accounting, HRD (Employees, Attendance, Payroll, Leaves),
-  Users, Settings
+- Modules: Guests, Menu, Orders, Tables, Reservations, Kitchen, Inventory, Staff, Reports, Users, Settings
 
 ---
 
-## STEP 1 — Create Supabase Project (10 min)
-
-1. Go to https://supabase.com → Sign up (free)
-2. Click "New Project"
-3. Name: `mgmt-system`
-4. Database password: choose a strong password → SAVE IT
-5. Region: choose closest to Kuwait (e.g. eu-west-1)
-6. Click "Create new project" → wait ~2 min
+## Step 1 - Create Supabase Project
+1. Go to https://supabase.com and create a project.
+2. Keep your database password secure.
+3. Choose a region near your operations.
 
 ---
 
-## STEP 2 — Set Up Database (5 min)
-
-1. In Supabase dashboard → click "SQL Editor" (left sidebar)
-2. Click "New query"
-3. Open the file: `database/schema.sql`
-4. Copy ALL contents → paste into SQL editor
-5. Click "Run" (green button)
-6. You should see: "Success. No rows returned."
+## Step 2 - Initialize Database Schema
+1. Open Supabase -> SQL Editor.
+2. Create a new query.
+3. Paste the contents of `database/schema.sql`.
+4. Run the script.
 
 ---
 
-## STEP 3 — Set Up Storage Buckets (5 min)
+## Step 3 - Create Initial Owner User
+1. In Supabase -> Authentication -> Users, create or invite your owner account.
+2. In SQL Editor, link that auth account to a profile:
 
-In Supabase dashboard → "Storage" → "New bucket":
-
-Create these buckets (make them PUBLIC):
-- `customer-docs`
-- `employee-docs`
-- `contracts`
-- `purchases`
-- `expenses`
-- `receipts`
-- `legal`
-
-For each bucket → click on it → "Policies" → "New policy" → "For full customization":
-```sql
--- Allow authenticated users to upload/view files
-CREATE POLICY "auth_access"
-ON storage.objects FOR ALL
-TO authenticated
-USING (true)
-WITH CHECK (true);
-```
-
----
-
-## STEP 4 — Create First Owner User (3 min)
-
-1. Supabase dashboard → "Authentication" → "Users" → "Invite user"
-2. Email: `owner@company.com`
-3. They will receive an email to set their password
-   OR: use "Add user" → set email + password manually
-
-4. After creating the auth user, go to SQL Editor and run:
 ```sql
 INSERT INTO user_profiles (id, full_name, role)
-SELECT id, 'System Owner', 'owner'
+SELECT id, 'Restaurant Owner', 'owner'
 FROM auth.users
-WHERE email = 'owner@company.com';
+WHERE email = 'owner@restaurant.com';
 ```
 
 ---
 
-## STEP 5 — Get Your API Keys (2 min)
+## Step 4 - Configure Frontend Environment
+Inside `frontend/.env`:
 
-1. Supabase dashboard → "Settings" (bottom left) → "API"
-2. Copy:
-   - **Project URL** (looks like: `https://abcdefgh.supabase.co`)
-   - **anon public** key (long string starting with `eyJ...`)
-
----
-
-## STEP 6 — Deploy Frontend to Vercel (10 min)
-
-### Option A — GitHub (Recommended)
-
-1. Create a GitHub account at https://github.com (free)
-2. Create new repository: `mgmt-system`
-3. Upload all files in the `frontend/` folder to the repo
-
-4. Go to https://vercel.com → Sign up with GitHub
-5. Click "New Project" → import your GitHub repo
-6. Framework preset: **Create React App** (auto-detected)
-7. Under "Environment Variables", add:
-   - `REACT_APP_SUPABASE_URL` = your Supabase Project URL
-   - `REACT_APP_SUPABASE_ANON_KEY` = your anon key
-8. Click "Deploy" → done in ~3 min
-
-### Option B — Direct Upload (No GitHub)
-
-1. On your computer, open terminal in the `frontend/` folder:
 ```bash
-cp .env.example .env
-# Edit .env and fill in your Supabase URL and key
+REACT_APP_SUPABASE_URL=your_supabase_project_url
+REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+You can copy from `.env.example` if needed.
+
+---
+
+## Step 5 - Run Locally
+```bash
+cd frontend
 npm install
-npm run build
-```
-2. Go to https://vercel.com → drag and drop the `build/` folder
-3. Add environment variables in Vercel dashboard → Settings → Environment Variables
-
----
-
-## STEP 7 — Login & Test (2 min)
-
-1. Open your Vercel URL (e.g. `https://mgmt-system.vercel.app`)
-2. Login with: `owner@company.com` and the password you set
-3. Test: Add a customer, create a contract, add an employee
-
----
-
-## MAINTENANCE & BACKUP
-
-### Adding More Users
-- Supabase → Authentication → Users → Add user
-- Then SQL Editor:
-```sql
-INSERT INTO user_profiles (id, full_name, role)
-SELECT id, 'Staff Name', 'staff'  -- or 'admin'
-FROM auth.users
-WHERE email = 'newuser@company.com';
+npm start
 ```
 
-### Database Backups
-- Supabase → Settings → Database → "Database backups"
-- Pro plan ($25/mo) includes automated daily backups
-- Free tier: export manually via SQL Editor: `pg_dump`
+---
 
-### Scaling (if needed)
-- Free tier limits: 500MB database, 1GB storage, 50,000 monthly active users
-- Supabase Pro: $25/month — 8GB database, 100GB storage
-- Vercel: Free tier is generous for most businesses
+## Step 6 - Deploy to Vercel
+1. Push this repo to GitHub/GitLab.
+2. Import the project in Vercel.
+3. Set:
+   - `root directory` to `frontend`
+   - `build command`: `npm run build`
+4. Add environment variables from Step 4.
+5. Deploy.
 
 ---
 
-## STORAGE BUCKETS REFERENCE
-
-| Bucket         | Used For                        |
-|----------------|---------------------------------|
-| customer-docs  | Civil IDs, Passports, Photos    |
-| employee-docs  | Employee documents              |
-| contracts      | Contract copies                 |
-| purchases      | Purchase invoices               |
-| expenses       | Expense receipts                |
-| receipts       | Payment vouchers                |
-| legal          | Legal case documents            |
+## Recommended Supabase Buckets (optional)
+Create public buckets if you want file/image uploads:
+- `menu-images`
+- `kitchen`
+- `staff-docs`
+- `inventory-docs`
 
 ---
 
-## MODULES SUMMARY
-
-| Module          | Features                                                    |
-|-----------------|-------------------------------------------------------------|
-| Dashboard       | KPIs, expiring docs alert, recent contracts, charts         |
-| Customers       | CRUD, Civil ID/Mobile validation, address, attachments      |
-| Sales/Contracts | Auto-installment schedule, inventory link, status tracking  |
-| Purchase        | Supplier invoices, auto-inventory, categories               |
-| Inventory       | All purchased items, status tracking (in stock/assigned)    |
-| Legal Cases     | Auto excess amount calc, linked to contracts/customers      |
-| Expenses        | Voucher numbers, case-linked expenses, all types            |
-| Receipts        | File opening, installments, court money                     |
-| Accounting      | Monthly P&L, partner contributions, trends                  |
-| Employees       | Full profiles, 6 document types, all HR fields              |
-| Attendance      | Daily log, bulk mark, hours calculation                     |
-| Payroll         | Bulk process, allowances, deductions, payslip               |
-| Leaves          | Request/approve workflow, auto day count                    |
-| Users           | Role-based access (Owner/Admin/Staff)                       |
-| Settings        | Add categories, payment modes                               |
-
----
-
-## SUPPORT CONTACTS
-
-- Supabase Docs: https://supabase.com/docs
-- Vercel Docs: https://vercel.com/docs
-- React Docs: https://react.dev
-
----
-
-## FILE STRUCTURE
-
-```
-mgmt-system/
-├── database/
-│   └── schema.sql          ← Run this in Supabase SQL Editor
-├── frontend/
-│   ├── public/
-│   │   └── index.html
-│   ├── src/
-│   │   ├── App.js           ← Main routing
-│   │   ├── index.js         ← Entry point
-│   │   ├── styles/
-│   │   │   └── global.css   ← All styles (EN + AR/RTL)
-│   │   ├── contexts/
-│   │   │   ├── AuthContext.js
-│   │   │   └── LangContext.js
-│   │   ├── i18n/
-│   │   │   └── translations.js  ← All EN + AR text
-│   │   ├── utils/
-│   │   │   └── supabaseClient.js
-│   │   └── components/
-│   │       ├── auth/LoginPage.js
-│   │       ├── layout/
-│   │       │   ├── Layout.js
-│   │       │   └── SharedComponents.js
-│   │       └── modules/
-│   │           ├── Dashboard.js
-│   │           ├── AllModules.js   ← Sales, Purchase, Legal, etc.
-│   │           ├── customers/
-│   │           ├── hrd/            ← Employees, Attendance, Payroll, Leaves
-│   │           └── users/
-│   ├── package.json
-│   ├── vercel.json
-│   └── .env.example        ← Copy to .env and fill in keys
-└── DEPLOYMENT_GUIDE.md     ← This file
-```
+## Post-deployment checklist
+- Login with owner account.
+- Add menu categories and menu items.
+- Add dining tables.
+- Create a test guest, reservation, and order.
+- Move an order through kitchen statuses.
+- Validate dashboard/report figures.
