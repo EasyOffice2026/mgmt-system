@@ -12,7 +12,7 @@ import {
 export default function Users() {
   const { t } = useLang();
   const { profile, isOwner } = useAuth();
-  const { confirm, Dialog } = useConfirm();
+  const { Dialog } = useConfirm();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);

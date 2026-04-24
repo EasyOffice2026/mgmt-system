@@ -73,7 +73,6 @@ export const translations = {
     amount: 'Amount',
 
     // Guests
-    guests: 'Guests',
     guest: 'Guest',
     guestName: 'Guest Name',
     guestNo: 'Guest No.',
@@ -92,7 +91,6 @@ export const translations = {
     notes: 'Notes',
 
     // Menu
-    menu: 'Menu',
     menuItem: 'Menu Item',
     menuItems: 'Menu Items',
     addMenuItem: 'Add Menu Item',
@@ -112,7 +110,6 @@ export const translations = {
     markedUnavailable: 'Marked as unavailable',
 
     // Orders
-    orders: 'Orders',
     orderNo: 'Order No.',
     orderType: 'Order Type',
     createOrder: 'Create Order',
@@ -131,7 +128,6 @@ export const translations = {
     paid: 'Paid',
 
     // Tables
-    tables: 'Tables',
     addTable: 'Add Table',
     tableNumber: 'Table Number',
     section: 'Section',
@@ -142,7 +138,6 @@ export const translations = {
     tableSaved: 'Table saved successfully',
 
     // Reservations
-    reservations: 'Reservations',
     newReservation: 'New Reservation',
     reservationTime: 'Reservation Time',
     partySize: 'Party Size',
@@ -156,7 +151,6 @@ export const translations = {
     reservationSaved: 'Reservation saved successfully',
 
     // Kitchen
-    kitchen: 'Kitchen Queue',
     ticketNo: 'Ticket No.',
     priority: 'Priority',
     queued: 'Queued',
@@ -165,7 +159,6 @@ export const translations = {
     markServed: 'Mark Served',
 
     // Inventory
-    inventory: 'Inventory',
     inventoryItems: 'Inventory Items',
     addInventoryItem: 'Add Inventory Item',
     inventoryItemSaved: 'Inventory item saved successfully',
@@ -181,7 +174,6 @@ export const translations = {
     inStock: 'In Stock',
 
     // Staff
-    staff: 'Staff',
     totalStaff: 'Total Staff',
     addStaff: 'Add Staff',
     staffCode: 'Staff Code',
@@ -211,7 +203,6 @@ export const translations = {
     partTime: 'Part Time',
 
     // Reports
-    reports: 'Reports',
     salesAmount: 'Sales Amount',
     inventoryHealth: 'Inventory Health',
 
@@ -309,7 +300,6 @@ export const translations = {
     amount: 'المبلغ',
 
     // Guests
-    guests: 'الضيوف',
     guest: 'ضيف',
     guestName: 'اسم الضيف',
     guestNo: 'رقم الضيف',
@@ -328,7 +318,6 @@ export const translations = {
     notes: 'ملاحظات',
 
     // Menu
-    menu: 'المنيو',
     menuItem: 'عنصر منيو',
     menuItems: 'عناصر المنيو',
     addMenuItem: 'إضافة عنصر منيو',
@@ -348,7 +337,6 @@ export const translations = {
     markedUnavailable: 'تم تعيينه كغير متاح',
 
     // Orders
-    orders: 'الطلبات',
     orderNo: 'رقم الطلب',
     orderType: 'نوع الطلب',
     createOrder: 'إنشاء طلب',
@@ -367,7 +355,6 @@ export const translations = {
     paid: 'مدفوع',
 
     // Tables
-    tables: 'الطاولات',
     addTable: 'إضافة طاولة',
     tableNumber: 'رقم الطاولة',
     section: 'القسم',
@@ -378,7 +365,6 @@ export const translations = {
     tableSaved: 'تم حفظ الطاولة بنجاح',
 
     // Reservations
-    reservations: 'الحجوزات',
     newReservation: 'حجز جديد',
     reservationTime: 'وقت الحجز',
     partySize: 'عدد الأفراد',
@@ -392,7 +378,6 @@ export const translations = {
     reservationSaved: 'تم حفظ الحجز بنجاح',
 
     // Kitchen
-    kitchen: 'طابور المطبخ',
     ticketNo: 'رقم التذكرة',
     priority: 'الأولوية',
     queued: 'بالانتظار',
@@ -401,7 +386,6 @@ export const translations = {
     markServed: 'تعيين كمقدم',
 
     // Inventory
-    inventory: 'المخزون',
     inventoryItems: 'عناصر المخزون',
     addInventoryItem: 'إضافة عنصر مخزون',
     inventoryItemSaved: 'تم حفظ عنصر المخزون',
@@ -417,7 +401,6 @@ export const translations = {
     inStock: 'متوفر',
 
     // Staff
-    staff: 'الموظفون',
     totalStaff: 'إجمالي الموظفين',
     addStaff: 'إضافة موظف',
     staffCode: 'رمز الموظف',
@@ -447,7 +430,6 @@ export const translations = {
     partTime: 'دوام جزئي',
 
     // Reports
-    reports: 'التقارير',
     salesAmount: 'مبلغ المبيعات',
     inventoryHealth: 'صحة المخزون',
 
