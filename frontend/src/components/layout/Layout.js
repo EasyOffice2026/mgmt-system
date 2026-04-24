@@ -7,24 +7,25 @@ import toast from 'react-hot-toast';
 import '../../styles/global.css';
 
 const NAV = [
-  { path: '/',           icon: '⊞', key: 'dashboard',  section: 'main' },
-  { path: '/customers',  icon: '👤', key: 'customers',  section: 'main' },
-  { path: '/sales',      icon: '📄', key: 'sales',      section: 'main' },
-  { path: '/purchase',   icon: '🛒', key: 'purchase',   section: 'main' },
-  { path: '/inventory',  icon: '📦', key: 'inventory',  section: 'main' },
-  { path: '/legal',      icon: '⚖️', key: 'legal',     section: 'main' },
-  { path: '/expenses',   icon: '💸', key: 'expenses',   section: 'finance' },
-  { path: '/receipts',   icon: '🧾', key: 'receipts',   section: 'finance' },
-  { path: '/accounting', icon: '📊', key: 'accounting', section: 'finance' },
-  { path: '/hrd',        icon: '🏢', key: 'hrd',        section: 'hrd' },
-  { path: '/attendance', icon: '🕐', key: 'attendance', section: 'hrd' },
-  { path: '/payroll',    icon: '💳', key: 'payroll',    section: 'hrd' },
-  { path: '/leaves',     icon: '🌴', key: 'leaves',     section: 'hrd' },
-  { path: '/users',      icon: '👥', key: 'users',      section: 'admin' },
-  { path: '/settings',   icon: '⚙️', key: 'settings',  section: 'admin' },
+  { path: '/',              icon: '⊞', key: 'dashboard',    section: 'operations' },
+  { path: '/orders',        icon: '🧾', key: 'orders',       section: 'operations' },
+  { path: '/kitchen',       icon: '🍳', key: 'kitchen',      section: 'operations' },
+  { path: '/tables',        icon: '🪑', key: 'tables',       section: 'operations' },
+  { path: '/reservations',  icon: '📅', key: 'reservations', section: 'operations' },
+  { path: '/guests',        icon: '👥', key: 'guests',       section: 'catalog' },
+  { path: '/menu',          icon: '📖', key: 'menu',         section: 'catalog' },
+  { path: '/inventory',     icon: '📦', key: 'inventory',    section: 'catalog' },
+  { path: '/staff',         icon: '👨‍🍳', key: 'staff',        section: 'management' },
+  { path: '/reports',       icon: '📊', key: 'reports',      section: 'management' },
+  { path: '/users',         icon: '🔐', key: 'users',        section: 'management' },
+  { path: '/settings',      icon: '⚙️', key: 'settings',     section: 'management' },
 ];
 
-const SECTION_KEYS = { main: 'main', finance: 'finance', hrd: 'hrdSection', admin: 'admin' };
+const SECTION_KEYS = {
+  operations: 'operations',
+  catalog: 'catalog',
+  management: 'management'
+};
 
 export default function Layout() {
   const { profile, signOut, isOwner } = useAuth();
@@ -62,7 +63,7 @@ export default function Layout() {
           <div style={{ position: 'relative' }}>
             <div className="user-badge" onClick={() => setShowUserMenu(s => !s)}>
               <div className="avatar">{initials}</div>
-              <span style={{ fontSize: 12, color: '#fff' }}>{profile?.full_name || t('owner')}</span>
+              <span style={{ fontSize: 12, color: '#fff' }}>{profile?.full_name || t('manager')}</span>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>▾</span>
             </div>
             {showUserMenu && (
