@@ -11,6 +11,7 @@ import {
 
 const navItems = [
   { key: 'dashboard', icon: LayoutDashboard, path: '/' },
+  { key: 'contractLookup', icon: FileSearch, path: '/contract-lookup' },
   { key: 'customers', icon: Users, path: '/customers' },
   { key: 'sales', icon: ShoppingCart, path: '/sales' },
   { key: 'purchase', icon: Package, path: '/purchase' },
@@ -18,7 +19,6 @@ const navItems = [
   { key: 'legalCases', icon: Scale, path: '/legal-cases' },
   { key: 'expenses', icon: Receipt, path: '/expenses' },
   { key: 'receipts', icon: FileText, path: '/receipts' },
-  { key: 'contractLookup', icon: FileSearch, path: '/contract-lookup' },
   { key: 'accounting', icon: Calculator, path: '/accounting' },
   { key: 'users', icon: Settings, path: '/users' },
 ] as const;
