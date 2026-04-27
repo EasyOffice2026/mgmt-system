@@ -179,26 +179,30 @@ export default function ReceiptsPage() {
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
       installment_no: form.installment_no,
     };
-    // Helper to try insert/update, falling back without installment_no if column doesn't exist
+    // Helper to try insert/update, progressively stripping optional columns if they don't exist in DB
+    const optionalCols = ['installment_no', 'discount_amount', 'net_amount'];
     async function tryUpsert(isEdit: boolean): Promise<boolean> {
-      if (isEdit) {
-        const { error } = await supabase.from('receipt_vouchers').update(data).eq('id', editing!.id);
-        if (error && error.message?.includes('installment_no')) {
-          const { installment_no, ...dataWithout } = data;
-          const { error: e2 } = await supabase.from('receipt_vouchers').update(dataWithout).eq('id', editing!.id);
-          if (e2) { console.error('Receipt update error:', e2); alert('Failed to update receipt: ' + e2.message); return false; }
-        } else if (error) {
-          console.error('Receipt update error:', error); alert('Failed to update receipt: ' + error.message); return false;
+      let payload = { ...data };
+      for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
+        const { error } = isEdit
+          ? await supabase.from('receipt_vouchers').update(payload).eq('id', editing!.id)
+          : await supabase.from('receipt_vouchers').insert(payload);
+        if (!error) return true;
+        // If error mentions a column name we can strip, remove it and retry
+        const badCol = optionalCols.find(col => !!(error.message || error.details || '').includes(col) || (error.code === '42703' && (error.message || '').includes(col)));
+        if (badCol) {
+          const { [badCol]: _, ...rest } = payload;
+          payload = rest;
+          continue;
         }
-      } else {
-        const { error } = await supabase.from('receipt_vouchers').insert(data);
-        if (error && error.message?.includes('installment_no')) {
-          const { installment_no, ...dataWithout } = data;
-          const { error: e2 } = await supabase.from('receipt_vouchers').insert(dataWithout);
-          if (e2) { console.error('Receipt insert error:', e2); alert('Failed to save receipt: ' + e2.message); return false; }
-        } else if (error) {
-          console.error('Receipt insert error:', error); alert('Failed to save receipt: ' + error.message); return false;
+        // If generic 400/column error, try stripping all optional cols at once
+        if (attempt === 0 && (error.code === '42703' || (error.message || '').includes('column'))) {
+          for (const col of optionalCols) delete payload[col];
+          continue;
         }
+        console.error(isEdit ? 'Receipt update error:' : 'Receipt insert error:', error);
+        alert(`Failed to ${isEdit ? 'update' : 'save'} receipt: ${error.message}`);
+        return false;
       }
       return true;
     }
