@@ -69,7 +69,8 @@ export default function LegalCasesPage() {
   async function openPaymentDetail(lc: LegalCase) {
     setShowPaymentDetail(lc);
     const { data } = await supabase.from('receipt_vouchers').select('*')
-      .or(`court_case_no.eq.${lc.case_no},contract_id.eq.${lc.contract_id}`)
+      .eq('receipt_type', 'courtMoney')
+      .eq('court_case_no', lc.case_no)
       .order('receipt_date', { ascending: true });
     setCaseReceipts(data || []);
   }
@@ -153,9 +154,9 @@ export default function LegalCasesPage() {
       {/* KPI Dashboard */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalCases')}</p><p className="text-xl font-bold text-blue-600">{totalCases}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalClaimedAmount')}</p><p className="text-xl font-bold text-amber-600">{totalClaimed.toLocaleString()} {t('kd')}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('actualAmount')}</p><p className="text-xl font-bold text-slate-700">{totalActual.toLocaleString()} {t('kd')}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('amountRecovered')}</p><p className="text-xl font-bold text-green-600">{totalRecovered.toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalClaimedAmount')}</p><p className="text-xl font-bold text-amber-600">{Math.round(totalClaimed).toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('actualAmount')}</p><p className="text-xl font-bold text-slate-700">{Math.round(totalActual).toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('amountRecovered')}</p><p className="text-xl font-bold text-green-600">{Math.round(totalRecovered).toLocaleString()} {t('kd')}</p></CardContent></Card>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -204,11 +205,11 @@ export default function LegalCasesPage() {
                       <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                         <td className="py-3 px-4 font-medium">{c.customer_name}</td>
                         <td className="py-3 px-4 text-blue-600">{c.case_no}</td>
-                        <td className="py-3 px-4">{c.original_amount?.toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4">{c.case_amount?.toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4 text-red-600">{cf.toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4 text-green-600">{rcvd.toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4 font-medium">{outstanding.toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4">{Math.round(c.original_amount || 0).toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4">{Math.round(c.case_amount || 0).toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4 text-red-600">{Math.round(cf).toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4 text-green-600">{Math.round(rcvd).toLocaleString()} {t('kd')}</td>
+                        <td className="py-3 px-4 font-medium">{Math.round(outstanding).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4">{c.case_date}</td>
                         <td className="py-3 px-4">
                           <div className="flex gap-1">
@@ -247,22 +248,22 @@ export default function LegalCasesPage() {
                   </div>
                   <div className="bg-blue-50 rounded-lg p-3 text-center">
                     <p className="text-xs text-blue-600">{t('caseAmount')}</p>
-                    <p className="font-semibold text-sm mt-1">{caseAmt.toLocaleString()} {t('kd')}</p>
+                    <p className="font-semibold text-sm mt-1">{Math.round(caseAmt).toLocaleString()} {t('kd')}</p>
                   </div>
                   <div className="bg-green-50 rounded-lg p-3 text-center">
                     <p className="text-xs text-green-600">{t('totalPaidAmount')}</p>
-                    <p className="font-semibold text-sm mt-1 text-green-700">{totalPaid.toLocaleString()} {t('kd')}</p>
+                    <p className="font-semibold text-sm mt-1 text-green-700">{Math.round(totalPaid).toLocaleString()} {t('kd')}</p>
                   </div>
                   <div className="bg-red-50 rounded-lg p-3 text-center">
                     <p className="text-xs text-red-600">{t('balanceAmount')}</p>
-                    <p className="font-semibold text-sm mt-1 text-red-700">{balance.toLocaleString()} {t('kd')}</p>
+                    <p className="font-semibold text-sm mt-1 text-red-700">{Math.round(balance).toLocaleString()} {t('kd')}</p>
                   </div>
                 </div>
 
                 {/* Progress */}
                 <div>
                   <div className="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>{t('paid')}: {totalPaid.toLocaleString()} / {caseAmt.toLocaleString()} {t('kd')}</span>
+                    <span>{t('paid')}: {Math.round(totalPaid).toLocaleString()} / {Math.round(caseAmt).toLocaleString()} {t('kd')}</span>
                     <span>{caseAmt > 0 ? Math.round(totalPaid / caseAmt * 100) : 0}%</span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2.5">
@@ -296,9 +297,9 @@ export default function LegalCasesPage() {
                               <td className="py-2.5 px-3">{i + 1}</td>
                               <td className="py-2.5 px-3">{r.receipt_date}</td>
                               <td className="py-2.5 px-3">{t(r.receipt_type as any) || r.receipt_type}</td>
-                              <td className="py-2.5 px-3 font-medium text-green-600">{r.received_amount?.toLocaleString()} {t('kd')}</td>
+                              <td className="py-2.5 px-3 font-medium text-green-600">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
                               <td className="py-2.5 px-3">{r.payment_mode}</td>
-                              <td className="py-2.5 px-3 font-medium">{rb.toLocaleString()} {t('kd')}</td>
+                              <td className="py-2.5 px-3 font-medium">{Math.round(rb).toLocaleString()} {t('kd')}</td>
                             </tr>
                           );
                         })}
@@ -366,7 +367,7 @@ export default function LegalCasesPage() {
             </div>
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-1">{t('balanceAmount')}</h4>
-              <p className="text-2xl font-bold text-blue-700">{calculateBalance().toLocaleString()} {t('kd')}</p>
+              <p className="text-2xl font-bold text-blue-700">{Math.round(calculateBalance()).toLocaleString()} {t('kd')}</p>
               <p className="text-xs text-blue-600 mt-1">({t('rcvdFromCourt')} + {t('rcvdFromCustomer')}) - {t('remainingFromCustomer')}</p>
             </div>
             <FileAttachment bucket="legal" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
