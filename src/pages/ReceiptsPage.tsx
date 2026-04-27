@@ -30,7 +30,7 @@ interface FullContract {
 }
 interface LegalCase {
   id: string; case_no: string; customer_id: string; customer_name: string;
-  case_amount: number; rcvd_from_court: number; rcvd_from_customer: number;
+  contract_id: string; case_amount: number; rcvd_from_court: number; rcvd_from_customer: number;
   balance_amount: number; claimed_amount: number;
 }
 
@@ -71,7 +71,7 @@ export default function ReceiptsPage() {
       recQuery,
       supabase.from('customers').select('id, customer_no, name'),
       supabase.from('contracts').select('id, contract_no, customer_name, customer_id, sale_price, paid_amount, remaining_amount, installment_schedule, status'),
-      supabase.from('legal_cases').select('id, case_no, customer_id, customer_name, case_amount, rcvd_from_court, rcvd_from_customer, balance_amount, claimed_amount'),
+      supabase.from('legal_cases').select('id, case_no, customer_id, customer_name, contract_id, case_amount, rcvd_from_court, rcvd_from_customer, balance_amount, claimed_amount'),
     ]);
     setReceipts(recRes.data || []);
     setCustomers(custRes.data || []);
@@ -85,10 +85,12 @@ export default function ReceiptsPage() {
     ? allContracts.filter(c => c.customer_id === form.customer_id)
     : allContracts;
 
-  // Filter legal cases by selected customer
-  const filteredCases = form.customer_id
-    ? legalCases.filter(lc => lc.customer_id === form.customer_id)
-    : legalCases;
+  // Filter legal cases by selected customer AND contract
+  const filteredCases = form.contract_id
+    ? legalCases.filter(lc => lc.contract_id === form.contract_id)
+    : form.customer_id
+      ? legalCases.filter(lc => lc.customer_id === form.customer_id)
+      : legalCases;
 
   // Get pending installments for selected contract
   const selectedContract = allContracts.find(c => c.id === form.contract_id);
@@ -174,32 +176,35 @@ export default function ReceiptsPage() {
       installment_no: form.installment_no,
     };
     // Helper to try insert/update, falling back without installment_no if column doesn't exist
-    async function tryUpsert(isEdit: boolean) {
+    async function tryUpsert(isEdit: boolean): Promise<boolean> {
       if (isEdit) {
         const { error } = await supabase.from('receipt_vouchers').update(data).eq('id', editing!.id);
         if (error && error.message?.includes('installment_no')) {
           const { installment_no, ...dataWithout } = data;
-          await supabase.from('receipt_vouchers').update(dataWithout).eq('id', editing!.id);
+          const { error: e2 } = await supabase.from('receipt_vouchers').update(dataWithout).eq('id', editing!.id);
+          if (e2) { console.error('Receipt update error:', e2); alert('Failed to update receipt: ' + e2.message); return false; }
         } else if (error) {
-          console.error('Receipt update error:', error);
+          console.error('Receipt update error:', error); alert('Failed to update receipt: ' + error.message); return false;
         }
       } else {
         const { error } = await supabase.from('receipt_vouchers').insert(data);
         if (error && error.message?.includes('installment_no')) {
           const { installment_no, ...dataWithout } = data;
-          await supabase.from('receipt_vouchers').insert(dataWithout);
+          const { error: e2 } = await supabase.from('receipt_vouchers').insert(dataWithout);
+          if (e2) { console.error('Receipt insert error:', e2); alert('Failed to save receipt: ' + e2.message); return false; }
         } else if (error) {
-          console.error('Receipt insert error:', error);
+          console.error('Receipt insert error:', error); alert('Failed to save receipt: ' + error.message); return false;
         }
       }
+      return true;
     }
     if (editing) {
       await reverseReceiptEffects(editing);
-      await tryUpsert(true);
-      await applyReceiptEffects(form);
+      const ok = await tryUpsert(true);
+      if (ok) await applyReceiptEffects(form);
     } else {
-      await tryUpsert(false);
-      await applyReceiptEffects(form);
+      const ok = await tryUpsert(false);
+      if (ok) await applyReceiptEffects(form);
     }
     setShowDialog(false); setForm(defaultForm); setEditing(null); loadData();
   }
@@ -411,7 +416,7 @@ export default function ReceiptsPage() {
               </div>
               <div>
                 <Label>{t('contractNo')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value, installment_no: null })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value, court_case_no: '', installment_no: null })}>
                   <option value="">Select</option>
                   {filteredContracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
                 </select>
