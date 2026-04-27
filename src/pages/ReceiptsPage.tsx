@@ -42,7 +42,7 @@ const defaultForm = {
   notes: '', attachments: [] as string[],
 };
 
-const receiptTypes = ['fileOpening', 'installment', 'courtMoney'];
+const receiptTypes = ['installment', 'courtMoney'];
 const paymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function ReceiptsPage() {
@@ -102,62 +102,66 @@ export default function ReceiptsPage() {
 
   // Apply effects of a receipt on contracts/legal cases
   async function applyReceiptEffects(formData: typeof form) {
-    if (formData.contract_id && (formData.receipt_type === 'installment' || formData.receipt_type === 'fileOpening')) {
+    if (formData.contract_id && formData.receipt_type === 'installment') {
       const { data: contractData } = await supabase.from('contracts')
         .select('paid_amount, sale_price, installment_schedule, status')
         .eq('id', formData.contract_id).single();
       if (contractData) {
         const schedule = [...(contractData.installment_schedule || [])];
-        if (formData.receipt_type === 'installment' && formData.installment_no !== null && formData.installment_no !== undefined) {
+        if (formData.installment_no !== null && formData.installment_no !== undefined) {
           const instIdx = formData.installment_no;
           if (schedule[instIdx] && schedule[instIdx].status !== 'paid') {
             schedule[instIdx] = { ...schedule[instIdx], status: 'paid', paid_date: formData.receipt_date || format(new Date(), 'yyyy-MM-dd') };
           }
         }
         const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
-        const finalPaid = formData.receipt_type === 'fileOpening' ? schedulePaidTotal + formData.received_amount : schedulePaidTotal;
-        const finalRemaining = (contractData.sale_price || 0) - finalPaid;
-        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
-        await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: finalPaid, remaining_amount: finalRemaining, status: newStatus }).eq('id', formData.contract_id);
+        const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
+        const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
+        await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', formData.contract_id);
       }
     }
     if (formData.court_case_no && formData.receipt_type === 'courtMoney') {
-      const lc = legalCases.find(l => l.case_no === formData.court_case_no);
-      if (lc) {
-        const newRcvd = (lc.rcvd_from_court || 0) + formData.received_amount;
-        const newBalance = (lc.claimed_amount || lc.case_amount || 0) - newRcvd;
-        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', lc.id);
+      // Fetch fresh legal case data from DB to avoid stale state issues
+      const { data: freshLc } = await supabase.from('legal_cases')
+        .select('id, rcvd_from_court, claimed_amount, case_amount')
+        .eq('case_no', formData.court_case_no).single();
+      if (freshLc) {
+        const newRcvd = (freshLc.rcvd_from_court || 0) + formData.received_amount;
+        const newBalance = (freshLc.claimed_amount || freshLc.case_amount || 0) - newRcvd;
+        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', freshLc.id);
       }
     }
   }
 
   // Reverse effects of a receipt (for edit/delete)
   async function reverseReceiptEffects(receipt: ReceiptVoucher) {
-    if (receipt.contract_id && (receipt.receipt_type === 'installment' || receipt.receipt_type === 'fileOpening')) {
+    if (receipt.contract_id && receipt.receipt_type === 'installment') {
       const { data: contractData } = await supabase.from('contracts')
         .select('paid_amount, sale_price, installment_schedule, status')
         .eq('id', receipt.contract_id).single();
       if (contractData) {
         const schedule = [...(contractData.installment_schedule || [])];
-        if (receipt.receipt_type === 'installment' && receipt.installment_no !== null && receipt.installment_no !== undefined) {
+        if (receipt.installment_no !== null && receipt.installment_no !== undefined) {
           const instIdx = receipt.installment_no;
           if (schedule[instIdx] && schedule[instIdx].status === 'paid') {
             schedule[instIdx] = { ...schedule[instIdx], status: 'pending', paid_date: null };
           }
         }
         const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
-        const finalPaid = receipt.receipt_type === 'fileOpening' ? Math.max(0, schedulePaidTotal - receipt.received_amount) : schedulePaidTotal;
-        const finalRemaining = (contractData.sale_price || 0) - finalPaid;
-        const newStatus = finalPaid >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
-        await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: finalPaid, remaining_amount: finalRemaining, status: newStatus }).eq('id', receipt.contract_id);
+        const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
+        const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
+        await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', receipt.contract_id);
       }
     }
     if (receipt.court_case_no && receipt.receipt_type === 'courtMoney') {
-      const lc = legalCases.find(l => l.case_no === receipt.court_case_no);
-      if (lc) {
-        const newRcvd = Math.max(0, (lc.rcvd_from_court || 0) - receipt.received_amount);
-        const newBalance = (lc.claimed_amount || lc.case_amount || 0) - newRcvd;
-        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', lc.id);
+      // Fetch fresh legal case data from DB to avoid stale state issues
+      const { data: freshLc } = await supabase.from('legal_cases')
+        .select('id, rcvd_from_court, claimed_amount, case_amount')
+        .eq('case_no', receipt.court_case_no).single();
+      if (freshLc) {
+        const newRcvd = Math.max(0, (freshLc.rcvd_from_court || 0) - receipt.received_amount);
+        const newBalance = (freshLc.claimed_amount || freshLc.case_amount || 0) - newRcvd;
+        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', freshLc.id);
       }
     }
   }
