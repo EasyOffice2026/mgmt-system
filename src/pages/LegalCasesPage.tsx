@@ -108,15 +108,19 @@ export default function LegalCasesPage() {
 
   function openEdit(c: LegalCase) {
     setEditing(c);
+    const rcvdCalc = Math.max(0, (c.original_amount || 0) - (c.remaining_from_customer || 0));
     setForm({
       customer_id: c.customer_id, contract_id: c.contract_id, case_no: c.case_no,
       purchase_price: c.purchase_price, original_amount: c.original_amount,
       remaining_from_customer: c.remaining_from_customer, case_amount: c.case_amount,
-      rcvd_from_customer: c.rcvd_from_customer, rcvd_from_court: c.rcvd_from_court,
+      rcvd_from_customer: rcvdCalc, rcvd_from_court: c.rcvd_from_court,
       case_date: c.case_date || '', attachments: c.attachments || [],
     });
     setShowDialog(true);
   }
+
+  // Contracts that already have a legal case (exclude from Add dropdown, allow in Edit)
+  const usedContractIds = new Set(cases.map(c => c.contract_id));
 
   const filtered = cases.filter(c =>
     c.legal_case_no?.toLowerCase().includes(search.toLowerCase()) ||
@@ -329,7 +333,7 @@ export default function LegalCasesPage() {
                   setForm({ ...form, contract_id: e.target.value, customer_id: contract?.customer_id || '', purchase_price: contract?.purchase_price || 0, original_amount: origAmt, remaining_from_customer: remFromCust, rcvd_from_customer: Math.max(0, origAmt - remFromCust) });
                 }}>
                   <option value="">Select Contract</option>
-                  {contracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
+                  {contracts.filter(c => editing ? true : !usedContractIds.has(c.id)).map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
                 </select>
               </div>
               <div>
@@ -357,7 +361,7 @@ export default function LegalCasesPage() {
                 <Input type="number" value={form.case_amount} onChange={e => setForm({ ...form, case_amount: Number(e.target.value) })} />
               </div>
               <div>
-                <Label>{t('rcvdFromCustomer')} ({t('originalAmount')} - {t('remainingFromCustomer')})</Label>
+                <Label>{t('rcvdFromCustomer')}</Label>
                 <Input type="number" value={form.rcvd_from_customer} readOnly className="bg-slate-100" />
               </div>
               <div>
