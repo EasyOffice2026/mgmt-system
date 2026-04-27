@@ -323,7 +323,9 @@ export default function LegalCasesPage() {
                 <Label>{t('contractNo')} *</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => {
                   const contract = contracts.find(c => c.id === e.target.value);
-                  setForm({ ...form, contract_id: e.target.value, customer_id: contract?.customer_id || '', purchase_price: contract?.purchase_price || 0, original_amount: contract?.sale_price || 0, remaining_from_customer: contract?.remaining_amount || 0 });
+                  const origAmt = contract?.sale_price || 0;
+                  const remFromCust = contract?.remaining_amount || 0;
+                  setForm({ ...form, contract_id: e.target.value, customer_id: contract?.customer_id || '', purchase_price: contract?.purchase_price || 0, original_amount: origAmt, remaining_from_customer: remFromCust, rcvd_from_customer: Math.max(0, origAmt - remFromCust) });
                 }}>
                   <option value="">Select Contract</option>
                   {contracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
@@ -343,19 +345,19 @@ export default function LegalCasesPage() {
               </div>
               <div>
                 <Label>{t('originalAmount')}</Label>
-                <Input type="number" value={form.original_amount} onChange={e => setForm({ ...form, original_amount: Number(e.target.value) })} />
+                <Input type="number" value={form.original_amount} onChange={e => { const v = Number(e.target.value); setForm({ ...form, original_amount: v, rcvd_from_customer: Math.max(0, v - (form.remaining_from_customer || 0)) }); }} />
               </div>
               <div>
                 <Label>{t('remainingFromCustomer')}</Label>
-                <Input type="number" value={form.remaining_from_customer} onChange={e => setForm({ ...form, remaining_from_customer: Number(e.target.value) })} />
+                <Input type="number" value={form.remaining_from_customer} onChange={e => { const v = Number(e.target.value); setForm({ ...form, remaining_from_customer: v, rcvd_from_customer: Math.max(0, (form.original_amount || 0) - v) }); }} />
               </div>
               <div>
                 <Label>{t('caseAmount')}</Label>
                 <Input type="number" value={form.case_amount} onChange={e => setForm({ ...form, case_amount: Number(e.target.value) })} />
               </div>
               <div>
-                <Label>{t('rcvdFromCustomer')}</Label>
-                <Input type="number" value={form.rcvd_from_customer} onChange={e => setForm({ ...form, rcvd_from_customer: Number(e.target.value) })} />
+                <Label>{t('rcvdFromCustomer')} ({t('originalAmount')} - {t('remainingFromCustomer')})</Label>
+                <Input type="number" value={form.rcvd_from_customer} readOnly className="bg-slate-100" />
               </div>
               <div>
                 <Label>{t('rcvdFromCourt')}</Label>
