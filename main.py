@@ -35,14 +35,14 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(title="Mudawwarah", lifespan=lifespan)
 
-app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
-app.include_router(sales_router.router, prefix="/api/sales", tags=["sales"])
-app.include_router(purchases_router.router, prefix="/api/purchases", tags=["purchases"])
-app.include_router(expenses_router.router, prefix="/api/expenses", tags=["expenses"])
-app.include_router(hr_router.router, prefix="/api/hr", tags=["hr"])
-app.include_router(cash_router.router, prefix="/api/cash", tags=["cash"])
-app.include_router(dashboard_router.router, prefix="/api/dashboard", tags=["dashboard"])
-app.include_router(export_router.router, prefix="/api/export", tags=["export"])
+app.include_router(auth_router.router)
+app.include_router(sales_router.router)
+app.include_router(purchases_router.router)
+app.include_router(expenses_router.router)
+app.include_router(hr_router.router)
+app.include_router(cash_router.router)
+app.include_router(dashboard_router.router)
+app.include_router(export_router.router)
 
 
 @app.post("/api/upload")
