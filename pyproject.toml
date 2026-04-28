@@ -1,0 +1,20 @@
+[project]
+name = "mudawwarah"
+version = "1.0.0"
+description = "Mudawwarah Restaurant Management System"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "sqlalchemy>=2.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "openpyxl>=3.1.2",
+    "reportlab>=4.0.0",
+    "aiofiles>=23.2.1",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
