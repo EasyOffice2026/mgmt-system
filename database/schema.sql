@@ -269,6 +269,67 @@ CREATE TABLE expense_attachments (
 );
 
 -- ============================================================
+-- RESTAURANT OPERATIONS
+-- ============================================================
+
+CREATE TABLE daily_sales (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sale_no VARCHAR(30) UNIQUE NOT NULL,
+  sale_date DATE NOT NULL,
+  shift VARCHAR(20) DEFAULT 'full_day' CHECK (shift IN ('breakfast', 'lunch', 'dinner', 'full_day')),
+  dine_in_orders INTEGER DEFAULT 0,
+  takeaway_orders INTEGER DEFAULT 0,
+  delivery_orders INTEGER DEFAULT 0,
+  total_orders INTEGER DEFAULT 0,
+  gross_sales DECIMAL(12,3) NOT NULL DEFAULT 0,
+  discounts DECIMAL(12,3) DEFAULT 0,
+  refunds DECIMAL(12,3) DEFAULT 0,
+  net_sales DECIMAL(12,3) NOT NULL DEFAULT 0,
+  cash_sales DECIMAL(12,3) DEFAULT 0,
+  card_sales DECIMAL(12,3) DEFAULT 0,
+  online_sales DECIMAL(12,3) DEFAULT 0,
+  notes TEXT,
+  created_by UUID REFERENCES user_profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE petty_cash_transactions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  voucher_no VARCHAR(30) UNIQUE NOT NULL,
+  transaction_date DATE NOT NULL,
+  transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('expense', 'replenishment', 'adjustment_add', 'adjustment_less')),
+  category VARCHAR(120),
+  amount DECIMAL(12,3) NOT NULL,
+  payment_mode_id UUID REFERENCES payment_modes(id),
+  description TEXT,
+  created_by UUID REFERENCES user_profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE internal_transfers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  transfer_no VARCHAR(30) UNIQUE NOT NULL,
+  transfer_date DATE NOT NULL,
+  from_branch VARCHAR(200) NOT NULL,
+  to_branch VARCHAR(200) NOT NULL,
+  item_name VARCHAR(200) NOT NULL,
+  quantity DECIMAL(12,3) NOT NULL DEFAULT 1,
+  unit VARCHAR(50) DEFAULT 'pcs',
+  transfer_value DECIMAL(12,3) DEFAULT 0,
+  reason TEXT,
+  status VARCHAR(20) DEFAULT 'in_transit' CHECK (status IN ('in_transit', 'received', 'cancelled')),
+  created_by UUID REFERENCES user_profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE SEQUENCE daily_sales_seq START 1;
+CREATE SEQUENCE petty_cash_seq START 1;
+CREATE SEQUENCE internal_transfer_seq START 1;
+
+-- ============================================================
 -- RECEIPT VOUCHERS
 -- ============================================================
 
@@ -629,6 +690,18 @@ $$ LANGUAGE sql;
 
 CREATE OR REPLACE FUNCTION next_expense_no() RETURNS TEXT AS $$
   SELECT 'EXP-' || LPAD(nextval('expense_seq')::TEXT, 4, '0');
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION next_daily_sale_no() RETURNS TEXT AS $$
+  SELECT 'DS-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD(nextval('daily_sales_seq')::TEXT, 4, '0');
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION next_petty_cash_no() RETURNS TEXT AS $$
+  SELECT 'PC-' || LPAD(nextval('petty_cash_seq')::TEXT, 4, '0');
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION next_internal_transfer_no() RETURNS TEXT AS $$
+  SELECT 'TR-' || LPAD(nextval('internal_transfer_seq')::TEXT, 4, '0');
 $$ LANGUAGE sql;
 
 CREATE OR REPLACE FUNCTION next_receipt_no() RETURNS TEXT AS $$

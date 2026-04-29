@@ -120,6 +120,8 @@ export function StatusBadge({ status }) {
     present: ['success', 'present'], absent: ['danger', 'absent'],
     late: ['warning', 'late'], half_day: ['info', 'halfDay'],
     cancelled: ['danger', 'terminated'],
+    in_transit: ['warning', 'inTransit'],
+    received: ['success', 'received'],
   };
   const [cls, key] = map[status] || ['gray', status];
   return <span className={`badge badge-${cls}`}>{t(key) || status}</span>;
