@@ -21,6 +21,9 @@ import Employees from './components/modules/hrd/Employees';
 import Attendance from './components/modules/hrd/Attendance';
 import Payroll from './components/modules/hrd/Payroll';
 import Leaves from './components/modules/hrd/Leaves';
+import DailySales from './components/modules/restaurant/DailySales';
+import PettyCash from './components/modules/restaurant/PettyCash';
+import InternalTransfers from './components/modules/restaurant/InternalTransfers';
 import Users from './components/modules/users/Users';
 import Settings from './components/modules/Settings';
 
@@ -46,10 +49,14 @@ function AppRoutes() {
         <Route path="purchase" element={<Purchase />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="legal" element={<LegalCases />} />
+        <Route path="daily-sales" element={<DailySales />} />
         <Route path="expenses" element={<Expenses />} />
+        <Route path="petty-cash" element={<PettyCash />} />
+        <Route path="internal-transfers" element={<InternalTransfers />} />
         <Route path="receipts" element={<Receipts />} />
         <Route path="accounting" element={<Accounting />} />
         <Route path="hrd" element={<Employees />} />
+        <Route path="staff-management" element={<Employees />} />
         <Route path="attendance" element={<Attendance />} />
         <Route path="payroll" element={<Payroll />} />
         <Route path="leaves" element={<Leaves />} />
