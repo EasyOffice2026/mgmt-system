@@ -1,0 +1,1 @@
+export { LegalCases as default } from '../AllModules';
