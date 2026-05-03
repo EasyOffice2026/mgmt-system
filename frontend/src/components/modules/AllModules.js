@@ -534,6 +534,7 @@ export function Receipts() {
   const { profile } = useAuth();
   const [receipts, setReceipts] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [legalCases, setLegalCases] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -549,6 +550,7 @@ export function Receipts() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     supabase.from('customers').select('id, full_name, customer_no').then(({ data }) => setCustomers(data || []));
+    supabase.from('legal_cases').select('id, case_no').order('created_at', { ascending: false }).then(({ data }) => setLegalCases(data || []));
     supabase.from('payment_modes').select('*').then(({ data }) => setPaymentModes(data || []));
   }, []);
 
@@ -602,7 +604,7 @@ export function Receipts() {
           <div className="form-group"><label className="field-label">{t('receiptType')}</label><select value={form.receipt_type} onChange={e => f('receipt_type', e.target.value)}><option value="file_opening">{t('fileOpening')}</option><option value="installment">{t('installmentReceipt')}</option><option value="court_money">{t('courtMoney')}</option><option value="other">{t('other')}</option></select></div>
           <div className="form-group"><label className="field-label">{t('receiptAmount')} (KD) *</label><input type="number" value={form.amount} onChange={e => f('amount', e.target.value)} /></div>
           <div className="form-group"><label className="field-label">{t('customer')}</label><select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}><option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}</select></div>
-          <div className="form-group"><label className="field-label">{t('courtCaseNo')}</label><input value={form.legal_case_id} onChange={e => f('legal_case_id', e.target.value)} placeholder="LC-YYYY-XXX" /></div>
+          <div className="form-group"><label className="field-label">{t('courtCaseNo')}</label><select value={form.legal_case_id} onChange={e => f('legal_case_id', e.target.value)}><option value="">—</option>{legalCases.map(lc => <option key={lc.id} value={lc.id}>{lc.case_no}</option>)}</select></div>
           <div className="form-group"><label className="field-label">{t('paymentMode')}</label><select value={form.payment_mode_id} onChange={e => f('payment_mode_id', e.target.value)}><option value="">—</option>{paymentModes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
         </div>
         <hr className="divider" />
@@ -692,6 +694,82 @@ export function Accounting() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── USERS ────────────────────────────────────────────────
+export function Users() {
+  const { t } = useLang();
+  const { profile, isOwner } = useAuth();
+  const { confirm, Dialog } = useConfirm();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ email: '', full_name: '', full_name_ar: '', role: 'staff' });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false });
+    setUsers(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function f(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  async function handleSave() {
+    if (!form.full_name) { toast.error(t('required')); return; }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('user_profiles').upsert({
+        full_name: form.full_name,
+        full_name_ar: form.full_name_ar,
+        role: form.role
+      });
+      if (error) throw error;
+      toast.success(t('saved'));
+      setShowAdd(false);
+      setForm({ email: '', full_name: '', full_name_ar: '', role: 'staff' });
+      load();
+    } catch (err) { toast.error(err.message); } finally { setSaving(false); }
+  }
+
+  async function toggleActive(user) {
+    const ok = await confirm(`${user.is_active ? 'Deactivate' : 'Activate'} ${user.full_name}?`);
+    if (!ok) return;
+    await supabase.from('user_profiles').update({ is_active: !user.is_active }).eq('id', user.id);
+    load();
+  }
+
+  const roleBadge = { owner: 'var(--danger)', admin: 'var(--warning)', staff: 'var(--info)' };
+
+  return (
+    <div>
+      <Dialog />
+      <div className="page-header">
+        <div><div className="page-title">{t('users')}</div><div className="page-subtitle">{users.length} {t('users').toLowerCase()}</div></div>
+        <div className="action-btns">
+          <DownloadButtons title="Users" columns={[t('fullName'), t('role'), t('status')]} getRows={() => users.map(u => [u.full_name, u.role, u.is_active ? 'Active' : 'Inactive'])} />
+        </div>
+      </div>
+      <div className="card">
+        {loading ? <Spinner /> : users.length === 0 ? <EmptyState icon="👥" /> : (
+          <div className="table-wrap"><table>
+            <thead><tr><th>{t('fullName')}</th><th>{t('role')}</th><th>{t('status')}</th>{isOwner && <th>{t('actions')}</th>}</tr></thead>
+            <tbody>{users.map(u => (
+              <tr key={u.id}>
+                <td><strong>{u.full_name}</strong>{u.full_name_ar && <span style={{ marginLeft: 8, color: 'var(--text2)' }}>{u.full_name_ar}</span>}</td>
+                <td><span className="pill" style={{ background: roleBadge[u.role] || 'var(--text2)', color: '#fff' }}>{u.role}</span></td>
+                <td><StatusBadge status={u.is_active ? 'active' : 'inactive'} /></td>
+                {isOwner && <td><button className="btn btn-outline btn-sm" onClick={() => toggleActive(u)}>{u.is_active ? '🚫' : '✅'}</button></td>}
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </div>
     </div>
   );
 }

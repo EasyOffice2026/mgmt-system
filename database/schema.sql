@@ -565,6 +565,12 @@ CREATE POLICY "admin_write" ON customers FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('owner', 'admin')));
 CREATE POLICY "admin_write" ON contracts FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('owner', 'admin')));
+CREATE POLICY "admin_write" ON purchases FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('owner', 'admin')));
+CREATE POLICY "admin_write" ON expenses FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('owner', 'admin')));
+CREATE POLICY "admin_write" ON employees FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('owner', 'admin')));
 
 -- Payroll: owner only
 CREATE POLICY "owner_only" ON payroll FOR ALL TO authenticated
@@ -580,13 +586,21 @@ RETURNS TRIGGER AS $$
 DECLARE
   i INTEGER;
   due DATE;
+  start_date DATE;
 BEGIN
+  -- Skip if first_installment_date is NULL
+  IF NEW.first_installment_date IS NULL THEN
+    RETURN NEW;
+  END IF;
+
   -- Delete existing installments if any
   DELETE FROM installments WHERE contract_id = NEW.id;
 
+  start_date := NEW.first_installment_date;
+
   -- Generate new installments
   FOR i IN 1..NEW.duration_months LOOP
-    due := NEW.first_installment_date + ((i - 1) * INTERVAL '1 month');
+    due := start_date + ((i - 1) * INTERVAL '1 month');
     INSERT INTO installments (contract_id, installment_no, due_date, amount)
     VALUES (NEW.id, i, due, NEW.installment_value);
   END LOOP;
@@ -633,6 +647,10 @@ $$ LANGUAGE sql;
 
 CREATE OR REPLACE FUNCTION next_receipt_no() RETURNS TEXT AS $$
   SELECT 'RCV-' || LPAD(nextval('receipt_seq')::TEXT, 4, '0');
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION next_purchase_no() RETURNS TEXT AS $$
+  SELECT 'PUR-' || LPAD(nextval('purchase_seq')::TEXT, 4, '0');
 $$ LANGUAGE sql;
 
 CREATE OR REPLACE FUNCTION next_legal_no() RETURNS TEXT AS $$
