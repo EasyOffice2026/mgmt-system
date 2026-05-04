@@ -57,6 +57,25 @@ export function Sales() {
     });
   }
 
+  function handleDuplicate(contract) {
+    const duplicated = {
+      customer_id: contract.customer_id || '',
+      purchase_id: '',
+      category_id: contract.category_id || '',
+      client_type: contract.client_type || 'new',
+      file_opening_charges: contract.file_opening_charges || 0,
+      sale_price: contract.sale_price || 0,
+      duration_months: contract.duration_months || 12,
+      start_date: '',
+      first_installment_date: '',
+      payment_mode_id: contract.payment_mode_id || '',
+      status: 'ongoing'
+    };
+    setForm(duplicated);
+    calcPreview(duplicated);
+    setShowAdd(true);
+  }
+
   function calcPreview(frm) {
     const sp = parseFloat(frm.sale_price) || 0;
     const dur = parseInt(frm.duration_months) || 1;
@@ -117,7 +136,10 @@ export function Sales() {
                 <td>{c.duration_months}M</td>
                 <td>KD {Number(c.installment_value).toFixed(3)}</td>
                 <td><StatusBadge status={c.status} /></td>
-                <td><button className="btn btn-outline btn-sm" onClick={() => setViewItem(c)}>👁 {t('view')}</button></td>
+                <td>
+                  <button className="btn btn-outline btn-sm" onClick={() => setViewItem(c)}>👁 {t('view')}</button>
+                  <button className="btn btn-outline btn-sm" style={{ marginLeft: 4 }} onClick={() => handleDuplicate(c)}>📋 {t('duplicate')}</button>
+                </td>
               </tr>
             ))}</tbody>
           </table></div>

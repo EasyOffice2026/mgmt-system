@@ -134,6 +134,8 @@ export const translations = {
     paidAmount: 'Paid Amount',
     remainingAmount: 'Remaining Amount',
     selectProduct: 'Select Product from Inventory',
+    duplicate: 'Duplicate',
+    contractDuplicated: 'Contract duplicated — fill in dates and save',
     contractSaved: 'Contract saved successfully',
 
     // Purchase
@@ -435,6 +437,8 @@ export const translations = {
     paidAmount: 'المبلغ المدفوع',
     remainingAmount: 'المبلغ المتبقي',
     selectProduct: 'اختر صنفاً من المخزون',
+    duplicate: 'نسخ',
+    contractDuplicated: 'تم نسخ العقد — أدخل التواريخ واحفظ',
     contractSaved: 'تم حفظ العقد بنجاح',
     addPurchase: 'إضافة مشتريات',
     purchaseDate: 'تاريخ الشراء',
