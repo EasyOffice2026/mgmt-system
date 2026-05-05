@@ -35,7 +35,7 @@ export function Sales() {
   const load = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from('contracts')
-      .select('*, customers(name, customer_no), categories(name), payment_modes(name)')
+      .select('*, customers(name, customer_no)')
       .order('created_at', { ascending: false });
     setContracts(data || []);
     setLoading(false);
@@ -100,10 +100,10 @@ export function Sales() {
       const lastDate = form.first_installment_date ? new Date(form.first_installment_date) : new Date();
       lastDate.setMonth(lastDate.getMonth() + dur - 1);
       const { data: noData } = await supabase.rpc('next_contract_no');
+      const { purchase_id, category_id, payment_mode_id, ...dbForm } = form;
       const { error } = await supabase.from('contracts').insert({
-        ...form, contract_no: noData, installment_value: iv.toFixed(3),
-        last_installment_date: lastDate.toISOString().split('T')[0],
-        created_by: profile?.id || user?.id
+        ...dbForm, contract_no: noData, installment_value: iv.toFixed(3),
+        last_installment_date: lastDate.toISOString().split('T')[0]
       });
       if (error) throw error;
       // Mark inventory item as assigned
