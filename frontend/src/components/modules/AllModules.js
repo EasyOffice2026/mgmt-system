@@ -15,7 +15,7 @@ import {
 // ── SALES / CONTRACTS ──────────────────────────────────────
 export function Sales() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [contracts, setContracts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -35,7 +35,7 @@ export function Sales() {
   const load = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from('contracts')
-      .select('*, customers(full_name, customer_no), categories(name), payment_modes(name)')
+      .select('*, customers(name, customer_no)')
       .order('created_at', { ascending: false });
     setContracts(data || []);
     setLoading(false);
@@ -43,7 +43,7 @@ export function Sales() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    supabase.from('customers').select('id, full_name, customer_no').then(({ data }) => setCustomers(data || []));
+    supabase.from('customers').select('id, name, customer_no').then(({ data }) => setCustomers(data || []));
     supabase.from('categories').select('*').then(({ data }) => setCategories(data || []));
     supabase.from('payment_modes').select('*').then(({ data }) => setPaymentModes(data || []));
     supabase.from('purchases').select('id, item_name, model_type, categories(name)').eq('inventory_status', 'in_stock').then(({ data }) => setInventory(data || []));
@@ -55,6 +55,25 @@ export function Sales() {
       if (k === 'sale_price' || k === 'duration_months') calcPreview(next);
       return next;
     });
+  }
+
+  function handleDuplicate(contract) {
+    const duplicated = {
+      customer_id: contract.customer_id || '',
+      purchase_id: '',
+      category_id: contract.category_id || '',
+      client_type: contract.client_type || 'new',
+      file_opening_charges: contract.file_opening_charges || 0,
+      sale_price: contract.sale_price || 0,
+      duration_months: contract.duration_months || 12,
+      start_date: '',
+      first_installment_date: '',
+      payment_mode_id: contract.payment_mode_id || '',
+      status: 'ongoing'
+    };
+    setForm(duplicated);
+    calcPreview(duplicated);
+    setShowAdd(true);
   }
 
   function calcPreview(frm) {
@@ -81,10 +100,10 @@ export function Sales() {
       const lastDate = form.first_installment_date ? new Date(form.first_installment_date) : new Date();
       lastDate.setMonth(lastDate.getMonth() + dur - 1);
       const { data: noData } = await supabase.rpc('next_contract_no');
+      const { purchase_id, category_id, payment_mode_id, ...dbForm } = form;
       const { error } = await supabase.from('contracts').insert({
-        ...form, contract_no: noData, installment_value: iv.toFixed(3),
-        last_installment_date: lastDate.toISOString().split('T')[0],
-        created_by: profile.id
+        ...dbForm, contract_no: noData, installment_value: iv.toFixed(3),
+        last_installment_date: lastDate.toISOString().split('T')[0]
       });
       if (error) throw error;
       // Mark inventory item as assigned
@@ -100,7 +119,7 @@ export function Sales() {
       <div className="page-header">
         <div><div className="page-title">{t('sales')}</div><div className="page-subtitle">{contracts.length} {t('sales').toLowerCase()}</div></div>
         <div className="action-btns">
-          <DownloadButtons title="Contracts" columns={[t('contractNo'), t('customer'), t('salePrice'), t('status')]} getRows={() => contracts.map(c => [c.contract_no, c.customers?.full_name, `KD ${c.sale_price}`, c.status])} />
+          <DownloadButtons title="Contracts" columns={[t('contractNo'), t('customer'), t('salePrice'), t('status')]} getRows={() => contracts.map(c => [c.contract_no, c.customers?.name, `KD ${c.sale_price}`, c.status])} />
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ {t('addContract')}</button>
         </div>
       </div>
@@ -111,13 +130,16 @@ export function Sales() {
             <tbody>{contracts.map(c => (
               <tr key={c.id}>
                 <td><span className="tag">{c.contract_no}</span></td>
-                <td><strong>{c.customers?.full_name}</strong></td>
+                <td><strong>{c.customers?.name}</strong></td>
                 <td><span className="pill">{c.categories?.name || '—'}</span></td>
                 <td><strong>KD {Number(c.sale_price).toLocaleString()}</strong></td>
                 <td>{c.duration_months}M</td>
                 <td>KD {Number(c.installment_value).toFixed(3)}</td>
                 <td><StatusBadge status={c.status} /></td>
-                <td><button className="btn btn-outline btn-sm" onClick={() => setViewItem(c)}>👁 {t('view')}</button></td>
+                <td>
+                  <button className="btn btn-outline btn-sm" onClick={() => setViewItem(c)}>👁 {t('view')}</button>
+                  <button className="btn btn-outline btn-sm" style={{ marginLeft: 4 }} onClick={() => handleDuplicate(c)}>📋 {t('duplicate')}</button>
+                </td>
               </tr>
             ))}</tbody>
           </table></div>
@@ -130,7 +152,7 @@ export function Sales() {
           <div className="form-group"><label className="field-label">{t('customer')} *</label>
             <select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}>
               <option value="">{t('selectCustomer')}</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} — {c.full_name}</option>)}
+              {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} — {c.name}</option>)}
             </select>
           </div>
           <div className="form-group"><label className="field-label">{t('category')}</label>
@@ -193,7 +215,7 @@ export function Sales() {
 // ── PURCHASE ──────────────────────────────────────────────
 export function Purchase() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [purchases, setPurchases] = useState([]);
   const [categories, setCategories] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
@@ -221,7 +243,7 @@ export function Purchase() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_purchase_no').catch(() => ({ data: `P-${Date.now()}` }));
-      const { error } = await supabase.from('purchases').insert({ ...form, purchase_no: noData || `P-${Date.now()}`, created_by: profile.id });
+      const { error } = await supabase.from('purchases').insert({ ...form, purchase_no: noData || `P-${Date.now()}`, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('purchaseSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
@@ -336,7 +358,7 @@ export function Inventory() {
 // ── LEGAL CASES ───────────────────────────────────────────
 export function LegalCases() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [cases, setCases] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -347,13 +369,13 @@ export function LegalCases() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('legal_cases').select('*, customers(full_name, customer_no), contracts(contract_no)').order('created_at', { ascending: false });
+    const { data } = await supabase.from('legal_cases').select('*, customers(name, customer_no), contracts(contract_no)').order('created_at', { ascending: false });
     setCases(data || []); setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    supabase.from('customers').select('id, full_name, customer_no').eq('status', 'legal').then(({ data }) => setCustomers(data || []));
+    supabase.from('customers').select('id, name, customer_no').eq('status', 'legal').then(({ data }) => setCustomers(data || []));
   }, []);
 
   function f(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
@@ -368,7 +390,7 @@ export function LegalCases() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_legal_no');
-      const { error } = await supabase.from('legal_cases').insert({ ...form, case_no: noData, created_by: profile.id });
+      const { error } = await supabase.from('legal_cases').insert({ ...form, case_no: noData, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('caseSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
@@ -381,7 +403,7 @@ export function LegalCases() {
       <div className="page-header">
         <div><div className="page-title">{t('legal')}</div></div>
         <div className="action-btns">
-          <DownloadButtons title="Legal_Cases" columns={[t('caseNo'), t('customer'), t('contractNo'), t('originalContractAmount'), t('remainingFromCustomer'), t('excessAmount')]} getRows={() => cases.map(c => [c.case_no, c.customers?.full_name, c.contracts?.contract_no, `KD ${c.original_contract_amount}`, `KD ${c.remaining_from_customer}`, `KD ${c.excess_amount}`])} />
+          <DownloadButtons title="Legal_Cases" columns={[t('caseNo'), t('customer'), t('contractNo'), t('originalContractAmount'), t('remainingFromCustomer'), t('excessAmount')]} getRows={() => cases.map(c => [c.case_no, c.customers?.name, c.contracts?.contract_no, `KD ${c.original_contract_amount}`, `KD ${c.remaining_from_customer}`, `KD ${c.excess_amount}`])} />
           <button className="btn btn-danger" onClick={() => setShowAdd(true)}>⚖️ {t('addLegalCase')}</button>
         </div>
       </div>
@@ -392,7 +414,7 @@ export function LegalCases() {
             <tbody>{cases.map(c => (
               <tr key={c.id}>
                 <td><span className="tag">{c.case_no}</span></td>
-                <td><strong>{c.customers?.full_name}</strong></td>
+                <td><strong>{c.customers?.name}</strong></td>
                 <td><span className="tag">{c.contracts?.contract_no}</span></td>
                 <td>KD {Number(c.original_contract_amount).toFixed(3)}</td>
                 <td style={{ color: 'var(--danger)', fontWeight: 600 }}>KD {Number(c.remaining_from_customer).toFixed(3)}</td>
@@ -412,7 +434,7 @@ export function LegalCases() {
         <div className="form-grid">
           <div className="form-group"><label className="field-label">{t('customer')} ({t('legalOnly')})</label>
             <select value={form.customer_id} onChange={e => { f('customer_id', e.target.value); loadContracts(e.target.value); }}>
-              <option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} — {c.full_name}</option>)}
+              <option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} — {c.name}</option>)}
             </select>
           </div>
           <div className="form-group"><label className="field-label">{t('contractNo')}</label>
@@ -442,7 +464,7 @@ export function LegalCases() {
 // ── EXPENSES ─────────────────────────────────────────────
 export function Expenses() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -455,14 +477,14 @@ export function Expenses() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('expenses').select('*, expense_types(name, requires_case), customers(full_name), contracts(contract_no), payment_modes(name)').order('expense_date', { ascending: false });
+    const { data } = await supabase.from('expenses').select('*, expense_types(name, requires_case), customers(name), contracts(contract_no), payment_modes(name)').order('expense_date', { ascending: false });
     setExpenses(data || []); setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     supabase.from('expense_types').select('*').then(({ data }) => setExpenseTypes(data || []));
-    supabase.from('customers').select('id, full_name, customer_no').then(({ data }) => setCustomers(data || []));
+    supabase.from('customers').select('id, name, customer_no').then(({ data }) => setCustomers(data || []));
     supabase.from('payment_modes').select('*').then(({ data }) => setPaymentModes(data || []));
   }, []);
 
@@ -473,7 +495,7 @@ export function Expenses() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_expense_no');
-      const { error } = await supabase.from('expenses').insert({ ...form, voucher_no: noData, created_by: profile.id });
+      const { error } = await supabase.from('expenses').insert({ ...form, voucher_no: noData, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('expenseSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
@@ -484,7 +506,7 @@ export function Expenses() {
       <div className="page-header">
         <div><div className="page-title">{t('expenses')}</div></div>
         <div className="action-btns">
-          <DownloadButtons title="Expenses" columns={[t('voucherNo'), t('expenseDate'), t('expenseType'), t('amount'), t('customer')]} getRows={() => expenses.map(e => [e.voucher_no, e.expense_date, e.expense_types?.name, `KD ${e.amount}`, e.customers?.full_name || '—'])} />
+          <DownloadButtons title="Expenses" columns={[t('voucherNo'), t('expenseDate'), t('expenseType'), t('amount'), t('customer')]} getRows={() => expenses.map(e => [e.voucher_no, e.expense_date, e.expense_types?.name, `KD ${e.amount}`, e.customers?.name || '—'])} />
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ {t('addExpense')}</button>
         </div>
       </div>
@@ -498,7 +520,7 @@ export function Expenses() {
                 <td>{e.expense_date}</td>
                 <td><span className="pill">{e.expense_types?.name}</span></td>
                 <td><strong>KD {Number(e.amount).toFixed(3)}</strong></td>
-                <td>{e.customers?.full_name || '—'}</td>
+                <td>{e.customers?.name || '—'}</td>
                 <td>{e.contracts?.contract_no ? <span className="tag">{e.contracts.contract_no}</span> : '—'}</td>
               </tr>
             ))}</tbody>
@@ -517,7 +539,7 @@ export function Expenses() {
           </div>
           <div className="form-group"><label className="field-label">{t('amount')} (KD) *</label><input type="number" value={form.amount} onChange={e => f('amount', e.target.value)} /></div>
           {selectedType?.requires_case && <div className="form-group"><label className="field-label">{t('caseReference')}</label><input value={form.case_no} onChange={e => f('case_no', e.target.value)} /></div>}
-          <div className="form-group"><label className="field-label">{t('relatedCustomer')}</label><select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}><option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}</select></div>
+          <div className="form-group"><label className="field-label">{t('relatedCustomer')}</label><select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}><option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div className="form-group"><label className="field-label">{t('paymentMode')}</label><select value={form.payment_mode_id} onChange={e => f('payment_mode_id', e.target.value)}><option value="">—</option>{paymentModes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
           <div className="form-group full"><label className="field-label">Description</label><textarea value={form.description} onChange={e => f('description', e.target.value)} /></div>
         </div>
@@ -531,7 +553,7 @@ export function Expenses() {
 // ── RECEIPTS ─────────────────────────────────────────────
 export function Receipts() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [receipts, setReceipts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
@@ -542,13 +564,13 @@ export function Receipts() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('receipts').select('*, customers(full_name), contracts(contract_no), legal_cases(case_no), payment_modes(name)').order('receipt_date', { ascending: false });
+    const { data } = await supabase.from('receipts').select('*, customers(name), contracts(contract_no), legal_cases(case_no), payment_modes(name)').order('receipt_date', { ascending: false });
     setReceipts(data || []); setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    supabase.from('customers').select('id, full_name, customer_no').then(({ data }) => setCustomers(data || []));
+    supabase.from('customers').select('id, name, customer_no').then(({ data }) => setCustomers(data || []));
     supabase.from('payment_modes').select('*').then(({ data }) => setPaymentModes(data || []));
   }, []);
 
@@ -559,7 +581,7 @@ export function Receipts() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_receipt_no');
-      const { error } = await supabase.from('receipts').insert({ ...form, receipt_no: noData, created_by: profile.id });
+      const { error } = await supabase.from('receipts').insert({ ...form, receipt_no: noData, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('receiptSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
@@ -572,7 +594,7 @@ export function Receipts() {
       <div className="page-header">
         <div><div className="page-title">{t('receipts')}</div></div>
         <div className="action-btns">
-          <DownloadButtons title="Receipts" columns={[t('receiptNo'), t('receiptDate'), t('receiptType'), t('receiptAmount'), t('customer')]} getRows={() => receipts.map(r => [r.receipt_no, r.receipt_date, r.receipt_type, `KD ${r.amount}`, r.customers?.full_name || '—'])} />
+          <DownloadButtons title="Receipts" columns={[t('receiptNo'), t('receiptDate'), t('receiptType'), t('receiptAmount'), t('customer')]} getRows={() => receipts.map(r => [r.receipt_no, r.receipt_date, r.receipt_type, `KD ${r.amount}`, r.customers?.name || '—'])} />
           <button className="btn btn-success" onClick={() => setShowAdd(true)}>+ {t('addReceipt')}</button>
         </div>
       </div>
@@ -586,7 +608,7 @@ export function Receipts() {
                 <td>{r.receipt_date}</td>
                 <td><span className="pill">{typeLabel[r.receipt_type] || r.receipt_type}</span></td>
                 <td><strong>KD {Number(r.amount).toFixed(3)}</strong></td>
-                <td>{r.customers?.full_name || '—'}</td>
+                <td>{r.customers?.name || '—'}</td>
                 <td>{r.contracts?.contract_no ? <span className="tag">{r.contracts.contract_no}</span> : '—'}</td>
                 <td>{r.legal_cases?.case_no ? <span className="tag">{r.legal_cases.case_no}</span> : '—'}</td>
               </tr>
@@ -601,7 +623,7 @@ export function Receipts() {
           <div className="form-group"><label className="field-label">{t('receiptDate')} *</label><input type="date" value={form.receipt_date} onChange={e => f('receipt_date', e.target.value)} /></div>
           <div className="form-group"><label className="field-label">{t('receiptType')}</label><select value={form.receipt_type} onChange={e => f('receipt_type', e.target.value)}><option value="file_opening">{t('fileOpening')}</option><option value="installment">{t('installmentReceipt')}</option><option value="court_money">{t('courtMoney')}</option><option value="other">{t('other')}</option></select></div>
           <div className="form-group"><label className="field-label">{t('receiptAmount')} (KD) *</label><input type="number" value={form.amount} onChange={e => f('amount', e.target.value)} /></div>
-          <div className="form-group"><label className="field-label">{t('customer')}</label><select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}><option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}</select></div>
+          <div className="form-group"><label className="field-label">{t('customer')}</label><select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}><option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div className="form-group"><label className="field-label">{t('courtCaseNo')}</label><input value={form.legal_case_id} onChange={e => f('legal_case_id', e.target.value)} placeholder="LC-YYYY-XXX" /></div>
           <div className="form-group"><label className="field-label">{t('paymentMode')}</label><select value={form.payment_mode_id} onChange={e => f('payment_mode_id', e.target.value)}><option value="">—</option>{paymentModes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
         </div>

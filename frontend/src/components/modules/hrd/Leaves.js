@@ -8,7 +8,7 @@ import { Modal, StatusBadge, EmptyState, Spinner, DownloadButtons } from '../../
 
 export default function Leaves() {
   const { t } = useLang();
-  const { profile, isAdmin } = useAuth();
+  const { profile, user, isAdmin } = useAuth();
   const [leaves, setLeaves] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
@@ -49,7 +49,7 @@ export default function Leaves() {
     if (!form.employee_id || !form.from_date || !form.to_date) { toast.error(t('required')); return; }
     setSaving(true);
     try {
-      const { error } = await supabase.from('leaves').insert({ ...form, status: 'pending', created_by: profile.id });
+      const { error } = await supabase.from('leaves').insert({ ...form, status: 'pending', created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success('Leave request submitted');
       setShowAdd(false);
@@ -58,7 +58,7 @@ export default function Leaves() {
   }
 
   async function updateStatus(id, status) {
-    const { error } = await supabase.from('leaves').update({ status, approved_by: profile.id, approved_at: new Date().toISOString() }).eq('id', id);
+    const { error } = await supabase.from('leaves').update({ status, approved_by: profile?.id || user?.id, approved_at: new Date().toISOString() }).eq('id', id);
     if (error) toast.error(error.message);
     else { toast.success(`Leave ${status}`); load(); }
   }

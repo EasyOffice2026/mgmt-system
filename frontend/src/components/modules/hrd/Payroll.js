@@ -8,7 +8,7 @@ import { Modal, StatusBadge, EmptyState, Spinner, KpiCard, DownloadButtons } fro
 
 export default function Payroll() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [records, setRecords] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
@@ -68,7 +68,7 @@ export default function Payroll() {
       const { error } = await supabase.from('payroll').upsert({
         ...form,
         payroll_month: form.payroll_month + '-01',
-        created_by: profile.id
+        created_by: profile?.id || user?.id
       }, { onConflict: 'employee_id,payroll_month' });
       if (error) throw error;
       toast.success(t('salarySaved'));
@@ -90,7 +90,7 @@ export default function Payroll() {
           transport_allowance: e.transport_allowance, other_allowance: e.other_allowance,
           gross_salary: gross, deductions: 0, net_salary: gross,
           status: 'paid', payment_date: new Date().toISOString().split('T')[0],
-          created_by: profile.id
+          created_by: profile?.id || user?.id
         };
       });
       const { error } = await supabase.from('payroll').upsert(rows, { onConflict: 'employee_id,payroll_month' });

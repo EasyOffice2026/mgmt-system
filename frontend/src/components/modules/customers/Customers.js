@@ -17,7 +17,7 @@ const EMPTY = {
 
 export default function Customers() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { confirm, Dialog } = useConfirm();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +54,7 @@ export default function Customers() {
     if (!validate()) return;
     setSaving(true);
     try {
-      const payload = { ...form, created_by: profile.id };
+      const payload = { ...form, created_by: profile?.id || user?.id };
       if (editItem) {
         const { error } = await supabase.from('customers').update(payload).eq('id', editItem.id);
         if (error) throw error;

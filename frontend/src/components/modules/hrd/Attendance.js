@@ -11,7 +11,7 @@ const STATUS_COLORS = { present: 'badge-success', absent: 'badge-danger', late: 
 
 export default function Attendance() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [records, setRecords] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ export default function Attendance() {
         hours_worked: form.check_in && form.check_out
           ? Math.round((new Date(`2000-01-01T${form.check_out}`) - new Date(`2000-01-01T${form.check_in}`)) / 36000) / 100
           : null,
-        created_by: profile.id
+        created_by: profile?.id || user?.id
       }, { onConflict: 'employee_id,attendance_date' });
       if (error) throw error;
       toast.success('Attendance saved ✓');
@@ -62,7 +62,7 @@ export default function Attendance() {
     setSaving(true);
     try {
       const rows = employees.map(e => ({
-        employee_id: e.id, attendance_date: selectedDate, status, created_by: profile.id
+        employee_id: e.id, attendance_date: selectedDate, status, created_by: profile?.id || user?.id
       }));
       const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'employee_id,attendance_date' });
       if (error) throw error;

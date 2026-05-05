@@ -25,7 +25,7 @@ const EMPTY_EMP = {
 
 export default function Employees() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { confirm, Dialog } = useConfirm();
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -69,7 +69,7 @@ export default function Employees() {
     }
     setSaving(true);
     try {
-      const payload = { ...form, created_by: profile.id };
+      const payload = { ...form, created_by: profile?.id || user?.id };
       if (editItem) {
         const { error } = await supabase.from('employees').update(payload).eq('id', editItem.id);
         if (error) throw error;
