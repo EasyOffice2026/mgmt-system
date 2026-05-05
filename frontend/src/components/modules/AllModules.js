@@ -15,7 +15,7 @@ import {
 // ── SALES / CONTRACTS ──────────────────────────────────────
 export function Sales() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [contracts, setContracts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -103,7 +103,7 @@ export function Sales() {
       const { error } = await supabase.from('contracts').insert({
         ...form, contract_no: noData, installment_value: iv.toFixed(3),
         last_installment_date: lastDate.toISOString().split('T')[0],
-        created_by: profile.id
+        created_by: profile?.id || user?.id
       });
       if (error) throw error;
       // Mark inventory item as assigned
@@ -215,7 +215,7 @@ export function Sales() {
 // ── PURCHASE ──────────────────────────────────────────────
 export function Purchase() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [purchases, setPurchases] = useState([]);
   const [categories, setCategories] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
@@ -243,7 +243,7 @@ export function Purchase() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_purchase_no').catch(() => ({ data: `P-${Date.now()}` }));
-      const { error } = await supabase.from('purchases').insert({ ...form, purchase_no: noData || `P-${Date.now()}`, created_by: profile.id });
+      const { error } = await supabase.from('purchases').insert({ ...form, purchase_no: noData || `P-${Date.now()}`, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('purchaseSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
@@ -358,7 +358,7 @@ export function Inventory() {
 // ── LEGAL CASES ───────────────────────────────────────────
 export function LegalCases() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [cases, setCases] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -390,7 +390,7 @@ export function LegalCases() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_legal_no');
-      const { error } = await supabase.from('legal_cases').insert({ ...form, case_no: noData, created_by: profile.id });
+      const { error } = await supabase.from('legal_cases').insert({ ...form, case_no: noData, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('caseSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
@@ -464,7 +464,7 @@ export function LegalCases() {
 // ── EXPENSES ─────────────────────────────────────────────
 export function Expenses() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -495,7 +495,7 @@ export function Expenses() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_expense_no');
-      const { error } = await supabase.from('expenses').insert({ ...form, voucher_no: noData, created_by: profile.id });
+      const { error } = await supabase.from('expenses').insert({ ...form, voucher_no: noData, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('expenseSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
@@ -553,7 +553,7 @@ export function Expenses() {
 // ── RECEIPTS ─────────────────────────────────────────────
 export function Receipts() {
   const { t } = useLang();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [receipts, setReceipts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
@@ -581,7 +581,7 @@ export function Receipts() {
     setSaving(true);
     try {
       const { data: noData } = await supabase.rpc('next_receipt_no');
-      const { error } = await supabase.from('receipts').insert({ ...form, receipt_no: noData, created_by: profile.id });
+      const { error } = await supabase.from('receipts').insert({ ...form, receipt_no: noData, created_by: profile?.id || user?.id });
       if (error) throw error;
       toast.success(t('receiptSaved')); setShowAdd(false); load();
     } catch (err) { toast.error(err.message); } finally { setSaving(false); }
