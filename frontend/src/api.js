@@ -8,6 +8,7 @@ function authHeaders() {
 export async function api(path, opts = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...opts.headers },
   });
   if (res.status === 401) {
@@ -27,6 +28,7 @@ export async function login(username, password) {
   const body = new URLSearchParams({ username, password });
   const res = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
