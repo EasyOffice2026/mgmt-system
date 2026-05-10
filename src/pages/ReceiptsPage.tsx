@@ -58,6 +58,7 @@ export default function ReceiptsPage() {
   const [showCaseReceipts, setShowCaseReceipts] = useState<string | null>(null);
   const [editing, setEditing] = useState<ReceiptVoucher | null>(null);
   const [form, setForm] = useState(defaultForm);
+  const [selectedInstallments, setSelectedInstallments] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
@@ -166,9 +167,58 @@ export default function ReceiptsPage() {
     }
   }
 
+  // Helper to try insert/update, progressively stripping optional columns if they don't exist in DB
+  const optionalCols = ['installment_no', 'discount_amount', 'net_amount'];
+  async function tryUpsert(data: any, isEdit: boolean, editId?: string): Promise<boolean> {
+    let payload = { ...data };
+    for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
+      const { error } = isEdit
+        ? await supabase.from('receipt_vouchers').update(payload).eq('id', editId!)
+        : await supabase.from('receipt_vouchers').insert(payload);
+      if (!error) return true;
+      const badCol = optionalCols.find(col => !!(error.message || error.details || '').includes(col) || (error.code === '42703' && (error.message || '').includes(col)));
+      if (badCol) {
+        const { [badCol]: _, ...rest } = payload;
+        payload = rest;
+        continue;
+      }
+      if (attempt === 0 && (error.code === '42703' || (error.message || '').includes('column'))) {
+        for (const col of optionalCols) delete payload[col];
+        continue;
+      }
+      console.error(isEdit ? 'Receipt update error:' : 'Receipt insert error:', error);
+      alert(`Failed to ${isEdit ? 'update' : 'save'} receipt: ${error.message}`);
+      return false;
+    }
+    return true;
+  }
+
   async function handleSave() {
     const customer = customers.find(c => c.id === form.customer_id);
     const contract = allContracts.find(c => c.id === form.contract_id);
+
+    // Multi-installment: create one receipt per selected installment
+    if (form.receipt_type === 'installment' && !editing && selectedInstallments.length > 0) {
+      for (const instIdx of selectedInstallments) {
+        const inst = selectedContract?.installment_schedule?.[instIdx];
+        const instAmount = inst?.amount || 0;
+        const data: any = {
+          receipt_date: form.receipt_date, receipt_type: form.receipt_type,
+          customer_id: form.customer_id || null, customer_name: customer?.name || '',
+          contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
+          court_case_no: '', received_amount: instAmount,
+          discount_amount: 0, net_amount: instAmount,
+          payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
+          installment_no: instIdx,
+        };
+        const ok = await tryUpsert(data, false);
+        if (ok) await applyReceiptEffects({ ...form, installment_no: instIdx, received_amount: instAmount });
+      }
+      setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setEditing(null); loadData();
+      return;
+    }
+
+    // Single installment or edit mode or court money
     const data: any = {
       receipt_date: form.receipt_date, receipt_type: form.receipt_type,
       customer_id: form.customer_id || null, customer_name: customer?.name || '',
@@ -179,42 +229,15 @@ export default function ReceiptsPage() {
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
       installment_no: form.installment_no,
     };
-    // Helper to try insert/update, progressively stripping optional columns if they don't exist in DB
-    const optionalCols = ['installment_no', 'discount_amount', 'net_amount'];
-    async function tryUpsert(isEdit: boolean): Promise<boolean> {
-      let payload = { ...data };
-      for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
-        const { error } = isEdit
-          ? await supabase.from('receipt_vouchers').update(payload).eq('id', editing!.id)
-          : await supabase.from('receipt_vouchers').insert(payload);
-        if (!error) return true;
-        // If error mentions a column name we can strip, remove it and retry
-        const badCol = optionalCols.find(col => !!(error.message || error.details || '').includes(col) || (error.code === '42703' && (error.message || '').includes(col)));
-        if (badCol) {
-          const { [badCol]: _, ...rest } = payload;
-          payload = rest;
-          continue;
-        }
-        // If generic 400/column error, try stripping all optional cols at once
-        if (attempt === 0 && (error.code === '42703' || (error.message || '').includes('column'))) {
-          for (const col of optionalCols) delete payload[col];
-          continue;
-        }
-        console.error(isEdit ? 'Receipt update error:' : 'Receipt insert error:', error);
-        alert(`Failed to ${isEdit ? 'update' : 'save'} receipt: ${error.message}`);
-        return false;
-      }
-      return true;
-    }
     if (editing) {
       await reverseReceiptEffects(editing);
-      const ok = await tryUpsert(true);
+      const ok = await tryUpsert(data, true, editing.id);
       if (ok) await applyReceiptEffects(form);
     } else {
-      const ok = await tryUpsert(false);
+      const ok = await tryUpsert(data, false);
       if (ok) await applyReceiptEffects(form);
     }
-    setShowDialog(false); setForm(defaultForm); setEditing(null); loadData();
+    setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setEditing(null); loadData();
   }
 
   async function handleDelete(id: string) {
@@ -411,54 +434,121 @@ export default function ReceiptsPage() {
               </div>
               <div>
                 <Label>{t('receiptType')} *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.receipt_type} onChange={e => setForm({ ...form, receipt_type: e.target.value, installment_no: null })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.receipt_type} onChange={e => { setForm({ ...form, receipt_type: e.target.value, installment_no: null, court_case_no: '' }); setSelectedInstallments([]); }}>
                   {receiptTypes.map(rt => <option key={rt} value={rt}>{t(rt as any) || rt}</option>)}
                 </select>
               </div>
               <div>
                 <Label>{t('customer')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value, contract_id: '', court_case_no: '', installment_no: null })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => { setForm({ ...form, customer_id: e.target.value, contract_id: '', court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}>
                   <option value="">Select</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
                 </select>
               </div>
               <div>
                 <Label>{t('contractNo')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value, court_case_no: '', installment_no: null })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => { setForm({ ...form, contract_id: e.target.value, court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}>
                   <option value="">Select</option>
                   {filteredContracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Installment Selector */}
+            {/* Installment Selector - Multi-select with checkboxes */}
             {form.receipt_type === 'installment' && form.contract_id && (
               <div>
-                <Label>{t('selectInstallment')} *</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={form.installment_no ?? ''}
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (val === '') { setForm({ ...form, installment_no: null }); }
-                    else {
-                      const idx = Number(val);
-                      const inst = selectedContract?.installment_schedule?.[idx];
-                      setForm({ ...form, installment_no: idx, received_amount: inst?.amount || form.received_amount });
-                    }
-                  }}
-                >
-                  <option value="">{t('selectInstallment')}</option>
-                  {pendingInstallments.map((inst: any) => (
-                    <option key={inst.index} value={inst.index}>
-                      #{inst.month || inst.index + 1} - {t('dueDate')}: {inst.due_date} - {inst.amount?.toLocaleString()} {t('kd')}
-                    </option>
-                  ))}
-                </select>
-                {pendingInstallments.length === 0 && (
+                <Label>{editing ? t('selectInstallment') + ' *' : t('selectInstallments') + ' *'}</Label>
+                {pendingInstallments.length === 0 ? (
                   <p className="text-xs text-amber-600 mt-1">{t('allInstallmentsPaid')}</p>
+                ) : editing ? (
+                  // Single select mode for editing
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={form.installment_no ?? ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === '') { setForm({ ...form, installment_no: null }); }
+                      else {
+                        const idx = Number(val);
+                        const inst = selectedContract?.installment_schedule?.[idx];
+                        setForm({ ...form, installment_no: idx, received_amount: inst?.amount || form.received_amount });
+                      }
+                    }}
+                  >
+                    <option value="">{t('selectInstallment')}</option>
+                    {pendingInstallments.map((inst: any) => (
+                      <option key={inst.index} value={inst.index}>
+                        #{inst.month || inst.index + 1} - {t('dueDate')}: {inst.due_date} - {inst.amount?.toLocaleString()} {t('kd')}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  // Multi-select checkbox mode for new receipts
+                  <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                    <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        onClick={() => {
+                          if (selectedInstallments.length === pendingInstallments.length) {
+                            setSelectedInstallments([]);
+                          } else {
+                            setSelectedInstallments(pendingInstallments.map((inst: any) => inst.index));
+                          }
+                        }}
+                      >
+                        {selectedInstallments.length === pendingInstallments.length ? t('deselectAll') : t('selectAll')}
+                      </button>
+                      <span className="text-xs text-slate-500">
+                        {selectedInstallments.length} {t('selected')}
+                      </span>
+                    </div>
+                    {pendingInstallments.map((inst: any) => {
+                      const isChecked = selectedInstallments.includes(inst.index);
+                      return (
+                        <label
+                          key={inst.index}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-blue-50 border-b last:border-b-0 transition-colors ${
+                            isChecked ? 'bg-blue-50/70' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            checked={isChecked}
+                            onChange={() => {
+                              setSelectedInstallments(prev =>
+                                isChecked ? prev.filter(i => i !== inst.index) : [...prev, inst.index]
+                              );
+                            }}
+                          />
+                          <div className="flex-1 flex items-center justify-between text-sm">
+                            <span className="font-medium">#{inst.month || inst.index + 1}</span>
+                            <span className="text-slate-500">{inst.due_date}</span>
+                            <span className="font-medium text-green-700">{inst.amount?.toLocaleString()} {t('kd')}</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
                 )}
-                {form.installment_no !== null && form.installment_no !== undefined && selectedContract?.installment_schedule?.[form.installment_no] && (
+                {/* Summary for multi-select */}
+                {!editing && selectedInstallments.length > 0 && (
+                  <div className="mt-2 bg-blue-50 rounded-lg p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-blue-600 font-medium">{t('totalForSelected')}:</span>
+                      <span className="font-bold text-blue-700">
+                        {selectedInstallments.reduce((sum, idx) => {
+                          const inst = selectedContract?.installment_schedule?.[idx];
+                          return sum + (inst?.amount || 0);
+                        }, 0).toLocaleString()} {t('kd')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-500 mt-1">{t('multiInstallmentNote')}</p>
+                  </div>
+                )}
+                {/* Summary for single select (edit mode) */}
+                {editing && form.installment_no !== null && form.installment_no !== undefined && selectedContract?.installment_schedule?.[form.installment_no] && (
                   <div className="mt-2 bg-blue-50 rounded-lg p-3 text-sm">
                     <div className="grid grid-cols-3 gap-2">
                       <div><span className="text-blue-600 text-xs">{t('installmentNo')}</span><p className="font-medium">#{(selectedContract.installment_schedule[form.installment_no].month || form.installment_no + 1)}</p></div>
@@ -484,16 +574,72 @@ export default function ReceiptsPage() {
               </div>
             )}
 
+            {/* Court Money - Legal Cases List */}
+            {form.receipt_type === 'courtMoney' && (
+              <div>
+                <Label>{t('selectLegalCase')} *</Label>
+                {filteredCases.length === 0 ? (
+                  <p className="text-xs text-amber-600 mt-2">{t('noLegalCases')}</p>
+                ) : (
+                  <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-slate-50 text-xs">
+                          <th className="text-start py-2 px-3 w-8"></th>
+                          <th className="text-start py-2 px-3">{t('caseNo')}</th>
+                          <th className="text-start py-2 px-3">{t('customerName')}</th>
+                          <th className="text-start py-2 px-3">{t('caseAmount')}</th>
+                          <th className="text-start py-2 px-3">{t('receivedAmount')}</th>
+                          <th className="text-start py-2 px-3">{t('balanceAmount')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCases.map(lc => {
+                          const isSelected = form.court_case_no === lc.case_no;
+                          const totalRcvd = (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0);
+                          const balance = (lc.claimed_amount || lc.case_amount || 0) - totalRcvd;
+                          return (
+                            <tr
+                              key={lc.id}
+                              className={`border-b last:border-b-0 cursor-pointer transition-colors ${
+                                isSelected ? 'bg-purple-50' : 'hover:bg-slate-50'
+                              }`}
+                              onClick={() => setForm({ ...form, court_case_no: lc.case_no })}
+                            >
+                              <td className="py-2 px-3">
+                                <input type="radio" checked={isSelected} readOnly className="h-4 w-4 text-purple-600" />
+                              </td>
+                              <td className="py-2 px-3 font-medium text-purple-600">{lc.case_no}</td>
+                              <td className="py-2 px-3">{lc.customer_name}</td>
+                              <td className="py-2 px-3">{(lc.claimed_amount || lc.case_amount || 0).toLocaleString()} {t('kd')}</td>
+                              <td className="py-2 px-3 text-green-600">{totalRcvd.toLocaleString()} {t('kd')}</td>
+                              <td className={`py-2 px-3 font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{balance.toLocaleString()} {t('kd')}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {form.court_case_no && (() => {
+                  const lc = filteredCases.find(c => c.case_no === form.court_case_no);
+                  if (!lc) return null;
+                  const totalRcvd = (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0);
+                  const balance = (lc.claimed_amount || lc.case_amount || 0) - totalRcvd;
+                  return (
+                    <div className="mt-2 bg-purple-50 rounded-lg p-3 text-sm">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div><span className="text-purple-600 text-xs">{t('caseAmount')}</span><p className="font-bold">{(lc.claimed_amount || lc.case_amount || 0).toLocaleString()} {t('kd')}</p></div>
+                        <div><span className="text-green-600 text-xs">{t('totalReceived')}</span><p className="font-bold text-green-700">{totalRcvd.toLocaleString()} {t('kd')}</p></div>
+                        <div><span className="text-amber-600 text-xs">{t('balanceAmount')}</span><p className="font-bold text-amber-700">{balance.toLocaleString()} {t('kd')}</p></div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(form.receipt_type === 'courtMoney') && (
-                <div>
-                  <Label>{t('courtCaseNo')}</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.court_case_no} onChange={e => setForm({ ...form, court_case_no: e.target.value })}>
-                    <option value="">Select</option>
-                    {filteredCases.map(lc => <option key={lc.id} value={lc.case_no}>{lc.case_no} - {lc.customer_name}</option>)}
-                  </select>
-                </div>
-              )}
               <div>
                 <Label>{t('receivedAmount')} *</Label>
                 <Input type="number" value={form.received_amount} onChange={e => setForm({ ...form, received_amount: Number(e.target.value) })} />

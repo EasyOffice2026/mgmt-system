@@ -224,7 +224,15 @@ export const en = {
   addReceipt: 'Add Receipt',
   editReceipt: 'Edit Receipt',
   selectInstallment: 'Select Installment',
+  selectInstallments: 'Select Installments',
   allInstallmentsPaid: 'All installments are already paid for this contract',
+  selectAll: 'Select All',
+  deselectAll: 'Deselect All',
+  selected: 'selected',
+  totalForSelected: 'Total for selected installments',
+  multiInstallmentNote: 'A separate receipt will be created for each selected installment',
+  selectLegalCase: 'Select Legal Case',
+  noLegalCases: 'No legal cases found for this customer/contract',
 
   // Accounting
   monthlySummary: 'Monthly Summary',
