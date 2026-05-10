@@ -231,6 +231,8 @@ export const ar = {
   role: 'الدور',
   owner: 'مالك',
   admin: 'مدير',
+  salesman: 'بائع',
+  accountant: 'محاسب',
   staff: 'موظف',
   addUser: 'إضافة مستخدم',
   editUser: 'تعديل مستخدم',

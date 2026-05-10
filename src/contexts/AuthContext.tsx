@@ -6,7 +6,7 @@ interface Profile {
   id: string;
   full_name: string;
   full_name_ar: string;
-  role: 'owner' | 'admin' | 'staff';
+  role: 'owner' | 'admin' | 'salesman' | 'accountant' | 'staff';
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -21,6 +21,9 @@ interface AuthContextType {
   changePassword: (newPassword: string) => Promise<void>;
   isOwner: boolean;
   isAdmin: boolean;
+  isSalesman: boolean;
+  isAccountant: boolean;
+  hasAccess: (module: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -73,9 +76,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isOwner = profile?.role === 'owner';
   const isAdmin = profile?.role === 'owner' || profile?.role === 'admin';
+  const isSalesman = profile?.role === 'salesman';
+  const isAccountant = profile?.role === 'accountant';
+
+  const ROLE_ACCESS: Record<string, string[]> = {
+    owner: ['dashboard', 'contractLookup', 'customers', 'sales', 'purchase', 'inventory', 'legalCases', 'expenses', 'receipts', 'accounting', 'users'],
+    admin: ['dashboard', 'contractLookup', 'customers', 'sales', 'purchase', 'inventory', 'legalCases', 'expenses', 'receipts', 'accounting'],
+    salesman: ['dashboard', 'contractLookup', 'customers', 'sales', 'receipts'],
+    accountant: ['dashboard', 'contractLookup', 'expenses', 'receipts', 'accounting'],
+    staff: ['dashboard', 'contractLookup'],
+  };
+
+  function hasAccess(module: string): boolean {
+    const role = profile?.role || 'staff';
+    return ROLE_ACCESS[role]?.includes(module) ?? false;
+  }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, changePassword, isOwner, isAdmin }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, changePassword, isOwner, isAdmin, isSalesman, isAccountant, hasAccess }}>
       {children}
     </AuthContext.Provider>
   );
