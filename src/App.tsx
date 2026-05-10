@@ -32,6 +32,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+function RoleRoute({ module, children }: { module: string; children: React.ReactNode }) {
+  const { hasAccess, loading } = useAuth();
+  if (loading) return null;
+  return hasAccess(module) ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
@@ -47,16 +53,16 @@ export default function App() {
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
             <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
-              <Route path="customers" element={<CustomersPage />} />
-              <Route path="sales" element={<SalesPage />} />
-              <Route path="purchase" element={<PurchasePage />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="legal-cases" element={<LegalCasesPage />} />
-              <Route path="expenses" element={<ExpensesPage />} />
-              <Route path="receipts" element={<ReceiptsPage />} />
-              <Route path="contract-lookup" element={<ContractLookupPage />} />
-              <Route path="accounting" element={<AccountingPage />} />
-              <Route path="users" element={<UsersPage />} />
+              <Route path="customers" element={<RoleRoute module="customers"><CustomersPage /></RoleRoute>} />
+              <Route path="sales" element={<RoleRoute module="sales"><SalesPage /></RoleRoute>} />
+              <Route path="purchase" element={<RoleRoute module="purchase"><PurchasePage /></RoleRoute>} />
+              <Route path="inventory" element={<RoleRoute module="inventory"><InventoryPage /></RoleRoute>} />
+              <Route path="legal-cases" element={<RoleRoute module="legalCases"><LegalCasesPage /></RoleRoute>} />
+              <Route path="expenses" element={<RoleRoute module="expenses"><ExpensesPage /></RoleRoute>} />
+              <Route path="receipts" element={<RoleRoute module="receipts"><ReceiptsPage /></RoleRoute>} />
+              <Route path="contract-lookup" element={<RoleRoute module="contractLookup"><ContractLookupPage /></RoleRoute>} />
+              <Route path="accounting" element={<RoleRoute module="accounting"><AccountingPage /></RoleRoute>} />
+              <Route path="users" element={<RoleRoute module="users"><UsersPage /></RoleRoute>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

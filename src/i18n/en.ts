@@ -251,6 +251,8 @@ export const en = {
   role: 'Role',
   owner: 'Owner',
   admin: 'Admin',
+  salesman: 'Salesman',
+  accountant: 'Accountant',
   staff: 'Staff',
   addUser: 'Add User',
   editUser: 'Edit User',
