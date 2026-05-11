@@ -296,7 +296,7 @@ export default function ReceiptsPage() {
         </div>
         <div className="flex items-center gap-3">
           <DataExport title={t('receipts')} headers={exportHeaders} rows={exportRows} filename="receipts" />
-          <Button onClick={() => { setEditing(null); setForm(defaultForm); setShowDialog(true); }} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+          <Button onClick={() => { setEditing(null); setForm(defaultForm); setSelectedInstallments([]); setShowDialog(true); }} className="bg-gradient-to-r from-blue-600 to-indigo-600">
             <Plus className="h-4 w-4 me-1" /> {t('addReceipt')}
           </Button>
         </div>
@@ -421,7 +421,7 @@ export default function ReceiptsPage() {
       </Dialog>
 
       {/* Add/Edit Receipt Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setSelectedInstallments([]); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? t('editReceipt') : t('addReceipt')}</DialogTitle>
@@ -669,7 +669,7 @@ export default function ReceiptsPage() {
             </div>
             <FileAttachment bucket="receipts" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowDialog(false)}>{t('cancel')}</Button>
+              <Button variant="outline" onClick={() => { setShowDialog(false); setSelectedInstallments([]); }}>{t('cancel')}</Button>
               <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-indigo-600">{t('save')}</Button>
             </div>
           </div>
