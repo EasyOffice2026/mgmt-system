@@ -35,7 +35,7 @@ const defaultForm = {
   file_opening_charges: 0, duration_months: 12,
   start_date: format(new Date(), 'yyyy-MM-dd'),
   first_installment_date: format(addMonths(new Date(), 1), 'yyyy-MM-dd'),
-  payment_mode: 'cash', status: 'functional', attachments: [] as string[],
+  payment_mode: 'cash', status: 'ongoing', attachments: [] as string[],
 };
 
 const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
@@ -205,9 +205,9 @@ export default function SalesPage() {
   );
 
   const statusColor = (s: string) => {
-    if (s === 'functional' || s === 'ongoing') return 'bg-blue-100 text-blue-700';
+    if (s === 'ongoing' || s === 'functional') return 'bg-blue-100 text-blue-700';
     if (s === 'finished') return 'bg-green-100 text-green-700';
-    if (s === 'case_closed') return 'bg-purple-100 text-purple-700';
+    if (s === 'case_closed' || s === 'legal_case') return 'bg-purple-100 text-purple-700';
     return 'bg-red-100 text-red-700';
   };
 
@@ -480,10 +480,9 @@ export default function SalesPage() {
                   }
                   setForm({ ...form, status: e.target.value });
                 }}>
-                  <option value="functional">{t('functional')}</option>
+                  <option value="ongoing">{t('ongoing')}</option>
                   <option value="finished">{t('finished')}</option>
                   <option value="legal_case">{t('legalCase')}</option>
-                  <option value="case_closed">{t('caseClosed')}</option>
                 </select>
               </div>
             </div>
