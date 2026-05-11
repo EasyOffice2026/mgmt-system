@@ -135,6 +135,10 @@ export default function SalesPage() {
   }
 
   async function handleSave() {
+    // Validate mandatory fields
+    if (!form.customer_id) { alert(t('selectCustomer') || 'Please select a customer'); return; }
+    const hasValidItem = form.items.some(i => i.purchase_id || (i.item_name && i.sale_price > 0));
+    if (!hasValidItem) { alert(t('selectProduct') || 'Please select at least one item'); return; }
     const customer = customers.find(c => c.id === form.customer_id);
     const totalSalePrice = getTotalSalePrice();
     const instAmount = calculateInstallment();
@@ -160,9 +164,11 @@ export default function SalesPage() {
     if (editing) {
       data.paid_amount = editing.paid_amount;
       data.remaining_amount = totalSalePrice - editing.paid_amount;
-      await supabase.from('contracts').update(data).eq('id', editing.id);
+      const { error } = await supabase.from('contracts').update(data).eq('id', editing.id);
+      if (error) { console.error('Contract update error:', error); alert(`Failed to update contract: ${error.message}`); return; }
     } else {
-      await supabase.from('contracts').insert(data);
+      const { error } = await supabase.from('contracts').insert(data);
+      if (error) { console.error('Contract insert error:', error); alert(`Failed to create contract: ${error.message}`); return; }
       // Mark items as sold
       for (const item of form.items) {
         if (item.purchase_id) {
@@ -199,7 +205,7 @@ export default function SalesPage() {
   );
 
   const statusColor = (s: string) => {
-    if (s === 'functional') return 'bg-blue-100 text-blue-700';
+    if (s === 'functional' || s === 'ongoing') return 'bg-blue-100 text-blue-700';
     if (s === 'finished') return 'bg-green-100 text-green-700';
     if (s === 'case_closed') return 'bg-purple-100 text-purple-700';
     return 'bg-red-100 text-red-700';
@@ -404,7 +410,7 @@ export default function SalesPage() {
             {/* Multiple Items Section */}
             <div className="border rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">{t('items')}</h3>
+                <h3 className="font-medium">{t('items')} *</h3>
                 <Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 me-1" /> {t('addItem')}</Button>
               </div>
               {form.items.map((item, idx) => (
