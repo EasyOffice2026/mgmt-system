@@ -134,6 +134,22 @@ export default function SalesPage() {
     return schedule;
   }
 
+  async function generateContractNo(): Promise<string> {
+    const year = new Date().getFullYear();
+    const { data } = await supabase.from('contracts').select('contract_no').order('created_at', { ascending: false }).limit(100);
+    let maxNum = 0;
+    (data || []).forEach((c: any) => {
+      const no = c.contract_no || '';
+      // Handle CON-YYYY-NNNN format
+      const match = no.match(/CON-\d{4}-(\d+)/);
+      if (match) { maxNum = Math.max(maxNum, parseInt(match[1], 10)); }
+      // Handle CON-NNNNN format
+      const match2 = no.match(/^CON-(\d+)$/);
+      if (match2) { maxNum = Math.max(maxNum, parseInt(match2[1], 10)); }
+    });
+    return `CON-${year}-${String(maxNum + 1).padStart(4, '0')}`;
+  }
+
   async function handleSave() {
     // Validate mandatory fields
     if (!form.customer_id) { alert(t('selectCustomer') || 'Please select a customer'); return; }
@@ -144,7 +160,7 @@ export default function SalesPage() {
     const instAmount = calculateInstallment();
     const schedule = generateSchedule();
     const lastDate = schedule.length > 0 ? schedule[schedule.length - 1].due_date : form.start_date;
-    const data = {
+    const data: any = {
       customer_id: form.customer_id, customer_name: customer?.name || '',
       items: form.items,
       item_name: form.items.map(i => i.item_name).join(', '),
@@ -167,6 +183,7 @@ export default function SalesPage() {
       const { error } = await supabase.from('contracts').update(data).eq('id', editing.id);
       if (error) { console.error('Contract update error:', error); alert(`Failed to update contract: ${error.message}`); return; }
     } else {
+      data.contract_no = await generateContractNo();
       const { error } = await supabase.from('contracts').insert(data);
       if (error) { console.error('Contract insert error:', error); alert(`Failed to create contract: ${error.message}`); return; }
       // Mark items as sold
