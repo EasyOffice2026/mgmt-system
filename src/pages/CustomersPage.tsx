@@ -98,12 +98,13 @@ export default function CustomersPage() {
 
   async function handleSave() {
     if (!validate()) return;
+    const { client_check, ...dbFields } = form;
     if (editing) {
-      const { error } = await supabase.from('customers').update(form).eq('id', editing.id);
+      const { error } = await supabase.from('customers').update(dbFields).eq('id', editing.id);
       if (error) { alert('Failed to update customer: ' + error.message); return; }
     } else {
       const customer_no = await generateCustomerNo();
-      const { error } = await supabase.from('customers').insert({ ...form, customer_no });
+      const { error } = await supabase.from('customers').insert({ ...dbFields, customer_no });
       if (error) { alert('Failed to create customer: ' + error.message); return; }
     }
     setShowDialog(false); setForm(emptyCustomer); setEditing(null); loadCustomers();
