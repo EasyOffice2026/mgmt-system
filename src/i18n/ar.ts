@@ -96,6 +96,7 @@ export const ar = {
   contractNo: 'رقم العقد',
   customer: 'العميل',
   selectCustomer: 'اختر العميل',
+  selectContract: 'يرجى اختيار العقد أولاً',
   categoryOfPurchase: 'الفئة',
   fileOpeningCharges: 'رسوم فتح الملف',
   fileFee: 'رسوم الملف',
@@ -122,12 +123,15 @@ export const ar = {
   bankTransfer: 'تحويل بنكي',
   link: 'رابط',
   wamd: 'وامض',
-  ongoing: 'جاري',
+  ongoing: 'قيد التشغيل',
   functional: 'قيد التشغيل',
   finished: 'منتهي',
-  legalCase: 'قضية قانونية',
-  caseClosed: 'قضية مغلقة',
-  case_closed: 'قضية مغلقة',
+  closed: 'مغلق',
+  legalCase: 'قضايا قانونية',
+  legal_case: 'قضايا قانونية',
+  caseClosed: 'قضايا قانونية مغلقة',
+  case_closed: 'قضايا قانونية مغلقة',
+  legalCasesClosed: 'قضايا قانونية مغلقة',
   contractCopy: 'نسخة العقد',
   installmentSchedule: 'جدول الأقساط',
   installmentNo: 'رقم القسط',
@@ -304,8 +308,8 @@ export const ar = {
   noDueInstallments: 'جميع الأقساط مدفوعة! لا توجد مستحقات.',
 
   // Dashboard - New KPIs
-  operationalCases: 'القضايا التشغيلية',
-  finishedCases: 'القضايا المنتهية',
+  operationalCases: 'قيد التشغيل',
+  finishedCases: 'مغلق',
   legalFinishedCases: 'القضايا القانونية المنتهية',
   lateCases: 'حالات التأخر في الدفع',
 
@@ -341,7 +345,6 @@ export const ar = {
   // Legal Cases - Payment Details
   paymentDetails: 'تفاصيل الدفع',
   paymentHistory: 'سجل المدفوعات',
-  legal_case: 'قضية قانونية',
 
   // Contract - Profit Percentage
   profitPercentage: 'نسبة الربح',
@@ -378,4 +381,16 @@ export const ar = {
   netLoss: 'صافي الخسارة',
   count: 'العدد',
   print: 'طباعة',
+
+  // Accounting - Customer Report
+  customerReport: 'تقرير العميل',
+  customerReportDesc: 'اختر عميلاً لعرض الملخص المالي',
+  selectCustomerForReport: 'اختر العميل',
+  saleAmount: 'مبلغ البيع',
+  receivedAmount2: 'المبلغ المستلم',
+  legalAmountReceived: 'المبلغ القانوني المستلم',
+  balanceToReceive: 'الرصيد المتبقي للاستلام',
+  closedCases: 'مغلق',
+  contractDetails2: 'تفاصيل العقود',
+  noContractsFound: 'لا توجد عقود لهذا العميل',
 } as const;

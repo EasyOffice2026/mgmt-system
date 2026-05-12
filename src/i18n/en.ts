@@ -102,6 +102,7 @@ export const en = {
   contractNo: 'Contract No.',
   customer: 'Customer',
   selectCustomer: 'Select Customer',
+  selectContract: 'Please select a contract first',
   categoryOfPurchase: 'Category',
   fileOpeningCharges: 'File Opening Charges',
   fileFee: 'File Fee',
@@ -128,12 +129,15 @@ export const en = {
   bankTransfer: 'Bank Transfer',
   link: 'Link',
   wamd: 'Wamd',
-  ongoing: 'Ongoing',
+  ongoing: 'Functional',
   functional: 'Functional',
   finished: 'Finished',
-  legalCase: 'Legal Case',
-  caseClosed: 'Case Closed',
-  case_closed: 'Case Closed',
+  closed: 'Closed',
+  legalCase: 'Legal Cases',
+  legal_case: 'Legal Cases',
+  caseClosed: 'Legal Cases Closed',
+  case_closed: 'Legal Cases Closed',
+  legalCasesClosed: 'Legal Cases Closed',
   contractCopy: 'Contract Copy',
   installmentSchedule: 'Installment Schedule',
   installmentNo: 'Inst. No.',
@@ -330,8 +334,8 @@ export const en = {
   noDueInstallments: 'All installments are paid! No dues pending.',
 
   // Dashboard - New KPIs
-  operationalCases: 'Operational Cases',
-  finishedCases: 'Finished Cases',
+  operationalCases: 'Functional',
+  finishedCases: 'Closed',
   legalFinishedCases: 'Legal Finished Cases',
   lateCases: 'Late Payment Cases',
 
@@ -367,7 +371,6 @@ export const en = {
   // Legal Cases - Payment Details
   paymentDetails: 'Payment Details',
   paymentHistory: 'Payment History',
-  legal_case: 'Legal Case',
 
   // Contract - Profit Percentage
   profitPercentage: 'Profit %',
@@ -404,4 +407,16 @@ export const en = {
   netLoss: 'Net Loss',
   count: 'Count',
   print: 'Print',
+
+  // Accounting - Customer Report
+  customerReport: 'Customer Report',
+  customerReportDesc: 'Select a customer to view financial summary',
+  selectCustomerForReport: 'Select Customer',
+  saleAmount: 'Sale Amount',
+  receivedAmount2: 'Received Amount',
+  legalAmountReceived: 'Legal Amount Received',
+  balanceToReceive: 'Balance Amount to Receive',
+  closedCases: 'Closed',
+  contractDetails2: 'Contract Details',
+  noContractsFound: 'No contracts found for this customer',
 } as const;

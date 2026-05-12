@@ -578,7 +578,11 @@ export default function ReceiptsPage() {
             {form.receipt_type === 'courtMoney' && (
               <div>
                 <Label>{t('selectLegalCase')} *</Label>
-                {filteredCases.length === 0 ? (
+                {!form.customer_id ? (
+                  <p className="text-xs text-amber-600 mt-2">{t('selectCustomer')}</p>
+                ) : !form.contract_id ? (
+                  <p className="text-xs text-amber-600 mt-2">{t('selectContract')}</p>
+                ) : filteredCases.length === 0 ? (
                   <p className="text-xs text-amber-600 mt-2">{t('noLegalCases')}</p>
                 ) : (
                   <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">

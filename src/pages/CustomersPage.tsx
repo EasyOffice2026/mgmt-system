@@ -85,12 +85,26 @@ export default function CustomersPage() {
     setForm({ ...form, client_check: newValue });
   }
 
+  async function generateCustomerNo(): Promise<string> {
+    const { data } = await supabase.from('customers').select('customer_no').order('created_at', { ascending: false }).limit(200);
+    let maxNum = 0;
+    (data || []).forEach((c: any) => {
+      const no = c.customer_no || '';
+      const m1 = no.match(/CUST-(\d+)/);
+      if (m1) { maxNum = Math.max(maxNum, parseInt(m1[1], 10)); }
+    });
+    return `CUST-${String(maxNum + 1).padStart(5, '0')}`;
+  }
+
   async function handleSave() {
     if (!validate()) return;
     if (editing) {
-      await supabase.from('customers').update(form).eq('id', editing.id);
+      const { error } = await supabase.from('customers').update(form).eq('id', editing.id);
+      if (error) { alert('Failed to update customer: ' + error.message); return; }
     } else {
-      await supabase.from('customers').insert(form);
+      const customer_no = await generateCustomerNo();
+      const { error } = await supabase.from('customers').insert({ ...form, customer_no });
+      if (error) { alert('Failed to create customer: ' + error.message); return; }
     }
     setShowDialog(false); setForm(emptyCustomer); setEditing(null); loadCustomers();
   }

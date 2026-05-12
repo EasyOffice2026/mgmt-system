@@ -35,7 +35,7 @@ const defaultForm = {
   file_opening_charges: 0, duration_months: 12,
   start_date: format(new Date(), 'yyyy-MM-dd'),
   first_installment_date: format(addMonths(new Date(), 1), 'yyyy-MM-dd'),
-  payment_mode: 'cash', status: 'ongoing', attachments: [] as string[],
+  payment_mode: 'cash', status: 'functional', attachments: [] as string[],
 };
 
 const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
@@ -497,9 +497,10 @@ export default function SalesPage() {
                   }
                   setForm({ ...form, status: e.target.value });
                 }}>
-                  <option value="ongoing">{t('ongoing')}</option>
-                  <option value="finished">{t('finished')}</option>
+                  <option value="functional">{t('functional')}</option>
+                  <option value="closed">{t('closed')}</option>
                   <option value="legal_case">{t('legalCase')}</option>
+                  <option value="case_closed">{t('caseClosed')}</option>
                 </select>
               </div>
             </div>
