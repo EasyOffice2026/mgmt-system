@@ -98,7 +98,7 @@ export default function CustomersPage() {
 
   async function handleSave() {
     if (!validate()) return;
-    const { client_check, ...dbFields } = form;
+    const { client_check, work_place, ...dbFields } = form;
     if (editing) {
       const { error } = await supabase.from('customers').update(dbFields).eq('id', editing.id);
       if (error) { alert('Failed to update customer: ' + error.message); return; }
