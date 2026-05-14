@@ -24,11 +24,11 @@ interface Contract {
 }
 
 interface Customer { id: string; customer_no: string; name: string; }
-interface Purchase { id: string; item_name: string; model_type: string; category: string; purchase_price: number; status: string; }
+interface Purchase { id: string; item_name: string; model_type: string; category: string; purchase_price: number; quantity: number; quantity_available: number; status: string; }
 
-interface ContractItem { purchase_id: string; item_name: string; model_type: string; category: string; purchase_price: number; profit_percentage: number; sale_price: number; }
+interface ContractItem { purchase_id: string; item_name: string; model_type: string; category: string; purchase_price: number; profit_percentage: number; sale_price: number; quantity: number; }
 
-const emptyItem: ContractItem = { purchase_id: '', item_name: '', model_type: '', category: '', purchase_price: 0, profit_percentage: 0, sale_price: 0 };
+const emptyItem: ContractItem = { purchase_id: '', item_name: '', model_type: '', category: '', purchase_price: 0, profit_percentage: 0, sale_price: 0, quantity: 1 };
 
 const defaultForm = {
   customer_id: '', items: [{ ...emptyItem }] as ContractItem[],
@@ -75,7 +75,7 @@ export default function SalesPage() {
     const [contRes, custRes, purRes] = await Promise.all([
       contQuery,
       supabase.from('customers').select('id, customer_no, name'),
-      supabase.from('purchases').select('id, item_name, model_type, category, purchase_price, status').eq('status', 'in_stock'),
+      supabase.from('purchases').select('id, item_name, model_type, category, purchase_price, quantity, quantity_available, status').eq('status', 'in_stock'),
     ]);
     setContracts(contRes.data || []);
     setCustomers(custRes.data || []);
@@ -99,8 +99,13 @@ export default function SalesPage() {
     if (field === 'purchase_id') {
       const purchase = purchases.find(p => p.id === value);
       if (purchase) {
-        newItems[index] = { ...newItems[index], item_name: purchase.item_name, model_type: purchase.model_type, category: purchase.category, purchase_price: purchase.purchase_price };
+        newItems[index] = { ...newItems[index], item_name: purchase.item_name, model_type: purchase.model_type, category: purchase.category, purchase_price: purchase.purchase_price, quantity: 1 };
       }
+    }
+    if (field === 'quantity') {
+      const purchase = purchases.find(p => p.id === newItems[index].purchase_id);
+      const maxQty = purchase ? (purchase.quantity_available ?? purchase.quantity ?? 1) : 9999;
+      newItems[index] = { ...newItems[index], quantity: Math.min(Math.max(1, Number(value)), maxQty) };
     }
     // Auto-calculate sale price when purchase price or profit percentage changes
     if (field === 'purchase_price' || field === 'profit_percentage') {
@@ -155,6 +160,10 @@ export default function SalesPage() {
     if (!form.customer_id) { alert(t('selectCustomer') || 'Please select a customer'); return; }
     const hasValidItem = form.items.some(i => i.purchase_id || (i.item_name && i.sale_price > 0));
     if (!hasValidItem) { alert(t('selectProduct') || 'Please select at least one item'); return; }
+    if (form.first_installment_date && form.start_date && form.first_installment_date < form.start_date) {
+      alert(t('firstInstallmentBeforeStart') || 'First installment date cannot be before start date');
+      return;
+    }
     const customer = customers.find(c => c.id === form.customer_id);
     const totalSalePrice = getTotalSalePrice();
     const instAmount = calculateInstallment();
@@ -186,10 +195,17 @@ export default function SalesPage() {
       data.contract_no = await generateContractNo();
       const { error } = await supabase.from('contracts').insert(data);
       if (error) { console.error('Contract insert error:', error); alert(`Failed to create contract: ${error.message}`); return; }
-      // Mark items as sold
+      // Deduct quantity from inventory
       for (const item of form.items) {
         if (item.purchase_id) {
-          await supabase.from('purchases').update({ status: 'sold' }).eq('id', item.purchase_id);
+          const purchase = purchases.find(p => p.id === item.purchase_id);
+          if (purchase) {
+            const newAvail = Math.max(0, (purchase.quantity_available ?? purchase.quantity ?? 1) - (item.quantity || 1));
+            await supabase.from('purchases').update({
+              quantity_available: newAvail,
+              status: newAvail <= 0 ? 'sold' : 'in_stock'
+            }).eq('id', item.purchase_id);
+          }
         }
       }
     }
@@ -443,7 +459,7 @@ export default function SalesPage() {
                       <Label className="text-xs">{t('selectProduct')}</Label>
                       <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={item.purchase_id} onChange={e => updateItem(idx, 'purchase_id', e.target.value)}>
                         <option value="">Select from inventory</option>
-                        {purchases.map(p => <option key={p.id} value={p.id}>{p.item_name} - {p.model_type} ({p.category})</option>)}
+                        {purchases.map(p => <option key={p.id} value={p.id}>{p.item_name} - {p.model_type} ({p.category}) [{t('available')}: {p.quantity_available ?? p.quantity ?? 1}]</option>)}
                       </select>
                     </div>
                     <div>
@@ -457,6 +473,11 @@ export default function SalesPage() {
                     <div>
                       <Label className="text-xs">{t('salePrice')} *</Label>
                       <Input className="h-9" type="number" value={item.sale_price} onChange={e => updateItem(idx, 'sale_price', Number(e.target.value))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">{t('quantity')} *</Label>
+                      <Input className="h-9" type="number" min={1} max={item.purchase_id ? (purchases.find(p => p.id === item.purchase_id)?.quantity_available ?? 1) : 9999} value={item.quantity} onChange={e => updateItem(idx, 'quantity', Number(e.target.value))} />
+                      {item.purchase_id && <p className="text-xs text-slate-500 mt-0.5">{t('available')}: {purchases.find(p => p.id === item.purchase_id)?.quantity_available ?? '?'}</p>}
                     </div>
                   </div>
                 </div>
@@ -481,7 +502,10 @@ export default function SalesPage() {
               </div>
               <div>
                 <Label>{t('firstInstallmentDate')}</Label>
-                <Input type="date" value={form.first_installment_date} onChange={e => setForm({ ...form, first_installment_date: e.target.value })} />
+                <Input type="date" min={form.start_date} value={form.first_installment_date} onChange={e => {
+                  if (e.target.value < form.start_date) { alert(t('firstInstallmentBeforeStart') || 'First installment date cannot be before start date'); return; }
+                  setForm({ ...form, first_installment_date: e.target.value });
+                }} />
               </div>
               <div>
                 <Label>{t('paymentMode')}</Label>
@@ -500,6 +524,7 @@ export default function SalesPage() {
                   <option value="ongoing">{t('functional')}</option>
                   <option value="finished">{t('closed')}</option>
                   <option value="legal_case">{t('legalCase')}</option>
+                  <option value="case_closed">{t('caseClosed')}</option>
                 </select>
               </div>
             </div>

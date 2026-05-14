@@ -393,4 +393,7 @@ export const ar = {
   closedCases: 'مغلق',
   contractDetails2: 'تفاصيل العقود',
   noContractsFound: 'لا توجد عقود لهذا العميل',
+  quantity: 'الكمية',
+  available: 'متاح',
+  firstInstallmentBeforeStart: 'لا يمكن أن يكون تاريخ القسط الأول قبل تاريخ البدء',
 } as const;

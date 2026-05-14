@@ -28,7 +28,14 @@ export function FileAttachment({ bucket, folder, files, onFilesChange, disabled 
       const ext = file.name.split('.').pop();
       const path = `${folder}/${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from(bucket).upload(path, file);
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
+          alert('Storage bucket not configured. Please create the storage bucket "' + bucket + '" in your Supabase Dashboard → Storage.');
+        } else {
+          alert('Upload failed: ' + error.message);
+        }
+        throw error;
+      }
       const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
       onFilesChange([...files, urlData.publicUrl]);
     } catch (err) {

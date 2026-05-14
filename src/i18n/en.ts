@@ -419,4 +419,7 @@ export const en = {
   closedCases: 'Closed',
   contractDetails2: 'Contract Details',
   noContractsFound: 'No contracts found for this customer',
+  quantity: 'Quantity',
+  available: 'Available',
+  firstInstallmentBeforeStart: 'First installment date cannot be before start date',
 } as const;

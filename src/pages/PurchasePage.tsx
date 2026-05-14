@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 interface Purchase {
   id: string; purchase_date: string; supplier_name: string; invoice_no: string;
   shop_location: string; category: string; item_name: string; model_type: string;
-  purchase_price: number; payment_mode: string; status: string; attachments: string[]; created_at: string;
+  purchase_price: number; quantity: number; quantity_available: number; payment_mode: string; status: string; attachments: string[]; created_at: string;
 }
 
 const defaultCategories = ['Mobile', 'Car', 'Furniture', 'Electronics', 'Jewelry', 'Other'];
@@ -24,8 +24,8 @@ const paymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 const defaultForm = {
   purchase_date: format(new Date(), 'yyyy-MM-dd'),
   supplier_name: '', invoice_no: '', shop_location: '', category: '',
-  item_name: '', model_type: '', purchase_price: 0, payment_mode: 'cash',
-  status: 'in_stock', attachments: [] as string[],
+  item_name: '', model_type: '', purchase_price: 0, quantity: 1, quantity_available: 1,
+  payment_mode: 'cash', status: 'in_stock', attachments: [] as string[],
 };
 
 export default function PurchasePage() {
@@ -102,8 +102,9 @@ export default function PurchasePage() {
     setForm({
       purchase_date: p.purchase_date, supplier_name: p.supplier_name, invoice_no: p.invoice_no,
       shop_location: p.shop_location, category: p.category, item_name: p.item_name,
-      model_type: p.model_type, purchase_price: p.purchase_price, payment_mode: p.payment_mode,
-      status: p.status, attachments: p.attachments || [],
+      model_type: p.model_type, purchase_price: p.purchase_price,
+      quantity: p.quantity || 1, quantity_available: p.quantity_available ?? p.quantity ?? 1,
+      payment_mode: p.payment_mode, status: p.status, attachments: p.attachments || [],
     });
     setShowDialog(true);
   }
@@ -164,6 +165,8 @@ export default function PurchasePage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('category')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('itemName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('purchasePrice')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('quantity')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('available')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
@@ -177,6 +180,8 @@ export default function PurchasePage() {
                       <td className="py-3 px-4">{p.category}</td>
                       <td className="py-3 px-4">{p.item_name} {p.model_type}</td>
                       <td className="py-3 px-4">{p.purchase_price?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4">{p.quantity || 1}</td>
+                      <td className="py-3 px-4">{p.quantity_available ?? p.quantity ?? 1}</td>
                       <td className="py-3 px-4">
                         <Badge className={p.status === 'in_stock' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'} variant="secondary">
                           {p.status === 'in_stock' ? t('inStock') : t('sold')}
@@ -259,6 +264,13 @@ export default function PurchasePage() {
               <div>
                 <Label>{t('purchasePrice')} *</Label>
                 <Input type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label>{t('quantity')} *</Label>
+                <Input type="number" min={1} value={form.quantity} onChange={e => {
+                  const qty = Math.max(1, Number(e.target.value));
+                  setForm({ ...form, quantity: qty, quantity_available: editing ? form.quantity_available : qty });
+                }} />
               </div>
               <div>
                 <Label>{t('paymentMode')}</Label>
