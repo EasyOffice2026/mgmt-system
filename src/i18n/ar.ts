@@ -125,7 +125,7 @@ export const ar = {
   wamd: 'وامض',
   ongoing: 'قيد التشغيل',
   functional: 'قيد التشغيل',
-  finished: 'منتهي',
+  finished: 'مغلق',
   closed: 'مغلق',
   legalCase: 'قضايا قانونية',
   legal_case: 'قضايا قانونية',

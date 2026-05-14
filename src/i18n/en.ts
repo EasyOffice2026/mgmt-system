@@ -131,7 +131,7 @@ export const en = {
   wamd: 'Wamd',
   ongoing: 'Functional',
   functional: 'Functional',
-  finished: 'Finished',
+  finished: 'Closed',
   closed: 'Closed',
   legalCase: 'Legal Cases',
   legal_case: 'Legal Cases',
