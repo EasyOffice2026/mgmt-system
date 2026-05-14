@@ -9,7 +9,8 @@ import { Search, Warehouse, Calendar } from 'lucide-react';
 
 interface InventoryItem {
   id: string; item_name: string; model_type: string; category: string;
-  purchase_price: number; supplier_name: string; purchase_date: string; status: string;
+  purchase_price: number; quantity: number; quantity_available: number;
+  supplier_name: string; purchase_date: string; status: string;
 }
 
 export default function InventoryPage() {
@@ -43,26 +44,27 @@ export default function InventoryPage() {
     return matchSearch && matchCategory;
   });
 
-  const inStock = filtered.filter(i => i.status === 'in_stock').length;
-  const soldCount = filtered.filter(i => i.status === 'sold').length;
+  const totalQty = filtered.reduce((s, i) => s + (i.quantity || 1), 0);
+  const totalAvailable = filtered.reduce((s, i) => s + (i.quantity_available ?? i.quantity ?? 1), 0);
+  const totalSold = totalQty - totalAvailable;
 
-  const exportHeaders = [t('itemName'), t('modelType'), t('category'), t('purchasePrice'), t('supplierName'), t('purchaseDate'), t('status')];
-  const exportRows = filtered.map(i => [i.item_name, i.model_type, i.category, i.purchase_price, i.supplier_name, i.purchase_date, i.status]);
+  const exportHeaders = [t('itemName'), t('modelType'), t('category'), t('purchasePrice'), t('quantity'), t('available'), t('supplierName'), t('purchaseDate'), t('status')];
+  const exportRows = filtered.map(i => [i.item_name, i.model_type, i.category, i.purchase_price, i.quantity || 1, i.quantity_available ?? i.quantity ?? 1, i.supplier_name, i.purchase_date, i.status]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('inventory')}</h1>
-          <p className="text-slate-500 text-sm">{inStock} {t('inStock')} &middot; {soldCount} {t('sold')}</p>
+          <p className="text-slate-500 text-sm">{totalAvailable} {t('inStock')} &middot; {totalSold} {t('sold')}</p>
         </div>
         <DataExport title={t('inventory')} headers={exportHeaders} rows={exportRows} filename="inventory" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('total')}</p><p className="text-2xl font-bold">{filtered.length}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('inStock')}</p><p className="text-2xl font-bold text-green-600">{inStock}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('sold')}</p><p className="text-2xl font-bold text-slate-500">{soldCount}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('totalQuantity')}</p><p className="text-2xl font-bold">{totalQty}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('available')}</p><p className="text-2xl font-bold text-green-600">{totalAvailable}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('sold')}</p><p className="text-2xl font-bold text-slate-500">{totalSold}</p></CardContent></Card>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -99,6 +101,8 @@ export default function InventoryPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('modelType')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('category')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('purchasePrice')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('quantity')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('available')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('supplierName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('purchaseDate')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>
@@ -111,6 +115,8 @@ export default function InventoryPage() {
                       <td className="py-3 px-4">{item.model_type}</td>
                       <td className="py-3 px-4">{item.category}</td>
                       <td className="py-3 px-4">{item.purchase_price?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4">{item.quantity || 1}</td>
+                      <td className="py-3 px-4">{item.quantity_available ?? item.quantity ?? 1}</td>
                       <td className="py-3 px-4">{item.supplier_name}</td>
                       <td className="py-3 px-4">{item.purchase_date}</td>
                       <td className="py-3 px-4">
