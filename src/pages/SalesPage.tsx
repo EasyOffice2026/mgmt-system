@@ -120,12 +120,11 @@ export default function SalesPage() {
   }
 
   function getTotalSalePrice() {
-    return form.items.reduce((sum, item) => sum + (item.sale_price || 0), 0);
+    return form.items.reduce((sum, item) => sum + (item.sale_price || 0) * (item.quantity || 1), 0);
   }
 
   function calculateInstallment() {
-    const totalFinanced = getTotalSalePrice() - form.file_opening_charges;
-    return form.duration_months > 0 ? totalFinanced / form.duration_months : 0;
+    return form.duration_months > 0 ? getTotalSalePrice() / form.duration_months : 0;
   }
 
   function generateSchedule() {
@@ -175,7 +174,7 @@ export default function SalesPage() {
       item_name: form.items.map(i => i.item_name).join(', '),
       category: form.items.map(i => i.category).join(', '),
       model_type: form.items.map(i => i.model_type).join(', '),
-      purchase_price: form.items.reduce((s, i) => s + (i.purchase_price || 0), 0),
+      purchase_price: form.items.reduce((s, i) => s + (i.purchase_price || 0) * (i.quantity || 1), 0),
       sale_price: totalSalePrice,
       file_opening_charges: form.file_opening_charges,
       duration_months: form.duration_months,
@@ -531,8 +530,9 @@ export default function SalesPage() {
 
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900">{t('installmentSummary')}</h4>
-              <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
-                <div><p className="text-blue-600">{t('totalFinanced')}</p><p className="font-bold">{(getTotalSalePrice() - form.file_opening_charges).toLocaleString()} {t('kd')}</p></div>
+              <div className="grid grid-cols-4 gap-4 mt-2 text-sm">
+                <div><p className="text-blue-600">{t('totalSalePrice')}</p><p className="font-bold">{getTotalSalePrice().toLocaleString()} {t('kd')}</p></div>
+                <div><p className="text-blue-600">{t('fileOpeningCharges')}</p><p className="font-bold">{form.file_opening_charges.toLocaleString()} {t('kd')}</p></div>
                 <div><p className="text-blue-600">{t('installmentAmount')}</p><p className="font-bold">{calculateInstallment().toFixed(3)} {t('kd')}</p></div>
                 <div><p className="text-blue-600">{t('totalInstallments')}</p><p className="font-bold">{form.duration_months}</p></div>
               </div>

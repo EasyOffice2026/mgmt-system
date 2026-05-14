@@ -27,10 +27,12 @@ export function FileAttachment({ bucket, folder, files, onFilesChange, disabled 
     try {
       const ext = file.name.split('.').pop();
       const path = `${folder}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
+      const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
       if (error) {
         if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
-          alert('Storage bucket not configured. Please create the storage bucket "' + bucket + '" in your Supabase Dashboard → Storage.');
+          alert('Storage bucket "' + bucket + '" not found. Please run the migration SQL (migration-v6) in Supabase SQL Editor to create storage buckets.');
+        } else if (error.message?.includes('security') || error.message?.includes('policy') || error.message?.includes('RLS') || error.message?.includes('violates')) {
+          alert('Storage permission error. Please run this SQL in Supabase SQL Editor:\n\nDROP POLICY IF EXISTS "Allow all operations" ON storage.objects;\nCREATE POLICY "Allow all operations" ON storage.objects FOR ALL USING (true) WITH CHECK (true);');
         } else {
           alert('Upload failed: ' + error.message);
         }

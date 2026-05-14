@@ -396,4 +396,5 @@ export const ar = {
   quantity: 'الكمية',
   available: 'متاح',
   firstInstallmentBeforeStart: 'لا يمكن أن يكون تاريخ القسط الأول قبل تاريخ البدء',
+  supplierNameRequired: 'اسم المورد مطلوب',
 } as const;

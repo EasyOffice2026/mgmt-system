@@ -83,6 +83,10 @@ export default function PurchasePage() {
   }
 
   async function handleSave() {
+    if (!form.supplier_name || !form.supplier_name.trim()) {
+      alert(t('supplierNameRequired') || 'Supplier name is required');
+      return;
+    }
     if (editing) {
       await supabase.from('purchases').update(form).eq('id', editing.id);
     } else {

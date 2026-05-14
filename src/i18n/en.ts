@@ -422,4 +422,5 @@ export const en = {
   quantity: 'Quantity',
   available: 'Available',
   firstInstallmentBeforeStart: 'First installment date cannot be before start date',
+  supplierNameRequired: 'Supplier name is required',
 } as const;

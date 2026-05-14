@@ -81,9 +81,9 @@ export default function ReceiptsPage() {
     setLoading(false);
   }
 
-  // Filter contracts by selected customer
+  // Filter contracts by selected customer; for Court Money, show only contracts with legal_case status
   const filteredContracts = form.customer_id
-    ? allContracts.filter(c => c.customer_id === form.customer_id)
+    ? allContracts.filter(c => c.customer_id === form.customer_id && (form.receipt_type === 'courtMoney' ? c.status === 'legal_case' : true))
     : allContracts;
 
   // Filter legal cases by selected customer AND contract
