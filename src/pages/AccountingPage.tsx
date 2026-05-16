@@ -99,30 +99,48 @@ export default function AccountingPage() {
     setSelectedCustomerId(customerId);
     setActiveView('customerReport');
 
-    const [contractsRes, legalRes, purchasesRes, expensesRes] = await Promise.all([
-      supabase.from('contracts').select('contract_no, sale_price, paid_amount, remaining_amount, status').eq('customer_id', customerId),
+    const [contractsRes, legalRes, expensesRes] = await Promise.all([
+      supabase.from('contracts').select('contract_no, sale_price, paid_amount, remaining_amount, status, items').eq('customer_id', customerId),
       supabase.from('legal_cases').select('case_no, case_amount, rcvd_from_court, rcvd_from_customer').eq('customer_id', customerId),
-      supabase.from('purchases').select('id, item_name, model_type, purchase_price, quantity, supplier_name, purchase_date').eq('customer_id', customerId),
       supabase.from('expenses').select('id, expense_voucher_no, expense_type, amount, description, expense_date').eq('customer_id', customerId),
     ]);
 
     const contracts = contractsRes.data || [];
     const legalCases = legalRes.data || [];
-    const purchases = purchasesRes.data || [];
     const expenses = expensesRes.data || [];
+
+    // Get purchases through contract items (purchases don't have customer_id directly)
+    const allPurchaseIds: string[] = [];
+    const purchaseQtyMap: Record<string, number> = {};
+    for (const c of contracts) {
+      const items = (c as any).items || [];
+      for (const item of items) {
+        if (item.purchase_id) {
+          allPurchaseIds.push(item.purchase_id);
+          purchaseQtyMap[item.purchase_id] = (purchaseQtyMap[item.purchase_id] || 0) + (item.quantity || 1);
+        }
+      }
+    }
+
+    let purchases: any[] = [];
+    if (allPurchaseIds.length > 0) {
+      const uniqueIds = [...new Set(allPurchaseIds)];
+      const { data } = await supabase.from('purchases').select('id, item_name, model_type, purchase_price, quantity, supplier_name, purchase_date').in('id', uniqueIds);
+      purchases = data || [];
+    }
 
     const saleAmount = contracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
     const receivedAmount = contracts.reduce((s: number, c: any) => s + (c.paid_amount || 0), 0);
     const legalAmountReceived = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0), 0);
     const balanceToReceive = saleAmount - receivedAmount - legalAmountReceived;
-    const totalPurchases = purchases.reduce((s: number, p: any) => s + ((p.purchase_price || 0) * (p.quantity || 1)), 0);
+    const totalPurchases = purchases.reduce((s: number, p: any) => s + ((p.purchase_price || 0) * (purchaseQtyMap[p.id] || p.quantity || 1)), 0);
     const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
     setCustomerReportData({
       saleAmount, receivedAmount, legalAmountReceived, balanceToReceive,
       contracts: contracts.map((c: any) => ({ contract_no: c.contract_no, sale_price: c.sale_price || 0, paid_amount: c.paid_amount || 0, remaining_amount: c.remaining_amount || 0, status: c.status || '' })),
       legalCases: legalCases.map((lc: any) => ({ case_no: lc.case_no, case_amount: lc.case_amount || 0, rcvd_from_court: lc.rcvd_from_court || 0, rcvd_from_customer: lc.rcvd_from_customer || 0 })),
-      purchases: purchases.map((p: any) => ({ id: p.id, item_name: p.item_name || '', model_type: p.model_type || '', purchase_price: p.purchase_price || 0, quantity: p.quantity || 1, supplier_name: p.supplier_name || '', purchase_date: p.purchase_date || '' })),
+      purchases: purchases.map((p: any) => ({ id: p.id, item_name: p.item_name || '', model_type: p.model_type || '', purchase_price: p.purchase_price || 0, quantity: purchaseQtyMap[p.id] || p.quantity || 1, supplier_name: p.supplier_name || '', purchase_date: p.purchase_date || '' })),
       expenses: expenses.map((e: any) => ({ id: e.id, expense_voucher_no: e.expense_voucher_no || '', expense_type: e.expense_type || '', amount: e.amount || 0, description: e.description || '', expense_date: e.expense_date || '' })),
       totalPurchases, totalExpenses,
     });
