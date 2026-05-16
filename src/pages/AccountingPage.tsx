@@ -23,7 +23,7 @@ interface CustomerReportData {
   legalAmountReceived: number;
   balanceToReceive: number;
   contracts: { contract_no: string; sale_price: number; paid_amount: number; remaining_amount: number; status: string; }[];
-  legalCases: { case_no: string; case_amount: number; rcvd_from_court: number; rcvd_from_customer: number; }[];
+  legalCases: { case_no: string; case_amount: number; rcvd_from_court: number; court_fees: number; }[];
   purchases: { id: string; item_name: string; model_type: string; purchase_price: number; quantity: number; supplier_name: string; purchase_date: string; }[];
   expenses: { id: string; expense_voucher_no: string; expense_type: string; amount: number; description: string; expense_date: string; }[];
   totalPurchases: number;
@@ -99,15 +99,22 @@ export default function AccountingPage() {
     setSelectedCustomerId(customerId);
     setActiveView('customerReport');
 
-    const [contractsRes, legalRes, expensesRes] = await Promise.all([
+    const [contractsRes, legalRes, expensesRes, courtFeesRes] = await Promise.all([
       supabase.from('contracts').select('contract_no, sale_price, paid_amount, remaining_amount, status, items').eq('customer_id', customerId),
-      supabase.from('legal_cases').select('case_no, case_amount, rcvd_from_court, rcvd_from_customer').eq('customer_id', customerId),
+      supabase.from('legal_cases').select('case_no, case_amount, rcvd_from_court').eq('customer_id', customerId),
       supabase.from('expenses').select('id, expense_voucher_no, expense_type, amount, description, expense_date').eq('customer_id', customerId),
+      supabase.from('expenses').select('amount, case_no').eq('customer_id', customerId).eq('expense_type', 'courtFees'),
     ]);
 
     const contracts = contractsRes.data || [];
     const legalCases = legalRes.data || [];
     const expenses = expensesRes.data || [];
+    const courtFeesData = courtFeesRes.data || [];
+
+    const courtFeesByCaseNo: Record<string, number> = {};
+    for (const cf of courtFeesData) {
+      courtFeesByCaseNo[cf.case_no] = (courtFeesByCaseNo[cf.case_no] || 0) + (cf.amount || 0);
+    }
 
     // Get purchases through contract items (purchases don't have customer_id directly)
     const allPurchaseIds: string[] = [];
@@ -131,7 +138,7 @@ export default function AccountingPage() {
 
     const saleAmount = contracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
     const receivedAmount = contracts.reduce((s: number, c: any) => s + (c.paid_amount || 0), 0);
-    const legalAmountReceived = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0), 0);
+    const legalAmountReceived = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
     const balanceToReceive = saleAmount - receivedAmount - legalAmountReceived;
     const totalPurchases = purchases.reduce((s: number, p: any) => s + ((p.purchase_price || 0) * (purchaseQtyMap[p.id] || p.quantity || 1)), 0);
     const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
@@ -139,7 +146,7 @@ export default function AccountingPage() {
     setCustomerReportData({
       saleAmount, receivedAmount, legalAmountReceived, balanceToReceive,
       contracts: contracts.map((c: any) => ({ contract_no: c.contract_no, sale_price: c.sale_price || 0, paid_amount: c.paid_amount || 0, remaining_amount: c.remaining_amount || 0, status: c.status || '' })),
-      legalCases: legalCases.map((lc: any) => ({ case_no: lc.case_no, case_amount: lc.case_amount || 0, rcvd_from_court: lc.rcvd_from_court || 0, rcvd_from_customer: lc.rcvd_from_customer || 0 })),
+      legalCases: legalCases.map((lc: any) => ({ case_no: lc.case_no, case_amount: lc.case_amount || 0, rcvd_from_court: lc.rcvd_from_court || 0, court_fees: courtFeesByCaseNo[lc.case_no] || 0 })),
       purchases: purchases.map((p: any) => ({ id: p.id, item_name: p.item_name || '', model_type: p.model_type || '', purchase_price: p.purchase_price || 0, quantity: purchaseQtyMap[p.id] || p.quantity || 1, supplier_name: p.supplier_name || '', purchase_date: p.purchase_date || '' })),
       expenses: expenses.map((e: any) => ({ id: e.id, expense_voucher_no: e.expense_voucher_no || '', expense_type: e.expense_type || '', amount: e.amount || 0, description: e.description || '', expense_date: e.expense_date || '' })),
       totalPurchases, totalExpenses,
@@ -910,8 +917,8 @@ export default function AccountingPage() {
                             <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
                             <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseNo')}</th>
                             <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseAmount')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtFees')}</th>
                             <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtRecovery')}</th>
-                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount2')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -920,8 +927,8 @@ export default function AccountingPage() {
                               <td className="py-3 px-4 text-slate-400">{i + 1}</td>
                               <td className="py-3 px-4 font-medium text-purple-600">{lc.case_no}</td>
                               <td className="py-3 px-4 text-blue-600 font-semibold">{fmt(lc.case_amount)} {t('kd')}</td>
+                              <td className="py-3 px-4 text-red-600 font-semibold">{fmt(lc.court_fees)} {t('kd')}</td>
                               <td className="py-3 px-4 text-green-600 font-semibold">{fmt(lc.rcvd_from_court)} {t('kd')}</td>
-                              <td className="py-3 px-4 text-green-600 font-semibold">{fmt(lc.rcvd_from_customer)} {t('kd')}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -929,8 +936,8 @@ export default function AccountingPage() {
                           <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
                             <td colSpan={2} className="py-3 px-4 text-end">{t('total')}:</td>
                             <td className="py-3 px-4 text-blue-600">{fmt(customerReportData.legalCases.reduce((s, lc) => s + lc.case_amount, 0))} {t('kd')}</td>
+                            <td className="py-3 px-4 text-red-600">{fmt(customerReportData.legalCases.reduce((s, lc) => s + lc.court_fees, 0))} {t('kd')}</td>
                             <td className="py-3 px-4 text-green-600">{fmt(customerReportData.legalCases.reduce((s, lc) => s + lc.rcvd_from_court, 0))} {t('kd')}</td>
-                            <td className="py-3 px-4 text-green-600">{fmt(customerReportData.legalCases.reduce((s, lc) => s + lc.rcvd_from_customer, 0))} {t('kd')}</td>
                           </tr>
                         </tfoot>
                       </table>

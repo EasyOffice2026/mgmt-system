@@ -131,12 +131,12 @@ export default function LegalCasesPage() {
   const totalCases = filtered.length;
   const totalClaimed = filtered.reduce((s, c) => s + (c.case_amount || 0), 0);
   const totalActual = filtered.reduce((s, c) => s + (c.original_amount || 0), 0);
-  const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0) + (c.rcvd_from_customer || 0), 0);
+  const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0), 0);
 
   const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('courtFees'), t('receivedAmount'), t('outstanding'), t('caseDate')];
   const exportRows = filtered.map(c => {
     const cf = getCourtFees(c.case_no);
-    const rcvd = (c.rcvd_from_customer || 0) + (c.rcvd_from_court || 0);
+    const rcvd = c.rcvd_from_court || 0;
     return [c.customer_name, c.case_no, c.original_amount, c.case_amount, cf, rcvd, c.case_amount - rcvd, c.case_date];
   });
 
@@ -203,7 +203,7 @@ export default function LegalCasesPage() {
                 <tbody>
                   {filtered.map(c => {
                     const cf = getCourtFees(c.case_no);
-                    const rcvd = (c.rcvd_from_customer || 0) + (c.rcvd_from_court || 0);
+                    const rcvd = c.rcvd_from_court || 0;
                     const outstanding = (c.case_amount || 0) - rcvd;
                     return (
                       <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
