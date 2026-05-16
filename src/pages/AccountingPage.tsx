@@ -256,7 +256,7 @@ export default function AccountingPage() {
     const courtRecovery = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
     const totalRevenue = salesRevenue + fileCharges + courtRecovery;
 
-    const purchaseCost = purchases.reduce((s: number, p: any) => s + (p.purchase_price || 0), 0);
+    const purchaseCost = purchases.reduce((s: number, p: any) => s + ((p.purchase_price || 0) * (p.quantity || 1)), 0);
     const grossProfit = totalRevenue - purchaseCost;
 
     const operatingExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
