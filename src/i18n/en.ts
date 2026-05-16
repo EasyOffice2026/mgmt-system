@@ -436,4 +436,9 @@ export const en = {
   firstInstallmentBeforeStart: 'First installment date cannot be before start date',
   supplierNameRequired: 'Supplier name is required',
   totalQuantity: 'Total Quantity',
+  purchasesOfItems: 'Purchase of Items',
+  expensesRelated: 'Expenses Related to this Client',
+  noPurchasesFound: 'No purchases found for this customer',
+  noExpensesFound: 'No expenses found for this customer',
+  voucherNo: 'Voucher No',
 } as const;

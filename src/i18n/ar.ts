@@ -410,4 +410,9 @@ export const ar = {
   firstInstallmentBeforeStart: 'لا يمكن أن يكون تاريخ القسط الأول قبل تاريخ البدء',
   supplierNameRequired: 'اسم المورد مطلوب',
   totalQuantity: 'إجمالي الكمية',
+  purchasesOfItems: 'مشتريات البضائع',
+  expensesRelated: 'المصروفات المتعلقة بهذا العميل',
+  noPurchasesFound: 'لا توجد مشتريات لهذا العميل',
+  noExpensesFound: 'لا توجد مصروفات لهذا العميل',
+  voucherNo: 'رقم السند',
 } as const;

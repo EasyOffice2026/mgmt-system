@@ -17,21 +17,17 @@ type ReportType = 'sales' | 'purchases' | 'expenses' | 'fileCharges' | 'receipts
 type ActiveView = 'overview' | 'report' | 'income' | 'customerReport';
 
 interface CustomerOption { id: string; customer_no: string; name: string; }
-interface ContractOption { id: string; contract_no: string; sale_price: number; paid_amount: number; remaining_amount: number; file_opening_charges: number; purchase_price: number; status: string; items: any[]; }
-interface ContractReportDetail {
-  contract_no: string; sale_price: number; paid_amount: number; remaining_amount: number; file_opening_charges: number;
-  purchases: { id: string; item_name: string; amount: number; quantity: number; }[];
-  expenses: { id: string; expense_type: string; amount: number; description: string; }[];
-  legalCases: { case_no: string; case_amount: number; rcvd_from_court: number; remaining: number; }[];
-  totalPurchases: number; totalExpenses: number; totalLegalAmount: number; totalRecovery: number; totalLegalRemaining: number;
-  netIncome: number;
-}
 interface CustomerReportData {
-  saleAmount: number; receivedAmount: number; fileChargesTotal: number;
-  totalPurchases: number; totalExpenses: number;
-  legalAmountTotal: number; legalRecoveryTotal: number; legalRemainingTotal: number;
-  netTotal: number;
-  contractDetails: ContractReportDetail[];
+  saleAmount: number;
+  receivedAmount: number;
+  legalAmountReceived: number;
+  balanceToReceive: number;
+  contracts: { contract_no: string; sale_price: number; paid_amount: number; remaining_amount: number; status: string; }[];
+  legalCases: { case_no: string; case_amount: number; rcvd_from_court: number; rcvd_from_customer: number; }[];
+  purchases: { id: string; item_name: string; model_type: string; purchase_price: number; quantity: number; supplier_name: string; purchase_date: string; }[];
+  expenses: { id: string; expense_voucher_no: string; expense_type: string; amount: number; description: string; expense_date: string; }[];
+  totalPurchases: number;
+  totalExpenses: number;
 }
 
 interface DetailRow {
@@ -90,8 +86,6 @@ export default function AccountingPage() {
   const [incomeLoading, setIncomeLoading] = useState(false);
   const [allCustomers, setAllCustomers] = useState<CustomerOption[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [customerContracts, setCustomerContracts] = useState<ContractOption[]>([]);
-  const [selectedContractIds, setSelectedContractIds] = useState<string[]>([]);
   const [customerReportData, setCustomerReportData] = useState<CustomerReportData | null>(null);
   const [customerReportLoading, setCustomerReportLoading] = useState(false);
 
@@ -99,81 +93,38 @@ export default function AccountingPage() {
     supabase.from('customers').select('id, customer_no, name').order('name').then(({ data }) => setAllCustomers(data || []));
   }, []);
 
-  async function loadCustomerContracts(customerId: string) {
-    if (!customerId) { setCustomerContracts([]); setSelectedContractIds([]); setCustomerReportData(null); return; }
-    setSelectedCustomerId(customerId);
-    setCustomerReportData(null);
-    setSelectedContractIds([]);
-    const { data } = await supabase.from('contracts').select('id, contract_no, sale_price, paid_amount, remaining_amount, file_opening_charges, purchase_price, status, items').eq('customer_id', customerId);
-    const contracts = (data || []).map((c: any) => ({ id: c.id, contract_no: c.contract_no || '', sale_price: c.sale_price || 0, paid_amount: c.paid_amount || 0, remaining_amount: c.remaining_amount || 0, file_opening_charges: c.file_opening_charges || 0, purchase_price: c.purchase_price || 0, status: c.status || '', items: c.items || [] }));
-    setCustomerContracts(contracts);
-  }
-
-  function toggleContractSelection(contractId: string) {
-    setSelectedContractIds(prev => prev.includes(contractId) ? prev.filter(id => id !== contractId) : [...prev, contractId]);
-  }
-
-  function toggleAllContracts() {
-    if (selectedContractIds.length === customerContracts.length) setSelectedContractIds([]);
-    else setSelectedContractIds(customerContracts.map(c => c.id));
-  }
-
-  async function generateCustomerReport() {
-    if (selectedContractIds.length === 0) return;
+  async function loadCustomerReport(customerId: string) {
+    if (!customerId) return;
     setCustomerReportLoading(true);
+    setSelectedCustomerId(customerId);
     setActiveView('customerReport');
 
-    const selectedContracts = customerContracts.filter(c => selectedContractIds.includes(c.id));
-    const contractIds = selectedContracts.map(c => c.id);
-
-    const [expensesRes, legalRes, purchasesRes] = await Promise.all([
-      supabase.from('expenses').select('id, expense_type, amount, description, contract_id').in('contract_id', contractIds),
-      supabase.from('legal_cases').select('case_no, case_amount, rcvd_from_court, contract_id').in('contract_id', contractIds),
-      supabase.from('purchases').select('id, item_name, purchase_price, quantity'),
+    const [contractsRes, legalRes, purchasesRes, expensesRes] = await Promise.all([
+      supabase.from('contracts').select('contract_no, sale_price, paid_amount, remaining_amount, status').eq('customer_id', customerId),
+      supabase.from('legal_cases').select('case_no, case_amount, rcvd_from_court, rcvd_from_customer').eq('customer_id', customerId),
+      supabase.from('purchases').select('id, item_name, model_type, purchase_price, quantity, supplier_name, purchase_date').eq('customer_id', customerId),
+      supabase.from('expenses').select('id, expense_voucher_no, expense_type, amount, description, expense_date').eq('customer_id', customerId),
     ]);
 
-    const allExpenses = expensesRes.data || [];
-    const allLegal = legalRes.data || [];
-    const allPurchases = purchasesRes.data || [];
+    const contracts = contractsRes.data || [];
+    const legalCases = legalRes.data || [];
+    const purchases = purchasesRes.data || [];
+    const expenses = expensesRes.data || [];
 
-    const contractDetails: ContractReportDetail[] = selectedContracts.map(contract => {
-      const purchaseIds = (contract.items || []).map((i: any) => i.purchase_id).filter(Boolean);
-      const relatedPurchases = allPurchases.filter((p: any) => purchaseIds.includes(p.id)).map((p: any) => {
-        const contractItem = (contract.items || []).find((i: any) => i.purchase_id === p.id);
-        const qty = contractItem?.quantity || 1;
-        return { id: p.id, item_name: p.item_name || '', amount: (contractItem?.purchase_price || p.purchase_price || 0) * qty, quantity: qty };
-      });
-      const relatedExpenses = allExpenses.filter((e: any) => e.contract_id === contract.id).map((e: any) => ({ id: e.id, expense_type: e.expense_type || '', amount: e.amount || 0, description: e.description || '' }));
-      const relatedLegal = allLegal.filter((lc: any) => lc.contract_id === contract.id).map((lc: any) => ({ case_no: lc.case_no || '', case_amount: lc.case_amount || 0, rcvd_from_court: lc.rcvd_from_court || 0, remaining: Math.max(0, (lc.case_amount || 0) - (lc.rcvd_from_court || 0)) }));
-
-      const totalPurchases = relatedPurchases.reduce((s, p) => s + p.amount, 0);
-      const totalExpenses = relatedExpenses.reduce((s, e) => s + e.amount, 0);
-      const totalLegalAmount = relatedLegal.reduce((s, lc) => s + lc.case_amount, 0);
-      const totalRecovery = relatedLegal.reduce((s, lc) => s + lc.rcvd_from_court, 0);
-      const totalLegalRemaining = relatedLegal.reduce((s, lc) => s + lc.remaining, 0);
-      const netIncome = contract.sale_price + contract.file_opening_charges - totalPurchases - totalExpenses + totalRecovery;
-
-      return {
-        contract_no: contract.contract_no, sale_price: contract.sale_price, paid_amount: contract.paid_amount,
-        remaining_amount: contract.remaining_amount, file_opening_charges: contract.file_opening_charges,
-        purchases: relatedPurchases, expenses: relatedExpenses, legalCases: relatedLegal,
-        totalPurchases, totalExpenses, totalLegalAmount, totalRecovery, totalLegalRemaining, netIncome,
-      };
-    });
-
-    const saleAmount = contractDetails.reduce((s, c) => s + c.sale_price, 0);
-    const receivedAmount = contractDetails.reduce((s, c) => s + c.paid_amount, 0);
-    const fileChargesTotal = contractDetails.reduce((s, c) => s + c.file_opening_charges, 0);
-    const totalPurchases = contractDetails.reduce((s, c) => s + c.totalPurchases, 0);
-    const totalExpenses = contractDetails.reduce((s, c) => s + c.totalExpenses, 0);
-    const legalAmountTotal = contractDetails.reduce((s, c) => s + c.totalLegalAmount, 0);
-    const legalRecoveryTotal = contractDetails.reduce((s, c) => s + c.totalRecovery, 0);
-    const legalRemainingTotal = contractDetails.reduce((s, c) => s + c.totalLegalRemaining, 0);
-    const netTotal = saleAmount + fileChargesTotal - totalPurchases - totalExpenses + legalRecoveryTotal;
+    const saleAmount = contracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
+    const receivedAmount = contracts.reduce((s: number, c: any) => s + (c.paid_amount || 0), 0);
+    const legalAmountReceived = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0), 0);
+    const balanceToReceive = saleAmount - receivedAmount - legalAmountReceived;
+    const totalPurchases = purchases.reduce((s: number, p: any) => s + ((p.purchase_price || 0) * (p.quantity || 1)), 0);
+    const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
     setCustomerReportData({
-      saleAmount, receivedAmount, fileChargesTotal, totalPurchases, totalExpenses,
-      legalAmountTotal, legalRecoveryTotal, legalRemainingTotal, netTotal, contractDetails,
+      saleAmount, receivedAmount, legalAmountReceived, balanceToReceive,
+      contracts: contracts.map((c: any) => ({ contract_no: c.contract_no, sale_price: c.sale_price || 0, paid_amount: c.paid_amount || 0, remaining_amount: c.remaining_amount || 0, status: c.status || '' })),
+      legalCases: legalCases.map((lc: any) => ({ case_no: lc.case_no, case_amount: lc.case_amount || 0, rcvd_from_court: lc.rcvd_from_court || 0, rcvd_from_customer: lc.rcvd_from_customer || 0 })),
+      purchases: purchases.map((p: any) => ({ id: p.id, item_name: p.item_name || '', model_type: p.model_type || '', purchase_price: p.purchase_price || 0, quantity: p.quantity || 1, supplier_name: p.supplier_name || '', purchase_date: p.purchase_date || '' })),
+      expenses: expenses.map((e: any) => ({ id: e.id, expense_voucher_no: e.expense_voucher_no || '', expense_type: e.expense_type || '', amount: e.amount || 0, description: e.description || '', expense_date: e.expense_date || '' })),
+      totalPurchases, totalExpenses,
     });
     setCustomerReportLoading(false);
   }
@@ -722,14 +673,13 @@ export default function AccountingPage() {
             </div>
           </div>
 
-          {/* Step 1: Select Customer */}
           <Card className="border-0 shadow-md">
             <CardContent className="p-5">
               <Label className="text-sm font-medium">{t('selectCustomerForReport')}</Label>
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-2"
                 value={selectedCustomerId}
-                onChange={e => loadCustomerContracts(e.target.value)}
+                onChange={e => loadCustomerReport(e.target.value)}
               >
                 <option value="">{t('selectCustomer')}</option>
                 {allCustomers.map(c => (
@@ -739,248 +689,241 @@ export default function AccountingPage() {
             </CardContent>
           </Card>
 
-          {/* Step 2: Select Contracts */}
-          {customerContracts.length > 0 && !customerReportData && (
-            <Card className="border-0 shadow-md">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base text-blue-800 flex items-center gap-2">
-                    <FileText className="h-5 w-5" /> {t('selectContractsForReport')}
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={toggleAllContracts}>
-                      {selectedContractIds.length === customerContracts.length ? t('deselectAll') : t('selectAll')}
-                    </Button>
-                    {selectedContractIds.length > 0 && (
-                      <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={generateCustomerReport}>
-                        {t('generateReport')} ({selectedContractIds.length})
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="py-3 px-4 w-10"><input type="checkbox" checked={selectedContractIds.length === customerContracts.length} onChange={toggleAllContracts} /></th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('saleAmount')}</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount2')}</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('remainingAmount')}</th>
-                        <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customerContracts.map(c => (
-                        <tr key={c.id} className={`border-b border-slate-100 cursor-pointer ${selectedContractIds.includes(c.id) ? 'bg-purple-50' : 'hover:bg-blue-50/50'}`} onClick={() => toggleContractSelection(c.id)}>
-                          <td className="py-3 px-4"><input type="checkbox" checked={selectedContractIds.includes(c.id)} onChange={() => toggleContractSelection(c.id)} /></td>
-                          <td className="py-3 px-4 font-medium">{c.contract_no}</td>
-                          <td className="py-3 px-4 text-blue-600 font-semibold">{fmt(c.sale_price)} {t('kd')}</td>
-                          <td className="py-3 px-4 text-green-600 font-semibold">{fmt(c.paid_amount)} {t('kd')}</td>
-                          <td className="py-3 px-4 text-red-600 font-semibold">{fmt(c.remaining_amount)} {t('kd')}</td>
-                          <td className="py-3 px-4">
-                            <Badge className={
-                              c.status === 'functional' || c.status === 'ongoing' ? 'bg-blue-100 text-blue-700' :
-                              c.status === 'closed' || c.status === 'finished' ? 'bg-green-100 text-green-700' :
-                              c.status === 'case_closed' ? 'bg-purple-100 text-purple-700' :
-                              'bg-red-100 text-red-700'
-                            } variant="secondary">
-                              {t(c.status as any) || c.status}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {customerContracts.length === 0 && selectedCustomerId && (
-            <div className="py-10 text-center text-slate-400">{t('noContractsFound')}</div>
-          )}
-
-          {/* Report Results */}
           {customerReportLoading ? (
             <div className="py-20 text-center text-slate-400">{t('loading')}</div>
           ) : customerReportData && selectedCustomerId ? (
             <>
-              {/* Re-select / Regenerate */}
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCustomerReportData(null)}>
-                  &larr; {t('changeContracts')}
-                </Button>
-                <span className="text-sm text-slate-500">{customerReportData.contractDetails.length} {t('contractsSelected')}</span>
-              </div>
-
-              {/* Per-Contract Breakdown */}
-              {customerReportData.contractDetails.map((cd, idx) => (
-                <Card key={idx} className="border-0 shadow-md">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg pb-3">
-                    <CardTitle className="text-base text-blue-800 flex items-center gap-2">
-                      <FileText className="h-5 w-5" /> {cd.contract_no}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-5 space-y-4">
-                    {/* Contract Financial Details */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="bg-blue-50 rounded-lg p-3 text-center">
-                        <p className="text-xs text-slate-500">{t('saleAmount')}</p>
-                        <p className="text-lg font-bold text-blue-600">{fmt(cd.sale_price)} {t('kd')}</p>
-                      </div>
-                      <div className="bg-green-50 rounded-lg p-3 text-center">
-                        <p className="text-xs text-slate-500">{t('receivedAmount2')}</p>
-                        <p className="text-lg font-bold text-green-600">{fmt(cd.paid_amount)} {t('kd')}</p>
-                      </div>
-                      <div className="bg-red-50 rounded-lg p-3 text-center">
-                        <p className="text-xs text-slate-500">{t('remainingAmount')}</p>
-                        <p className="text-lg font-bold text-red-600">{fmt(cd.remaining_amount)} {t('kd')}</p>
-                      </div>
-                      <div className="bg-teal-50 rounded-lg p-3 text-center">
-                        <p className="text-xs text-slate-500">{t('fileOpeningCharges')}</p>
-                        <p className="text-lg font-bold text-teal-600">{fmt(cd.file_opening_charges)} {t('kd')}</p>
-                      </div>
-                    </div>
-
-                    {/* Less: Purchases */}
-                    {cd.purchases.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-amber-700 mb-2 flex items-center gap-1"><ShoppingCart className="h-4 w-4" /> {t('lessPurchases')}</h4>
-                        <div className="bg-amber-50 rounded-lg p-3">
-                          {cd.purchases.map((p, pi) => (
-                            <div key={pi} className="flex justify-between text-sm py-1 border-b border-amber-100 last:border-0">
-                              <span>{p.item_name} (x{p.quantity})</span>
-                              <span className="text-amber-700 font-semibold">-{fmt(p.amount)} {t('kd')}</span>
-                            </div>
-                          ))}
-                          <div className="flex justify-between text-sm font-bold pt-2 border-t border-amber-300 mt-1">
-                            <span>{t('totalPurchases')}</span>
-                            <span className="text-amber-700">-{fmt(cd.totalPurchases)} {t('kd')}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Less: Expenses */}
-                    {cd.expenses.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-1"><TrendingDown className="h-4 w-4" /> {t('lessExpenses')}</h4>
-                        <div className="bg-red-50 rounded-lg p-3">
-                          {cd.expenses.map((e, ei) => (
-                            <div key={ei} className="flex justify-between text-sm py-1 border-b border-red-100 last:border-0">
-                              <span>{e.expense_type}{e.description ? ` - ${e.description}` : ''}</span>
-                              <span className="text-red-700 font-semibold">-{fmt(e.amount)} {t('kd')}</span>
-                            </div>
-                          ))}
-                          <div className="flex justify-between text-sm font-bold pt-2 border-t border-red-300 mt-1">
-                            <span>{t('totalExpenses')}</span>
-                            <span className="text-red-700">-{fmt(cd.totalExpenses)} {t('kd')}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Legal Cases */}
-                    {cd.legalCases.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-purple-700 mb-2 flex items-center gap-1"><Gavel className="h-4 w-4" /> {t('legalCase')}</h4>
-                        <div className="bg-purple-50 rounded-lg p-3">
-                          {cd.legalCases.map((lc, li) => (
-                            <div key={li} className="grid grid-cols-3 gap-2 text-sm py-1 border-b border-purple-100 last:border-0">
-                              <span>{lc.case_no}: {fmt(lc.case_amount)} {t('kd')}</span>
-                              <span className="text-green-600">{t('recovery')}: {fmt(lc.rcvd_from_court)} {t('kd')}</span>
-                              <span className="text-red-600">{t('remainingAmount')}: {fmt(lc.remaining)} {t('kd')}</span>
-                            </div>
-                          ))}
-                          <div className="grid grid-cols-3 gap-2 text-sm font-bold pt-2 border-t border-purple-300 mt-1">
-                            <span>{t('total')}: {fmt(cd.totalLegalAmount)} {t('kd')}</span>
-                            <span className="text-green-600">{fmt(cd.totalRecovery)} {t('kd')}</span>
-                            <span className="text-red-600">{fmt(cd.totalLegalRemaining)} {t('kd')}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Contract Net Income */}
-                    <div className="bg-slate-800 text-white rounded-lg p-4 flex justify-between items-center">
-                      <span className="font-semibold">{t('netIncome')} — {cd.contract_no}</span>
-                      <span className={`text-xl font-bold ${cd.netIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(cd.netIncome)} {t('kd')}</span>
-                    </div>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="border-0 shadow-md">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs text-slate-500 font-medium">{t('saleAmount')}</p>
+                    <p className="text-2xl font-bold text-blue-600 mt-1">{fmt(customerReportData.saleAmount)} {t('kd')}</p>
                   </CardContent>
                 </Card>
-              ))}
+                <Card className="border-0 shadow-md">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs text-slate-500 font-medium">{t('receivedAmount2')}</p>
+                    <p className="text-2xl font-bold text-green-600 mt-1">{fmt(customerReportData.receivedAmount)} {t('kd')}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-0 shadow-md">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs text-slate-500 font-medium">{t('legalAmountReceived')}</p>
+                    <p className="text-2xl font-bold text-purple-600 mt-1">{fmt(customerReportData.legalAmountReceived)} {t('kd')}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-0 shadow-md">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs text-slate-500 font-medium">{t('balanceToReceive')}</p>
+                    <p className={`text-2xl font-bold mt-1 ${customerReportData.balanceToReceive > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmt(customerReportData.balanceToReceive)} {t('kd')}</p>
+                  </CardContent>
+                </Card>
+              </div>
 
-              {/* =================== INCOME STATEMENT SUMMARY =================== */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-t-lg">
-                  <CardTitle className="text-lg text-white flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" /> {t('customerIncomeStatement')}
+              {/* Contracts Table */}
+              <Card className="border-0 shadow-md">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
+                  <CardTitle className="text-base text-blue-800 flex items-center gap-2">
+                    <FileText className="h-5 w-5" /> {t('contractDetails2')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <table className="w-full text-sm">
-                    <tbody>
-                      <tr className="border-b bg-blue-50">
-                        <td className="py-3 px-5 font-semibold text-blue-800">{t('saleAmount')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-blue-700">{fmt(customerReportData.saleAmount)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b bg-green-50">
-                        <td className="py-3 px-5 font-semibold text-green-800">{t('receivedAmount2')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-green-700">{fmt(customerReportData.receivedAmount)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b">
-                        <td className="py-3 px-5 font-semibold text-slate-700">{t('remainingAmount')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-red-600">{fmt(customerReportData.saleAmount - customerReportData.receivedAmount)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b bg-teal-50">
-                        <td className="py-3 px-5 font-semibold text-teal-800">{t('fileOpeningCharges')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-teal-700">{fmt(customerReportData.fileChargesTotal)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b bg-amber-50">
-                        <td className="py-3 px-5 font-semibold text-amber-800">{t('lessPurchases')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-amber-700">-{fmt(customerReportData.totalPurchases)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b bg-red-50">
-                        <td className="py-3 px-5 font-semibold text-red-800">{t('lessExpenses')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-red-700">-{fmt(customerReportData.totalExpenses)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b bg-purple-50">
-                        <td className="py-3 px-5 font-semibold text-purple-800">{t('legalCaseAmount')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-purple-700">{fmt(customerReportData.legalAmountTotal)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b bg-green-50">
-                        <td className="py-3 px-5 font-semibold text-green-800">{t('recoveryAmount')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-green-700">{fmt(customerReportData.legalRecoveryTotal)} {t('kd')}</td>
-                      </tr>
-                      <tr className="border-b">
-                        <td className="py-3 px-5 font-semibold text-slate-700">{t('legalRemainingAmount')}</td>
-                        <td className="py-3 px-5 text-end font-bold text-red-600">{fmt(customerReportData.legalRemainingTotal)} {t('kd')}</td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-800">
-                        <td className="py-4 px-5 font-bold text-white text-lg">{t('netTotal')}</td>
-                        <td className={`py-4 px-5 text-end font-bold text-xl ${customerReportData.netTotal >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(customerReportData.netTotal)} {t('kd')}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                  {customerReportData.contracts.length === 0 ? (
+                    <div className="py-10 text-center text-slate-400">{t('noContractsFound')}</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('saleAmount')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount2')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('remainingAmount')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customerReportData.contracts.map((c, i) => (
+                            <tr key={i} className="border-b border-slate-100 hover:bg-blue-50/50">
+                              <td className="py-3 px-4 text-slate-400">{i + 1}</td>
+                              <td className="py-3 px-4 font-medium">{c.contract_no}</td>
+                              <td className="py-3 px-4 text-blue-600 font-semibold">{fmt(c.sale_price)} {t('kd')}</td>
+                              <td className="py-3 px-4 text-green-600 font-semibold">{fmt(c.paid_amount)} {t('kd')}</td>
+                              <td className="py-3 px-4 text-red-600 font-semibold">{fmt(c.remaining_amount)} {t('kd')}</td>
+                              <td className="py-3 px-4">
+                                <Badge className={
+                                  c.status === 'functional' || c.status === 'ongoing' ? 'bg-blue-100 text-blue-700' :
+                                  c.status === 'closed' || c.status === 'finished' ? 'bg-green-100 text-green-700' :
+                                  c.status === 'case_closed' ? 'bg-purple-100 text-purple-700' :
+                                  'bg-red-100 text-red-700'
+                                } variant="secondary">
+                                  {t(c.status as any) || c.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
+                            <td colSpan={2} className="py-3 px-4 text-end">{t('total')}:</td>
+                            <td className="py-3 px-4 text-blue-600">{fmt(customerReportData.saleAmount)} {t('kd')}</td>
+                            <td className="py-3 px-4 text-green-600">{fmt(customerReportData.receivedAmount)} {t('kd')}</td>
+                            <td className="py-3 px-4 text-red-600">{fmt(customerReportData.saleAmount - customerReportData.receivedAmount)} {t('kd')}</td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              <div className="flex gap-2 mt-2">
-                <Button variant="outline" onClick={() => setCustomerReportData(null)}>
-                  &larr; {t('changeContracts')}
-                </Button>
-                <Button variant="outline" onClick={() => { setActiveView('overview'); setCustomerReportData(null); setSelectedCustomerId(''); setCustomerContracts([]); setSelectedContractIds([]); }}>
-                  {t('backToReports')}
-                </Button>
-                <Button variant="outline" onClick={() => window.print()}>
-                  <Printer className="h-4 w-4 me-1" /> {t('print')}
-                </Button>
-              </div>
+              {/* Purchases Table */}
+              <Card className="border-0 shadow-md">
+                <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-t-lg">
+                  <CardTitle className="text-base text-amber-800 flex items-center gap-2">
+                    <ShoppingCart className="h-5 w-5" /> {t('purchasesOfItems')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {customerReportData.purchases.length === 0 ? (
+                    <div className="py-10 text-center text-slate-400">{t('noPurchasesFound')}</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('itemName')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('modelType')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('supplierName')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('quantity')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('purchasePrice')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('total')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customerReportData.purchases.map((p, i) => (
+                            <tr key={p.id} className="border-b border-slate-100 hover:bg-amber-50/50">
+                              <td className="py-3 px-4 text-slate-400">{i + 1}</td>
+                              <td className="py-3 px-4 font-medium">{p.item_name}</td>
+                              <td className="py-3 px-4 text-slate-600">{p.model_type}</td>
+                              <td className="py-3 px-4 text-slate-600">{p.supplier_name}</td>
+                              <td className="py-3 px-4">{p.quantity}</td>
+                              <td className="py-3 px-4 text-amber-600 font-semibold">{fmt(p.purchase_price)} {t('kd')}</td>
+                              <td className="py-3 px-4 text-amber-700 font-semibold">{fmt(p.purchase_price * p.quantity)} {t('kd')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
+                            <td colSpan={6} className="py-3 px-4 text-end">{t('totalPurchases')}:</td>
+                            <td className="py-3 px-4 text-amber-700">{fmt(customerReportData.totalPurchases)} {t('kd')}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Expenses Table */}
+              <Card className="border-0 shadow-md">
+                <CardHeader className="bg-gradient-to-r from-red-50 to-rose-50 rounded-t-lg">
+                  <CardTitle className="text-base text-red-800 flex items-center gap-2">
+                    <TrendingDown className="h-5 w-5" /> {t('expensesRelated')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {customerReportData.expenses.length === 0 ? (
+                    <div className="py-10 text-center text-slate-400">{t('noExpensesFound')}</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('voucherNo')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('expenseType')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('description')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('date')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('amount')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customerReportData.expenses.map((e, i) => (
+                            <tr key={e.id} className="border-b border-slate-100 hover:bg-red-50/50">
+                              <td className="py-3 px-4 text-slate-400">{i + 1}</td>
+                              <td className="py-3 px-4 font-medium">{e.expense_voucher_no}</td>
+                              <td className="py-3 px-4 text-slate-600">{e.expense_type}</td>
+                              <td className="py-3 px-4 text-slate-500">{e.description}</td>
+                              <td className="py-3 px-4 text-slate-600">{e.expense_date}</td>
+                              <td className="py-3 px-4 text-red-600 font-semibold">{fmt(e.amount)} {t('kd')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
+                            <td colSpan={5} className="py-3 px-4 text-end">{t('totalExpenses')}:</td>
+                            <td className="py-3 px-4 text-red-700">{fmt(customerReportData.totalExpenses)} {t('kd')}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Legal Cases Table */}
+              {customerReportData.legalCases.length > 0 && (
+                <Card className="border-0 shadow-md">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-t-lg">
+                    <CardTitle className="text-base text-purple-800 flex items-center gap-2">
+                      <Gavel className="h-5 w-5" /> {t('legalCase')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseNo')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseAmount')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtRecovery')}</th>
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount2')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customerReportData.legalCases.map((lc, i) => (
+                            <tr key={i} className="border-b border-slate-100 hover:bg-purple-50/50">
+                              <td className="py-3 px-4 text-slate-400">{i + 1}</td>
+                              <td className="py-3 px-4 font-medium text-purple-600">{lc.case_no}</td>
+                              <td className="py-3 px-4 text-blue-600 font-semibold">{fmt(lc.case_amount)} {t('kd')}</td>
+                              <td className="py-3 px-4 text-green-600 font-semibold">{fmt(lc.rcvd_from_court)} {t('kd')}</td>
+                              <td className="py-3 px-4 text-green-600 font-semibold">{fmt(lc.rcvd_from_customer)} {t('kd')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
+                            <td colSpan={2} className="py-3 px-4 text-end">{t('total')}:</td>
+                            <td className="py-3 px-4 text-blue-600">{fmt(customerReportData.legalCases.reduce((s, lc) => s + lc.case_amount, 0))} {t('kd')}</td>
+                            <td className="py-3 px-4 text-green-600">{fmt(customerReportData.legalCases.reduce((s, lc) => s + lc.rcvd_from_court, 0))} {t('kd')}</td>
+                            <td className="py-3 px-4 text-green-600">{fmt(customerReportData.legalCases.reduce((s, lc) => s + lc.rcvd_from_customer, 0))} {t('kd')}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Button variant="outline" onClick={() => { setActiveView('overview'); setCustomerReportData(null); setSelectedCustomerId(''); }} className="mt-2">
+                &larr; {t('backToReports')}
+              </Button>
             </>
           ) : null}
         </div>
