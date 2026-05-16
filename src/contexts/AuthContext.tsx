@@ -6,7 +6,7 @@ interface Profile {
   id: string;
   full_name: string;
   full_name_ar: string;
-  role: 'owner' | 'admin' | 'staff';
+  role: 'owner' | 'salesman' | 'accountant';
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const isOwner = profile?.role === 'owner';
-  const isAdmin = profile?.role === 'owner' || profile?.role === 'admin';
+  const isAdmin = profile?.role === 'owner' || profile?.role === 'accountant';
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, changePassword, isOwner, isAdmin }}>
