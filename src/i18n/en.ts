@@ -441,4 +441,6 @@ export const en = {
   noPurchasesFound: 'No purchases found for this customer',
   noExpensesFound: 'No expenses found for this customer',
   voucherNo: 'Voucher No',
+  totalAmount: 'Total Amount',
+  totalPurchaseAmount: 'Total Purchase Amount',
 } as const;

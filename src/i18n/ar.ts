@@ -415,4 +415,6 @@ export const ar = {
   noPurchasesFound: 'لا توجد مشتريات لهذا العميل',
   noExpensesFound: 'لا توجد مصروفات لهذا العميل',
   voucherNo: 'رقم السند',
+  totalAmount: 'المبلغ الإجمالي',
+  totalPurchaseAmount: 'إجمالي مبلغ المشتريات',
 } as const;

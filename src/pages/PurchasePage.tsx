@@ -119,8 +119,10 @@ export default function PurchasePage() {
     p.invoice_no?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const exportHeaders = [t('purchaseDate'), t('supplierName'), t('invoiceNo'), t('category'), t('itemName'), t('modelType'), t('purchasePrice'), t('paymentMode')];
-  const exportRows = filtered.map(p => [p.purchase_date, p.supplier_name, p.invoice_no, p.category, p.item_name, p.model_type, p.purchase_price, p.payment_mode]);
+  const totalPurchaseAmount = filtered.reduce((s, p) => s + (p.purchase_price || 0) * (p.quantity || 1), 0);
+
+  const exportHeaders = [t('purchaseDate'), t('supplierName'), t('invoiceNo'), t('category'), t('itemName'), t('modelType'), t('purchasePrice'), t('quantity'), t('totalAmount'), t('paymentMode')];
+  const exportRows = filtered.map(p => [p.purchase_date, p.supplier_name, p.invoice_no, p.category, p.item_name, p.model_type, p.purchase_price, p.quantity || 1, (p.purchase_price || 0) * (p.quantity || 1), p.payment_mode]);
 
   return (
     <div className="space-y-6">
@@ -170,6 +172,7 @@ export default function PurchasePage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('itemName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('purchasePrice')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('quantity')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('totalAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('available')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
@@ -185,6 +188,7 @@ export default function PurchasePage() {
                       <td className="py-3 px-4">{p.item_name} {p.model_type}</td>
                       <td className="py-3 px-4">{p.purchase_price?.toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4">{p.quantity || 1}</td>
+                      <td className="py-3 px-4 font-semibold text-blue-600">{((p.purchase_price || 0) * (p.quantity || 1)).toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4">{p.quantity_available ?? p.quantity ?? 1}</td>
                       <td className="py-3 px-4">
                         <Badge className={p.status === 'in_stock' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'} variant="secondary">
@@ -200,6 +204,14 @@ export default function PurchasePage() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
+                    <td colSpan={5} className="py-3 px-4 text-end">{t('totalPurchaseAmount')}:</td>
+                    <td colSpan={2} />
+                    <td className="py-3 px-4 text-blue-700 text-base">{totalPurchaseAmount.toLocaleString()} {t('kd')}</td>
+                    <td colSpan={3} />
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
