@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, Pencil, Key, UserCheck, UserX, Settings, Trash2, CreditCard, Tag } from 'lucide-react';
+import { Plus, Search, Pencil, Key, UserCheck, UserX, Settings, Trash2, CreditCard, Tag, Truck } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -45,9 +45,11 @@ export default function UsersPage() {
   const [categories, setCategories] = useState<string[]>(defaultCategories);
   const [newPaymentMode, setNewPaymentMode] = useState('');
   const [newCategory, setNewCategory] = useState('');
-  const [activeTab, setActiveTab] = useState<'users' | 'paymentModes' | 'categories'>('users');
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [newSupplier, setNewSupplier] = useState('');
+  const [activeTab, setActiveTab] = useState<'users' | 'paymentModes' | 'categories' | 'suppliers'>('users');
 
-  useEffect(() => { loadUsers(); loadPaymentModes(); loadCategories(); }, []);
+  useEffect(() => { loadUsers(); loadPaymentModes(); loadCategories(); loadSuppliers(); }, []);
 
   async function loadUsers() {
     setLoading(true);
@@ -69,6 +71,26 @@ export default function UsersPage() {
     const cats = new Set(defaultCategories);
     (data || []).forEach((p: any) => { if (p.category) cats.add(p.category); });
     setCategories([...cats]);
+  }
+
+  async function loadSuppliers() {
+    const { data } = await supabase.from('suppliers').select('name').order('name');
+    if (data) setSuppliers(data.map((d: any) => d.name));
+  }
+
+  async function addSupplier() {
+    const name = newSupplier.trim();
+    if (!name) return;
+    if (suppliers.includes(name)) { alert(t('supplierExists') || 'Supplier already exists!'); return; }
+    await supabase.from('suppliers').upsert({ name }, { onConflict: 'name' });
+    setNewSupplier('');
+    await loadSuppliers();
+  }
+
+  async function deleteSupplier(name: string) {
+    if (!window.confirm(`Delete supplier "${name}"?`)) return;
+    await supabase.from('suppliers').delete().eq('name', name);
+    await loadSuppliers();
   }
 
   async function addPaymentMode() {
@@ -204,6 +226,9 @@ export default function UsersPage() {
         <button className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('categories')}>
           <Tag className="h-4 w-4 inline me-1" /> {t('categories')}
         </button>
+        <button className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'suppliers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('suppliers')}>
+          <Truck className="h-4 w-4 inline me-1" /> {t('suppliers')}
+        </button>
       </div>
 
       {/* Users Tab */}
@@ -330,6 +355,36 @@ export default function UsersPage() {
                       <Trash2 className="h-3 w-3" />
                     </button>
                   )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Suppliers Tab */}
+      {activeTab === 'suppliers' && (
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-6 space-y-4">
+            <h3 className="font-medium text-lg">{t('manageSuppliers')}</h3>
+            <p className="text-sm text-slate-500">{t('manageSuppliersDesc') || 'Add or remove suppliers. No duplicates allowed. Suppliers added here appear in the Purchase form.'}</p>
+            <div className="flex gap-2">
+              <Input placeholder={t('addSupplier') || 'Add supplier name'} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} className="max-w-xs"
+                onKeyDown={e => { if (e.key === 'Enter') addSupplier(); }} />
+              <Button onClick={addSupplier} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+                <Plus className="h-4 w-4 me-1" /> {t('add')}
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suppliers.length === 0 ? (
+                <p className="text-sm text-slate-400">{t('noData')}</p>
+              ) : suppliers.map(sup => (
+                <div key={sup} className="flex items-center gap-1 bg-slate-100 rounded-lg px-3 py-2 text-sm">
+                  <Truck className="h-3 w-3 text-slate-500" />
+                  <span>{sup}</span>
+                  <button onClick={() => deleteSupplier(sup)} className="ms-1 text-red-400 hover:text-red-600">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>

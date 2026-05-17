@@ -103,7 +103,7 @@ export default function AccountingPage() {
       supabase.from('contracts').select('contract_no, sale_price, paid_amount, remaining_amount, status, items').eq('customer_id', customerId),
       supabase.from('legal_cases').select('case_no, case_amount, rcvd_from_court').eq('customer_id', customerId),
       supabase.from('expenses').select('id, expense_voucher_no, expense_type, amount, description, expense_date').eq('customer_id', customerId),
-      supabase.from('expenses').select('amount, case_no').eq('customer_id', customerId).eq('expense_type', 'courtFees'),
+      supabase.from('expenses').select('amount, case_no').eq('customer_id', customerId).in('expense_type', ['courtFees', 'lawyerFees']),
     ]);
 
     const contracts = contractsRes.data || [];

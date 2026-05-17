@@ -54,7 +54,7 @@ export default function LegalCasesPage() {
     const [casesRes, contractsRes, expRes] = await Promise.all([
       casesQuery,
       supabase.from('contracts').select('*').eq('status', 'legal_case'),
-      supabase.from('expenses').select('amount, case_no, expense_type').in('expense_type', ['courtFees']),
+      supabase.from('expenses').select('amount, case_no, expense_type').in('expense_type', ['courtFees', 'lawyerFees']),
     ]);
     setCases(casesRes.data || []);
     setContracts(contractsRes.data || []);
@@ -76,7 +76,7 @@ export default function LegalCasesPage() {
   }
 
   function calculateBalance() {
-    return Math.max(0, form.remaining_from_customer - form.rcvd_from_court);
+    return Math.max(0, (form.case_amount || 0) - (form.rcvd_from_court || 0));
   }
 
   async function handleSave() {
@@ -372,7 +372,7 @@ export default function LegalCasesPage() {
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-1">{t('balanceAmount')}</h4>
               <p className="text-2xl font-bold text-blue-700">{Math.round(calculateBalance()).toLocaleString()} {t('kd')}</p>
-              <p className="text-xs text-blue-600 mt-1">{t('remainingFromCustomer')} - {t('rcvdFromCourt')}</p>
+              <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCourt')}</p>
             </div>
             <FileAttachment bucket="legal" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
             <div className="flex justify-end gap-3 pt-4 border-t">

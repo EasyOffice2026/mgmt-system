@@ -45,7 +45,7 @@ export default function PurchasePage() {
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [showNewSupplier, setShowNewSupplier] = useState(false);
 
-  useEffect(() => { loadPurchases(); }, [fromDate, toDate]);
+  useEffect(() => { loadPurchases(); loadSuppliers(); }, [fromDate, toDate]);
 
   async function loadPurchases() {
     setLoading(true);
@@ -54,16 +54,21 @@ export default function PurchasePage() {
     if (toDate) query = query.lte('purchase_date', toDate);
     const { data } = await query;
     setPurchases(data || []);
-    // Collect unique categories and supplier names
     const cats = new Set(defaultCategories);
-    const sups = new Set<string>();
-    (data || []).forEach((p: any) => {
-      if (p.category) cats.add(p.category);
-      if (p.supplier_name) sups.add(p.supplier_name);
-    });
+    (data || []).forEach((p: any) => { if (p.category) cats.add(p.category); });
     setCategories([...cats]);
-    setSupplierNames([...sups]);
     setLoading(false);
+  }
+
+  async function loadSuppliers() {
+    const { data } = await supabase.from('suppliers').select('name').order('name');
+    if (data) {
+      const dbSuppliers = data.map((d: any) => d.name);
+      // Also include suppliers from existing purchases that may not be in the table yet
+      const allSups = new Set(dbSuppliers);
+      purchases.forEach((p: any) => { if (p.supplier_name) allSups.add(p.supplier_name); });
+      setSupplierNames([...allSups]);
+    }
   }
 
   function addNewCategory() {
@@ -74,11 +79,13 @@ export default function PurchasePage() {
     setNewCategory(''); setShowNewCategory(false);
   }
 
-  function addNewSupplier() {
-    if (newSupplier.trim() && !supplierNames.includes(newSupplier.trim())) {
-      setSupplierNames([...supplierNames, newSupplier.trim()]);
-      setForm({ ...form, supplier_name: newSupplier.trim() });
-    }
+  async function addNewSupplier() {
+    const name = newSupplier.trim();
+    if (!name) return;
+    if (supplierNames.includes(name)) { setForm({ ...form, supplier_name: name }); setNewSupplier(''); setShowNewSupplier(false); return; }
+    await supabase.from('suppliers').upsert({ name }, { onConflict: 'name' });
+    setSupplierNames([...supplierNames, name]);
+    setForm({ ...form, supplier_name: name });
     setNewSupplier(''); setShowNewSupplier(false);
   }
 

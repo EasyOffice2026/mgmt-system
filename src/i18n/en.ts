@@ -301,6 +301,9 @@ export const en = {
   // Dynamic
   addSupplier: 'Add Supplier',
   suppliers: 'Suppliers',
+  manageSuppliers: 'Manage Suppliers',
+  manageSuppliersDesc: 'Add or remove suppliers. No duplicates allowed. Suppliers added here appear in the Purchase form.',
+  supplierExists: 'Supplier already exists!',
   newExpenseType: 'New Expense Type',
   newSupplierName: 'New Supplier Name',
   newCategory: 'New Category',
