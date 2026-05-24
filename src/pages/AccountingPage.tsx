@@ -88,6 +88,8 @@ export default function AccountingPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerReportData, setCustomerReportData] = useState<CustomerReportData | null>(null);
   const [customerReportLoading, setCustomerReportLoading] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   useEffect(() => {
     supabase.from('customers').select('id, customer_no, name').order('name').then(({ data }) => setAllCustomers(data || []));
@@ -719,16 +721,38 @@ export default function AccountingPage() {
           <Card className="border-0 shadow-md">
             <CardContent className="p-5">
               <Label className="text-sm font-medium">{t('selectCustomerForReport')}</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-2"
-                value={selectedCustomerId}
-                onChange={e => loadCustomerReport(e.target.value)}
-              >
-                <option value="">{t('selectCustomer')}</option>
-                {allCustomers.map(c => (
-                  <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>
-                ))}
-              </select>
+              <div className="relative mt-2">
+                <Input
+                  type="text"
+                  placeholder={t('searchCustomer') || 'Search customer by name or number...'}
+                  value={customerSearch}
+                  onChange={e => { setCustomerSearch(e.target.value); setShowCustomerDropdown(true); }}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  className="h-10 w-full"
+                />
+                {showCustomerDropdown && customerSearch.trim() !== '' && (() => {
+                  const q = customerSearch.toLowerCase();
+                  const filtered = allCustomers.filter(c => c.name.toLowerCase().includes(q) || c.customer_no.toLowerCase().includes(q));
+                  if (filtered.length === 0) return null;
+                  return (
+                    <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg">
+                      {filtered.slice(0, 50).map(c => (
+                        <div
+                          key={c.id}
+                          className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer border-b border-slate-50"
+                          onMouseDown={() => {
+                            setCustomerSearch(`${c.customer_no} - ${c.name}`);
+                            setShowCustomerDropdown(false);
+                            loadCustomerReport(c.id);
+                          }}
+                        >
+                          <span className="font-medium text-blue-600">{c.customer_no}</span> - {c.name}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </CardContent>
           </Card>
 

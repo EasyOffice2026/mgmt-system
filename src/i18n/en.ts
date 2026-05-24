@@ -416,6 +416,7 @@ export const en = {
   customerReport: 'Customer Report',
   customerReportDesc: 'Select a customer and contracts to view financial summary',
   selectCustomerForReport: 'Select Customer',
+  searchCustomer: 'Search customer by name or number...',
   selectContractsForReport: 'Select Contracts for Report',
   saleAmount: 'Sale Amount',
   receivedAmount2: 'Received Amount',

@@ -390,6 +390,7 @@ export const ar = {
   customerReport: 'تقرير العميل',
   customerReportDesc: 'اختر عميلاً وعقوداً لعرض الملخص المالي',
   selectCustomerForReport: 'اختر العميل',
+  searchCustomer: 'ابحث عن العميل بالاسم أو الرقم...',
   selectContractsForReport: 'اختر العقود للتقرير',
   saleAmount: 'مبلغ البيع',
   receivedAmount2: 'المبلغ المستلم',
