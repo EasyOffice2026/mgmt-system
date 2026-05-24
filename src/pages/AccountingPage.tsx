@@ -256,16 +256,16 @@ export default function AccountingPage() {
     setIncomeLoading(true);
     setActiveView('income');
 
-    const [contractsRes, purchasesRes, expensesRes, receiptsRes, legalRes] = await Promise.all([
+    const [contractsRes, allContractsRes, expensesRes, receiptsRes, legalRes] = await Promise.all([
       supabase.from('contracts').select('*').gte('start_date', dateFrom).lte('start_date', dateTo),
-      supabase.from('purchases').select('*').gte('purchase_date', dateFrom).lte('purchase_date', dateTo),
+      supabase.from('contracts').select('items'),
       supabase.from('expenses').select('*').gte('expense_date', dateFrom).lte('expense_date', dateTo),
       supabase.from('receipt_vouchers').select('*').gte('receipt_date', dateFrom).lte('receipt_date', dateTo),
       supabase.from('legal_cases').select('*'),
     ]);
 
     const contracts = contractsRes.data || [];
-    const purchases = purchasesRes.data || [];
+    const allContracts = allContractsRes.data || [];
     const expenses = expensesRes.data || [];
     const receipts = receiptsRes.data || [];
     const legalCases = legalRes.data || [];
@@ -276,7 +276,15 @@ export default function AccountingPage() {
     const courtRecovery = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
     const totalRevenue = salesRevenue + fileCharges + courtRecovery;
 
-    const purchaseCost = purchases.reduce((s: number, p: any) => s + ((p.purchase_price || 0) * (p.quantity || 1)), 0);
+    let purchaseCost = 0;
+    let purchaseCount = 0;
+    for (const c of allContracts) {
+      const items = (c as any).items || [];
+      for (const item of items) {
+        purchaseCost += (item.purchase_price || 0) * (item.quantity || 1);
+        purchaseCount++;
+      }
+    }
     const grossProfit = totalRevenue - purchaseCost;
 
     const operatingExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
@@ -298,7 +306,7 @@ export default function AccountingPage() {
     setIncome({
       salesRevenue, salesCount: contracts.length, fileCharges, fileChargesCount: contracts.filter((c: any) => (c.file_opening_charges || 0) > 0).length,
       receiptVouchers, receiptsCount: receipts.length, courtRecovery, totalRevenue,
-      purchaseCost, purchaseCount: purchases.length, grossProfit,
+      purchaseCost, purchaseCount, grossProfit,
       operatingExpenses, expenseCount: expenses.length, operatingIncome,
       dueFromCustomers, dueFromCourt, netIncome: operatingIncome,
       operationalCases, finishedCases, legalCases: legalCasesCount, closedCases,
