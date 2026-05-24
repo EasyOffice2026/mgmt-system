@@ -215,17 +215,35 @@ export default function AccountingPage() {
         amount: c.sale_price || 0, customer: c.customer_name || '', status: 'closed',
       }));
     } else if (type === 'legal') {
-      const res = await supabase.from('legal_cases').select('*').gte('case_date', dateFrom).lte('case_date', dateTo);
-      rows = (res.data || []).map((lc: any) => ({
-        id: lc.id, date: lc.case_date || '', description: `${lc.case_no || ''} - ${lc.customer_name || ''}`,
-        amount: lc.case_amount || 0, customer: lc.customer_name || '',
-      }));
+      const [lcRes, contRes] = await Promise.all([
+        supabase.from('legal_cases').select('*'),
+        supabase.from('contracts').select('id, contract_no, customer_name, sale_price, start_date, status').eq('status', 'legal_case').gte('start_date', dateFrom).lte('start_date', dateTo),
+      ]);
+      const legalMap: Record<string, any> = {};
+      (lcRes.data || []).forEach((lc: any) => { if (lc.contract_no) legalMap[lc.contract_no] = lc; });
+      rows = (contRes.data || []).map((c: any) => {
+        const lc = legalMap[c.contract_no];
+        const caseNo = lc?.case_no || '';
+        return {
+          id: c.id, date: c.start_date || '', description: `${caseNo}${caseNo ? ' | ' : ''}${c.contract_no || ''} - ${c.customer_name || ''}`,
+          amount: c.sale_price || 0, customer: c.customer_name || '', category: caseNo,
+        };
+      });
     } else if (type === 'caseClosed') {
-      const res = await supabase.from('contracts').select('*').gte('start_date', dateFrom).lte('start_date', dateTo);
-      rows = (res.data || []).filter((c: any) => c.status === 'case_closed').map((c: any) => ({
-        id: c.id, date: c.start_date || '', description: `${c.contract_no || ''} - ${c.customer_name || ''}`,
-        amount: c.sale_price || 0, customer: c.customer_name || '', status: c.status || '',
-      }));
+      const [contRes, lcRes] = await Promise.all([
+        supabase.from('contracts').select('id, contract_no, customer_name, sale_price, start_date, status').eq('status', 'case_closed').gte('start_date', dateFrom).lte('start_date', dateTo),
+        supabase.from('legal_cases').select('*'),
+      ]);
+      const legalMap: Record<string, any> = {};
+      (lcRes.data || []).forEach((lc: any) => { if (lc.contract_no) legalMap[lc.contract_no] = lc; });
+      rows = (contRes.data || []).map((c: any) => {
+        const lc = legalMap[c.contract_no];
+        const caseNo = lc?.case_no || '';
+        return {
+          id: c.id, date: c.start_date || '', description: `${caseNo}${caseNo ? ' | ' : ''}${c.contract_no || ''} - ${c.customer_name || ''}`,
+          amount: c.sale_price || 0, customer: c.customer_name || '', status: c.status || '', category: caseNo,
+        };
+      });
     }
 
     setDetailRows(rows);
