@@ -307,8 +307,9 @@ export const ar = {
   totalPendingAmount: 'إجمالي المعلق',
   installmentDetails: 'تفاصيل الأقساط',
   dueInstallments: 'الأقساط المستحقة',
+  delayedInstallments: 'الأقساط المتأخرة',
   upcoming: 'قادم',
-  noDueInstallments: 'جميع الأقساط مدفوعة! لا توجد مستحقات.',
+  noDueInstallments: 'لا توجد أقساط متأخرة.',
 
   // Dashboard - New KPIs
   operationalCases: 'قيد التشغيل',

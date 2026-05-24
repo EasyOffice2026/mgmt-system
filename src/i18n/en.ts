@@ -333,8 +333,9 @@ export const en = {
   totalPendingAmount: 'Total Pending',
   installmentDetails: 'Installment Details',
   dueInstallments: 'Due Installments',
+  delayedInstallments: 'Delayed Installments',
   upcoming: 'Upcoming',
-  noDueInstallments: 'All installments are paid! No dues pending.',
+  noDueInstallments: 'No delayed installments.',
 
   // Dashboard - New KPIs
   operationalCases: 'Functional',

@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, Clock, CheckCircle, Briefcase, CheckSquare } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, CheckCircle, Briefcase, CheckSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { isBefore } from 'date-fns';
 
@@ -72,24 +72,22 @@ export default function DashboardPage() {
             const dueDate = inst.due_date ? new Date(inst.due_date) : null;
             const isOverdue = dueDate ? isBefore(dueDate, today) : false;
             if (isOverdue) hasOverdue = true;
-            allDue.push({
-              contractNo: c.contract_no,
-              customerName: c.customer_name,
-              installmentNo: inst.month || (idx + 1),
-              dueDate: inst.due_date,
-              amount: inst.amount || 0,
-              isOverdue,
-            });
+            if (isOverdue) {
+              allDue.push({
+                contractNo: c.contract_no,
+                customerName: c.customer_name,
+                installmentNo: inst.month || (idx + 1),
+                dueDate: inst.due_date,
+                amount: inst.amount || 0,
+                isOverdue,
+              });
+            }
           }
         });
         if (hasOverdue) lateCases++;
       });
-      // Sort: overdue first, then by due date ascending
-      allDue.sort((a, b) => {
-        if (a.isOverdue && !b.isOverdue) return -1;
-        if (!a.isOverdue && b.isOverdue) return 1;
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      });
+      // Sort by due date ascending (oldest overdue first)
+      allDue.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
       setStats({
         totalCustomers: custRes.count || 0,
@@ -199,17 +197,13 @@ export default function DashboardPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    {t('dueInstallments')}
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    {t('delayedInstallments') || 'Delayed Installments'}
                   </CardTitle>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="flex items-center gap-1 text-red-600">
                       <AlertTriangle className="h-3.5 w-3.5" />
-                      {t('overdue')}: {dueInstallments.filter(d => d.isOverdue).length}
-                    </span>
-                    <span className="flex items-center gap-1 text-amber-600">
-                      <Clock className="h-3.5 w-3.5" />
-                      {t('upcoming')}: {dueInstallments.filter(d => !d.isOverdue).length}
+                      {t('overdue')}: {dueInstallments.length}
                     </span>
                     <span className="flex items-center gap-1 text-slate-600">
                       {t('total')}: {dueInstallments.reduce((s, d) => s + d.amount, 0).toLocaleString()} {t('kd')}
@@ -248,15 +242,9 @@ export default function DashboardPage() {
                           <td className="py-2 px-3">{d.dueDate}</td>
                           <td className="py-2 px-3 font-medium">{d.amount.toLocaleString()} {t('kd')}</td>
                           <td className="py-2 px-3">
-                            {d.isOverdue ? (
-                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100" variant="secondary">
-                                <AlertTriangle className="h-3 w-3 mr-1" /> {t('overdue')}
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100" variant="secondary">
-                                <Clock className="h-3 w-3 mr-1" /> {t('upcoming')}
-                              </Badge>
-                            )}
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100" variant="secondary">
+                              <AlertTriangle className="h-3 w-3 mr-1" /> {t('overdue')}
+                            </Badge>
                           </td>
                         </tr>
                       ))}
