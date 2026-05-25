@@ -284,8 +284,8 @@ export default function ReceiptsPage() {
     return legalCases.find(lc => lc.case_no === caseNo);
   }
 
-  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('customerName'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('receivedAmount'), t('paymentMode')];
-  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.customer_name, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, r.received_amount, r.payment_mode]);
+  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('netAmount'), t('paymentMode')];
+  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, (r.received_amount || 0) - ((r as any).discount_amount || 0), r.payment_mode]);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = { fileOpening: 'bg-blue-100 text-blue-700', installment: 'bg-green-100 text-green-700', courtMoney: 'bg-purple-100 text-purple-700' };
@@ -336,12 +336,9 @@ export default function ReceiptsPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptVoucherNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptDate')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptType')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customerName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('installmentNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtCaseNo')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('discount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('netAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
@@ -352,7 +349,6 @@ export default function ReceiptsPage() {
                       <td className="py-3 px-4 font-medium text-blue-600">{r.receipt_voucher_no}</td>
                       <td className="py-3 px-4">{r.receipt_date}</td>
                       <td className="py-3 px-4"><Badge className={typeColor(r.receipt_type)} variant="secondary">{r.receipt_type}</Badge></td>
-                      <td className="py-3 px-4">{r.customer_name}</td>
                       <td className="py-3 px-4">{r.contract_no}</td>
                       <td className="py-3 px-4">{r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '-'}</td>
                       <td className="py-3 px-4">
@@ -360,8 +356,6 @@ export default function ReceiptsPage() {
                           <span className="text-purple-600 cursor-pointer underline" onClick={() => setShowCaseReceipts(r.court_case_no)}>{r.court_case_no}</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 font-medium text-green-600">{r.received_amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4 text-orange-600">{(r as any).discount_amount ? `${(r as any).discount_amount.toLocaleString()} ${t('kd')}` : '-'}</td>
                       <td className="py-3 px-4 font-medium text-blue-600">{((r.received_amount || 0) - ((r as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
