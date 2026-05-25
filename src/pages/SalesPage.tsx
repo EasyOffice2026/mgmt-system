@@ -46,6 +46,7 @@ export default function SalesPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [showDialog, setShowDialog] = useState(false);
@@ -230,11 +231,17 @@ export default function SalesPage() {
     setShowDialog(true);
   }
 
-  const filtered = contracts.filter(c =>
-    c.contract_no?.toLowerCase().includes(search.toLowerCase()) ||
-    c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.item_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = contracts.filter(c => {
+    const matchesSearch = c.contract_no?.toLowerCase().includes(search.toLowerCase()) ||
+      c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.item_name?.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' ||
+      (statusFilter === 'functional' && (c.status === 'functional' || c.status === 'ongoing')) ||
+      (statusFilter === 'closed' && (c.status === 'finished' || c.status === 'closed')) ||
+      (statusFilter === 'legal_case' && c.status === 'legal_case') ||
+      (statusFilter === 'case_closed' && c.status === 'case_closed');
+    return matchesSearch && matchesStatus;
+  });
 
   const statusColor = (s: string) => {
     if (s === 'ongoing' || s === 'functional') return 'bg-blue-100 text-blue-700';
@@ -261,16 +268,37 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative max-w-md flex-1">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative max-w-md flex-1">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-slate-400" />
+            <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+            <span className="text-slate-400">-</span>
+            <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
-          <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: 'all', label: t('all') || 'All' },
+            { key: 'functional', label: t('functional') },
+            { key: 'closed', label: t('closed') },
+            { key: 'legal_case', label: t('legalCase') },
+            { key: 'case_closed', label: t('caseClosed') },
+          ].map(opt => (
+            <Button
+              key={opt.key}
+              variant={statusFilter === opt.key ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter(opt.key)}
+              className={statusFilter === opt.key ? 'bg-blue-600 text-white' : ''}
+            >
+              {opt.label}
+            </Button>
+          ))}
         </div>
       </div>
 
