@@ -10,8 +10,9 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Receipt, Calendar } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Expense {
   id: string; expense_voucher_no: string; expense_date: string; expense_type: string;
@@ -166,10 +167,9 @@ export default function ExpensesPage() {
           <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 
@@ -228,7 +228,7 @@ export default function ExpensesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>{t('expenseDate')}</Label>
-                <Input type="date" value={form.expense_date} onChange={e => setForm({ ...form, expense_date: e.target.value })} />
+                <DatePicker value={form.expense_date} onChange={(v) => setForm({ ...form, expense_date: v })} placeholder={t("date")} className="w-full" />
               </div>
               <div>
                 <Label>{t('expenseType')} *</Label>

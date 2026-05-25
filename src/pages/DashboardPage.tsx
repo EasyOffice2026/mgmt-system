@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, Briefcase, CheckSquare, Gavel, Lock } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Receipt, AlertTriangle, Briefcase, CheckSquare, Gavel, Lock } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 import { isBefore } from 'date-fns';
 
 export default function DashboardPage() {
@@ -103,11 +103,10 @@ export default function DashboardPage() {
           <p className="text-slate-500 text-sm">{t('welcome')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Calendar className="h-4 w-4 text-slate-400" />
           <Label className="text-sm text-slate-600">{t('from')}:</Label>
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t('from')} />
           <Label className="text-sm text-slate-600">{t('to')}:</Label>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t('to')} />
         </div>
       </div>
       {loading ? (

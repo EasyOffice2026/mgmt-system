@@ -12,6 +12,7 @@ import {
   ShoppingCart, Receipt, FileText, BarChart3, ArrowUpRight, ArrowDownRight,
   Briefcase, Gavel, Lock, Calendar, ChevronRight, Printer, Users
 } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 
 type ReportType = 'sales' | 'purchases' | 'expenses' | 'fileCharges' | 'receipts' | 'operational' | 'finished' | 'legal' | 'caseClosed';
 type ActiveView = 'overview' | 'report' | 'income' | 'customerReport';
@@ -327,11 +328,11 @@ export default function AccountingPage() {
     <div className="flex items-center gap-2 flex-wrap">
       <div className="flex items-center gap-2">
         <Label className="text-xs text-slate-500 whitespace-nowrap">{t('from')}:</Label>
-        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40 h-9" />
+        <DatePicker value={dateFrom} onChange={setDateFrom} placeholder={t("from")} />
       </div>
       <div className="flex items-center gap-2">
         <Label className="text-xs text-slate-500 whitespace-nowrap">{t('to')}:</Label>
-        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-40 h-9" />
+        <DatePicker value={dateTo} onChange={setDateTo} placeholder={t("to")} />
       </div>
     </div>
   );

@@ -9,8 +9,9 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, ShoppingCart, Calendar, X, Clock } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock } from 'lucide-react';
 import { format, addMonths, isBefore } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Contract {
   id: string; contract_no: string; customer_id: string; customer_name: string;
@@ -275,10 +276,9 @@ export default function SalesPage() {
             <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
           </div>
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-slate-400" />
-            <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+            <DatePicker value={fromDate} onChange={setFromDate} placeholder={t('from')} />
             <span className="text-slate-400">-</span>
-            <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+            <DatePicker value={toDate} onChange={setToDate} placeholder={t('to')} />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -525,14 +525,14 @@ export default function SalesPage() {
               </div>
               <div>
                 <Label>{t('startDate')}</Label>
-                <Input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} />
+                <DatePicker value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} placeholder={t('startDate')} className="w-full" />
               </div>
               <div>
                 <Label>{t('firstInstallmentDate')}</Label>
-                <Input type="date" min={form.start_date} value={form.first_installment_date} onChange={e => {
-                  if (e.target.value < form.start_date) { alert(t('firstInstallmentBeforeStart') || 'First installment date cannot be before start date'); return; }
-                  setForm({ ...form, first_installment_date: e.target.value });
-                }} />
+                <DatePicker value={form.first_installment_date} onChange={(v) => {
+                  if (v < form.start_date) { alert(t('firstInstallmentBeforeStart') || 'First installment date cannot be before start date'); return; }
+                  setForm({ ...form, first_installment_date: v });
+                }} placeholder={t('firstInstallmentDate')} className="w-full" />
               </div>
               <div>
                 <Label>{t('paymentMode')}</Label>

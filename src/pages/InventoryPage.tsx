@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
-import { Search, Warehouse, Calendar } from 'lucide-react';
+import { Search, Warehouse } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface InventoryItem {
   id: string; item_name: string; model_type: string; category: string;
@@ -77,10 +78,9 @@ export default function InventoryPage() {
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 

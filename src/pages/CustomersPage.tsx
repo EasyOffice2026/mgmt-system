@@ -9,8 +9,9 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Users, Calendar, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { isBefore } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Customer {
   id: string; customer_no: string; name: string; civil_id: string; mobile: string;
@@ -160,10 +161,9 @@ export default function CustomersPage() {
           <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 

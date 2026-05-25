@@ -8,7 +8,8 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Scale, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Scale, DollarSign } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface LegalCase {
   id: string; legal_case_no: string; customer_id: string; customer_name: string;
@@ -169,10 +170,9 @@ export default function LegalCasesPage() {
           <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 
@@ -342,7 +342,7 @@ export default function LegalCasesPage() {
               </div>
               <div>
                 <Label>{t('caseDate')}</Label>
-                <Input type="date" value={form.case_date} onChange={e => setForm({ ...form, case_date: e.target.value })} />
+                <DatePicker value={form.case_date} onChange={(v) => setForm({ ...form, case_date: v })} placeholder={t("date")} className="w-full" />
               </div>
               <div>
                 <Label>{t('purchasePrice')}</Label>

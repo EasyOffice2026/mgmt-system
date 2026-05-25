@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Landmark, Calendar, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Landmark, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Partner {
   id: string; name: string; partner_no: string; mobile: string; email: string;
@@ -218,10 +219,9 @@ export default function OwnersPartnersPage() {
           <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 
@@ -389,7 +389,7 @@ export default function OwnersPartnersPage() {
               </div>
               <div>
                 <Label>{t('date')}</Label>
-                <Input type="date" value={txForm.transaction_date} onChange={e => setTxForm({ ...txForm, transaction_date: e.target.value })} />
+                <DatePicker value={txForm.transaction_date} onChange={(v) => setTxForm({ ...txForm, transaction_date: v })} placeholder={t("date")} className="w-full" />
               </div>
               {txForm.transaction_type === 'received_against_client' && (
                 <>

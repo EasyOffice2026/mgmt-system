@@ -31,9 +31,14 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('receipts', 'receipts', t
 INSERT INTO storage.buckets (id, name, public) VALUES ('legal', 'legal', true) ON CONFLICT (id) DO NOTHING;
 
 -- Allow authenticated users to upload/read from all buckets
-CREATE POLICY IF NOT EXISTS "Allow authenticated uploads" ON storage.objects
+DROP POLICY IF EXISTS "Allow authenticated uploads" ON storage.objects;
+CREATE POLICY "Allow authenticated uploads" ON storage.objects
   FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "Allow authenticated reads" ON storage.objects
+
+DROP POLICY IF EXISTS "Allow authenticated reads" ON storage.objects;
+CREATE POLICY "Allow authenticated reads" ON storage.objects
   FOR SELECT TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "Allow public reads" ON storage.objects
+
+DROP POLICY IF EXISTS "Allow public reads" ON storage.objects;
+CREATE POLICY "Allow public reads" ON storage.objects
   FOR SELECT TO anon USING (true);
