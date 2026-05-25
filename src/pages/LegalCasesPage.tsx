@@ -35,7 +35,7 @@ export default function LegalCasesPage() {
   const { t } = useLang();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
+
   const [search, setSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -55,20 +55,15 @@ export default function LegalCasesPage() {
     let casesQuery = supabase.from('legal_cases').select('*').order('created_at', { ascending: false });
     if (fromDate) casesQuery = casesQuery.gte('created_at', fromDate);
     if (toDate) casesQuery = casesQuery.lte('created_at', toDate + 'T23:59:59');
-    const [casesRes, contractsRes, expRes] = await Promise.all([
+    const [casesRes, contractsRes] = await Promise.all([
       casesQuery,
       supabase.from('contracts').select('*').in('status', ['legal_case', 'case_closed']),
-      supabase.from('expenses').select('amount, case_no, expense_type').in('expense_type', ['courtFees', 'lawyerFees']),
     ]);
     setCases(casesRes.data || []);
     setContracts(contractsRes.data || []);
-    setExpenses(expRes.data || []);
     setLoading(false);
   }
 
-  function getCourtFees(caseNo: string) {
-    return expenses.filter(e => e.case_no === caseNo).reduce((s: number, e: any) => s + (e.amount || 0), 0);
-  }
 
   async function openPaymentDetail(lc: LegalCase) {
     setShowPaymentDetail(lc);
@@ -138,11 +133,10 @@ export default function LegalCasesPage() {
   const totalActual = filtered.reduce((s, c) => s + (c.original_amount || 0), 0);
   const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0), 0);
 
-  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('courtFees'), t('receivedAmount'), t('outstanding'), t('caseDate')];
+  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('receivedAmount'), t('outstanding'), t('caseDate')];
   const exportRows = filtered.map(c => {
-    const cf = getCourtFees(c.case_no);
     const rcvd = c.rcvd_from_court || 0;
-    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, cf, rcvd, c.case_amount - rcvd, c.case_date];
+    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.case_amount - rcvd, c.case_date];
   });
 
   return (
@@ -198,7 +192,6 @@ export default function LegalCasesPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actualAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('claimedAmount')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtFees')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('outstanding')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseDate')}</th>
@@ -207,7 +200,6 @@ export default function LegalCasesPage() {
                 </thead>
                 <tbody>
                   {paginated.map(c => {
-                    const cf = getCourtFees(c.case_no);
                     const rcvd = c.rcvd_from_court || 0;
                     const outstanding = (c.case_amount || 0) - rcvd;
                     return (
@@ -216,7 +208,6 @@ export default function LegalCasesPage() {
                         <td className="py-3 px-4 text-blue-600">{c.case_no}</td>
                         <td className="py-3 px-4">{Math.round(c.original_amount || 0).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4">{Math.round(c.case_amount || 0).toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4 text-red-600">{Math.round(cf).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4 text-green-600">{Math.round(rcvd).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4 font-medium">{Math.round(outstanding).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4">{c.case_date}</td>
