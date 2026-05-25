@@ -12,6 +12,7 @@ import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock } from 'lucide-react';
 import { format, addMonths, isBefore } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface Contract {
   id: string; contract_no: string; customer_id: string; customer_name: string;
@@ -55,6 +56,8 @@ export default function SalesPage() {
   const [editing, setEditing] = useState<Contract | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
 
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
@@ -243,6 +246,7 @@ export default function SalesPage() {
       (statusFilter === 'case_closed' && c.status === 'case_closed');
     return matchesSearch && matchesStatus;
   });
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const statusColor = (s: string) => {
     if (s === 'ongoing' || s === 'functional') return 'bg-blue-100 text-blue-700';
@@ -273,7 +277,7 @@ export default function SalesPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative max-w-md flex-1">
             <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+            <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
           </div>
           <div className="flex items-center gap-2">
             <DatePicker value={fromDate} onChange={setFromDate} placeholder={t('from')} />
@@ -293,7 +297,7 @@ export default function SalesPage() {
               key={opt.key}
               variant={statusFilter === opt.key ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setStatusFilter(opt.key)}
+              onClick={() => { setStatusFilter(opt.key); setCurrentPage(1); }}
               className={statusFilter === opt.key ? 'bg-blue-600 text-white' : ''}
             >
               {opt.label}
@@ -311,6 +315,7 @@ export default function SalesPage() {
               <ShoppingCart className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -326,7 +331,7 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => (
+                  {paginated.map(c => (
                     <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600 cursor-pointer" onClick={() => setShowSchedule(c)}>{c.contract_no}</td>
                       <td className="py-3 px-4">{c.customer_name}</td>
@@ -346,6 +351,15 @@ export default function SalesPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>

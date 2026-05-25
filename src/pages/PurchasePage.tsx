@@ -12,6 +12,7 @@ import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface Purchase {
   id: string; purchase_date: string; supplier_name: string; invoice_no: string;
@@ -39,6 +40,8 @@ export default function PurchasePage() {
   const [editing, setEditing] = useState<Purchase | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [categories, setCategories] = useState<string[]>(defaultCategories);
   const [supplierNames, setSupplierNames] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState('');
@@ -126,6 +129,7 @@ export default function PurchasePage() {
     p.supplier_name?.toLowerCase().includes(search.toLowerCase()) ||
     p.invoice_no?.toLowerCase().includes(search.toLowerCase())
   );
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalPurchaseAmount = filtered.reduce((s, p) => s + (p.purchase_price || 0) * (p.quantity || 1), 0);
 
@@ -150,7 +154,7 @@ export default function PurchasePage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
           <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
@@ -168,6 +172,7 @@ export default function PurchasePage() {
               <Package className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -186,7 +191,7 @@ export default function PurchasePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(p => (
+                  {paginated.map(p => (
                     <tr key={p.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4">{p.purchase_date}</td>
                       <td className="py-3 px-4 font-medium">{p.supplier_name}</td>
@@ -221,6 +226,15 @@ export default function PurchasePage() {
                 </tfoot>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>

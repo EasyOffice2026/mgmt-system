@@ -10,6 +10,7 @@ import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Scale, DollarSign } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface LegalCase {
   id: string; legal_case_no: string; customer_id: string; customer_name: string;
@@ -42,6 +43,8 @@ export default function LegalCasesPage() {
   const [editing, setEditing] = useState<LegalCase | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [showPaymentDetail, setShowPaymentDetail] = useState<LegalCase | null>(null);
   const [caseReceipts, setCaseReceipts] = useState<any[]>([]);
 
@@ -128,6 +131,7 @@ export default function LegalCasesPage() {
     c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
     c.case_no?.toLowerCase().includes(search.toLowerCase())
   );
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalCases = filtered.length;
   const totalClaimed = filtered.reduce((s, c) => s + (c.case_amount || 0), 0);
@@ -167,7 +171,7 @@ export default function LegalCasesPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
           <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
@@ -185,6 +189,7 @@ export default function LegalCasesPage() {
               <Scale className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -201,7 +206,7 @@ export default function LegalCasesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => {
+                  {paginated.map(c => {
                     const cf = getCourtFees(c.case_no);
                     const rcvd = c.rcvd_from_court || 0;
                     const outstanding = (c.case_amount || 0) - rcvd;
@@ -228,6 +233,15 @@ export default function LegalCasesPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>

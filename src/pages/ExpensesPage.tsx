@@ -13,6 +13,7 @@ import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface Expense {
   id: string; expense_voucher_no: string; expense_date: string; expense_type: string;
@@ -45,6 +46,8 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [expenseTypes, setExpenseTypes] = useState<string[]>(defaultExpenseTypes);
   const [newExpenseType, setNewExpenseType] = useState('');
   const [showNewType, setShowNewType] = useState(false);
@@ -130,6 +133,7 @@ export default function ExpensesPage() {
     e.expense_type?.toLowerCase().includes(search.toLowerCase()) ||
     e.customer_name?.toLowerCase().includes(search.toLowerCase())
   );
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalExpenses = filtered.reduce((sum, e) => sum + (e.amount || 0), 0);
 
@@ -164,7 +168,7 @@ export default function ExpensesPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
           <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
@@ -182,6 +186,7 @@ export default function ExpensesPage() {
               <Receipt className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -196,7 +201,7 @@ export default function ExpensesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(e => (
+                  {paginated.map(e => (
                     <tr key={e.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600">{e.expense_voucher_no}</td>
                       <td className="py-3 px-4">{e.expense_date}</td>
@@ -215,6 +220,15 @@ export default function ExpensesPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>

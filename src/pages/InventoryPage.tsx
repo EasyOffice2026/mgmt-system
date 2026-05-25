@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
 import { Search, Warehouse } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface InventoryItem {
   id: string; item_name: string; model_type: string; category: string;
@@ -22,6 +23,8 @@ export default function InventoryPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => { loadInventory(); }, [fromDate, toDate]);
 
@@ -44,6 +47,7 @@ export default function InventoryPage() {
     const matchCategory = !categoryFilter || i.category === categoryFilter;
     return matchSearch && matchCategory;
   });
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalQty = filtered.reduce((s, i) => s + (i.quantity || 1), 0);
   const totalAvailable = filtered.reduce((s, i) => s + (i.quantity_available ?? i.quantity ?? 1), 0);
@@ -71,7 +75,7 @@ export default function InventoryPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-40" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
           <option value="">{t('allCategories')}</option>
@@ -93,6 +97,7 @@ export default function InventoryPage() {
               <Warehouse className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -109,7 +114,7 @@ export default function InventoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(item => (
+                  {paginated.map(item => (
                     <tr key={item.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium">{item.item_name}</td>
                       <td className="py-3 px-4">{item.model_type}</td>
@@ -129,6 +134,15 @@ export default function InventoryPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>

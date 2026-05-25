@@ -12,6 +12,7 @@ import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Users, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { isBefore } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface Customer {
   id: string; customer_no: string; name: string; civil_id: string; mobile: string;
@@ -45,6 +46,8 @@ export default function CustomersPage() {
   const [form, setForm] = useState(emptyCustomer);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => { loadCustomers(); }, [fromDate, toDate]);
 
@@ -134,6 +137,7 @@ export default function CustomersPage() {
     c.name.toLowerCase().includes(search.toLowerCase()) || c.civil_id.includes(search) ||
     c.customer_no?.includes(search) || c.mobile.includes(search)
   );
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const exportHeaders = [t('customerNo'), t('customerName'), t('civilId'), t('mobileNo'), t('passportNo'), t('emailAddress'), t('address')];
   const exportRows = filtered.map(c => [c.customer_no, c.name, c.civil_id, c.mobile, c.passport_no, c.email, [c.area_name, c.block_no, c.street_no, c.house_no].filter(Boolean).join(', ')]);
@@ -158,7 +162,7 @@ export default function CustomersPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
           <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
@@ -176,6 +180,7 @@ export default function CustomersPage() {
               <Users className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -190,7 +195,7 @@ export default function CustomersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => (
+                  {paginated.map(c => (
                     <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors cursor-pointer" onClick={() => openCustomerDetails(c)}>
                       <td className="py-3 px-4 font-medium text-blue-600">{c.customer_no}</td>
                       <td className="py-3 px-4 font-medium">{c.name}</td>
@@ -220,6 +225,15 @@ export default function CustomersPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>
