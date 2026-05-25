@@ -75,7 +75,7 @@ const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 
 export default function AccountingPage() {
   const { t } = useLang();
   const { profile } = useAuth();
-  const canViewIncome = profile?.role === 'owner' || profile?.role === 'accountant';
+  const canViewIncome = profile?.role === 'accountant';
   const today = new Date();
   const firstOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
