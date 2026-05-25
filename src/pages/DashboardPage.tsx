@@ -4,8 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, CheckCircle, Briefcase, CheckSquare, Gavel, Lock } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, Briefcase, CheckSquare, Gavel, Lock } from 'lucide-react';
 import { isBefore } from 'date-fns';
 
 export default function DashboardPage() {
@@ -16,7 +15,6 @@ export default function DashboardPage() {
     totalCustomers: 0, activeContracts: 0, totalRevenue: 0, totalRemaining: 0, totalExpenses: 0, legalCases: 0,
     operationalCases: 0, finishedCases: 0, legalFinishedCases: 0, lateCases: 0, caseClosed: 0,
   });
-  const [dueInstallments, setDueInstallments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
@@ -54,31 +52,16 @@ export default function DashboardPage() {
 
       const today = new Date();
       let lateCases = 0;
-      const allDue: any[] = [];
       allContracts.forEach((c: any) => {
         const schedule = c.installment_schedule || c.installments || [];
         if (!Array.isArray(schedule)) return;
-        let hasOverdue = false;
-        schedule.forEach((inst: any, idx: number) => {
-          if (inst.status !== 'paid') {
-            const dueDate = inst.due_date ? new Date(inst.due_date) : null;
-            const isOverdue = dueDate ? isBefore(dueDate, today) : false;
-            if (isOverdue) hasOverdue = true;
-            if (isOverdue) {
-              allDue.push({
-                contractNo: c.contract_no,
-                customerName: c.customer_name,
-                installmentNo: inst.month || (idx + 1),
-                dueDate: inst.due_date,
-                amount: inst.amount || 0,
-                isOverdue,
-              });
-            }
-          }
+        const hasOverdue = schedule.some((inst: any) => {
+          if (inst.status === 'paid') return false;
+          const dueDate = inst.due_date ? new Date(inst.due_date) : null;
+          return dueDate ? isBefore(dueDate, today) : false;
         });
         if (hasOverdue) lateCases++;
       });
-      allDue.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
       setStats({
         totalCustomers: custRes.count || 0,
@@ -87,7 +70,6 @@ export default function DashboardPage() {
         legalCases: legalCasesCount,
         operationalCases, finishedCases, legalFinishedCases: 0, lateCases, caseClosed,
       });
-      setDueInstallments(allDue);
     } catch (err) { console.error('Dashboard load error:', err); }
     setLoading(false);
   }
@@ -230,69 +212,21 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Due Installments Section */}
-          <div>
-            <Card className="border-0 shadow-md">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    {t('delayedInstallments') || 'Delayed Installments'}
-                  </CardTitle>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="flex items-center gap-1 text-red-600">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      {t('overdue')}: {dueInstallments.length}
-                    </span>
-                    <span className="flex items-center gap-1 text-slate-600">
-                      {t('total')}: {dueInstallments.reduce((s, d) => s + d.amount, 0).toLocaleString()} {t('kd')}
-                    </span>
-                  </div>
+          {/* Delayed Contracts Card */}
+          <Card className="border-0 shadow-md border-l-4 border-l-orange-500">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('delayedContracts') || 'Delayed Contracts'}</p>
+                  <p className="text-3xl font-bold mt-1.5 text-orange-600">{stats.lateCases}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t('contractsWithOverdueInstallments') || 'Contracts with overdue installments'}</p>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">#</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('contractNo')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('customerName')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('installmentNo')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('dueDate')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('amount')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dueInstallments.length === 0 ? (
-                        <tr><td colSpan={7} className="py-8 text-center text-slate-400">
-                          <div className="flex flex-col items-center gap-2">
-                            <CheckCircle className="h-8 w-8 text-green-400" />
-                            <span>{t('noDueInstallments')}</span>
-                          </div>
-                        </td></tr>
-                      ) : dueInstallments.map((d, i) => (
-                        <tr key={i} className={`border-b border-slate-100 ${d.isOverdue ? 'bg-red-50/50' : 'hover:bg-blue-50/50'}`}>
-                          <td className="py-2 px-3 text-slate-400">{i + 1}</td>
-                          <td className="py-2 px-3 font-medium text-blue-600">{d.contractNo}</td>
-                          <td className="py-2 px-3">{d.customerName}</td>
-                          <td className="py-2 px-3">{d.installmentNo}</td>
-                          <td className="py-2 px-3">{d.dueDate}</td>
-                          <td className="py-2 px-3 font-medium">{d.amount.toLocaleString()} {t('kd')}</td>
-                          <td className="py-2 px-3">
-                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100" variant="secondary">
-                              <AlertTriangle className="h-3 w-3 mr-1" /> {t('overdue')}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
+                  <AlertTriangle className="h-7 w-7 text-white" />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
