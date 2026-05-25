@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
 import {
@@ -73,6 +74,8 @@ const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 
 
 export default function AccountingPage() {
   const { t } = useLang();
+  const { profile } = useAuth();
+  const canViewIncome = profile?.role === 'owner' || profile?.role === 'accountant';
   const today = new Date();
   const firstOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -355,9 +358,11 @@ export default function AccountingPage() {
         <Button variant={activeView === 'overview' ? 'default' : 'outline'} size="sm" onClick={() => setActiveView('overview')} className={activeView === 'overview' ? 'bg-slate-700 text-white' : ''}>
           <BarChart3 className="h-4 w-4 me-1" /> {t('componentReports')}
         </Button>
-        <Button variant={activeView === 'income' ? 'default' : 'outline'} size="sm" onClick={() => loadIncomeStatement()} className={activeView === 'income' ? 'bg-emerald-600 text-white' : ''}>
-          <DollarSign className="h-4 w-4 me-1" /> {t('incomeStatement')}
-        </Button>
+        {canViewIncome && (
+          <Button variant={activeView === 'income' ? 'default' : 'outline'} size="sm" onClick={() => loadIncomeStatement()} className={activeView === 'income' ? 'bg-emerald-600 text-white' : ''}>
+            <DollarSign className="h-4 w-4 me-1" /> {t('incomeStatement')}
+          </Button>
+        )}
         <Button variant={activeView === 'customerReport' ? 'default' : 'outline'} size="sm" onClick={() => setActiveView('customerReport')} className={activeView === 'customerReport' ? 'bg-purple-600 text-white' : ''}>
           <Users className="h-4 w-4 me-1" /> {t('customerReport')}
         </Button>
@@ -524,7 +529,7 @@ export default function AccountingPage() {
       )}
 
       {/* ====================== INCOME STATEMENT VIEW ====================== */}
-      {activeView === 'income' && (
+      {activeView === 'income' && canViewIncome && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-xl shadow-md p-4 border-l-4 border-l-emerald-500">
             <div className="flex items-center gap-3">
