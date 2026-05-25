@@ -195,6 +195,7 @@ export default function UsersPage() {
 
   const roleColor = (role: string) => {
     const colors: Record<string, string> = {
+      superadmin: 'bg-red-100 text-red-700',
       owner: 'bg-purple-100 text-purple-700',
       salesman: 'bg-blue-100 text-blue-700',
       accountant: 'bg-teal-100 text-teal-700',
@@ -425,6 +426,7 @@ export default function UsersPage() {
                 <option value="salesman">{t('salesman')}</option>
                 <option value="accountant">{t('accountant')}</option>
                 <option value="owner">{t('owner')}</option>
+                <option value="superadmin">{t('superAdmin')}</option>
               </select>
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t">

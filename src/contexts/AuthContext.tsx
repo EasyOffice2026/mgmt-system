@@ -6,7 +6,7 @@ interface Profile {
   id: string;
   full_name: string;
   full_name_ar: string;
-  role: 'owner' | 'salesman' | 'accountant';
+  role: 'superadmin' | 'owner' | 'salesman' | 'accountant';
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -19,6 +19,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   changePassword: (newPassword: string) => Promise<void>;
+  isSuperAdmin: boolean;
   isOwner: boolean;
   isAdmin: boolean;
 }
@@ -71,11 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }
 
-  const isOwner = profile?.role === 'owner';
-  const isAdmin = profile?.role === 'owner' || profile?.role === 'accountant';
+  const isSuperAdmin = profile?.role === 'superadmin';
+  const isOwner = profile?.role === 'owner' || profile?.role === 'superadmin';
+  const isAdmin = profile?.role === 'owner' || profile?.role === 'accountant' || profile?.role === 'superadmin';
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, changePassword, isOwner, isAdmin }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, changePassword, isSuperAdmin, isOwner, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

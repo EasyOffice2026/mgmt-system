@@ -267,6 +267,7 @@ export const en = {
   owner: 'Owner',
   salesman: 'Salesman',
   accountant: 'Accountant',
+  superAdmin: 'Super Admin',
   addUser: 'Add User',
   editUser: 'Edit User',
   changePassword: 'Change Password',
