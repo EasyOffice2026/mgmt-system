@@ -54,7 +54,7 @@ export default function LegalCasesPage() {
     if (toDate) casesQuery = casesQuery.lte('created_at', toDate + 'T23:59:59');
     const [casesRes, contractsRes, expRes] = await Promise.all([
       casesQuery,
-      supabase.from('contracts').select('*').eq('status', 'legal_case'),
+      supabase.from('contracts').select('*').in('status', ['legal_case', 'case_closed']),
       supabase.from('expenses').select('amount, case_no, expense_type').in('expense_type', ['courtFees', 'lawyerFees']),
     ]);
     setCases(casesRes.data || []);
@@ -333,6 +333,9 @@ export default function LegalCasesPage() {
                   setForm({ ...form, contract_id: e.target.value, customer_id: contract?.customer_id || '', purchase_price: contract?.purchase_price || 0, original_amount: origAmt, remaining_from_customer: remFromCust, rcvd_from_customer: Math.max(0, origAmt - remFromCust) });
                 }}>
                   <option value="">Select Contract</option>
+                  {editing && form.contract_id && !contracts.find(c => c.id === form.contract_id) && (
+                    <option value={form.contract_id}>{editing.contract_no} - {editing.customer_name}</option>
+                  )}
                   {contracts.filter(c => editing ? true : !usedContractIds.has(c.id)).map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
                 </select>
               </div>
