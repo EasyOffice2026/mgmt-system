@@ -133,10 +133,10 @@ export default function LegalCasesPage() {
   const totalActual = filtered.reduce((s, c) => s + (c.original_amount || 0), 0);
   const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0), 0);
 
-  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('receivedAmount'), t('outstanding'), t('caseDate')];
+  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('receivedAmount'), t('outstanding')];
   const exportRows = filtered.map(c => {
     const rcvd = c.rcvd_from_court || 0;
-    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.case_amount - rcvd, c.case_date];
+    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.case_amount - rcvd];
   });
 
   return (
@@ -194,7 +194,7 @@ export default function LegalCasesPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('claimedAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('outstanding')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseDate')}</th>
+
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
@@ -210,7 +210,7 @@ export default function LegalCasesPage() {
                         <td className="py-3 px-4">{Math.round(c.case_amount || 0).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4 text-green-600">{Math.round(rcvd).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4 font-medium">{Math.round(outstanding).toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4">{c.case_date}</td>
+
                         <td className="py-3 px-4">
                           <div className="flex gap-1">
                             <Button variant="ghost" size="sm" onClick={() => openPaymentDetail(c)} title={t('paymentDetails')}><DollarSign className="h-4 w-4 text-green-500" /></Button>
