@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, CheckCircle, Briefcase, CheckSquare } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Receipt, Calendar, AlertTriangle, CheckCircle, Briefcase, CheckSquare, Gavel, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { isBefore } from 'date-fns';
 
@@ -14,9 +14,8 @@ export default function DashboardPage() {
   const [toDate, setToDate] = useState('');
   const [stats, setStats] = useState({
     totalCustomers: 0, activeContracts: 0, totalRevenue: 0, totalRemaining: 0, totalExpenses: 0, legalCases: 0,
-    operationalCases: 0, finishedCases: 0, legalFinishedCases: 0, lateCases: 0,
+    operationalCases: 0, finishedCases: 0, legalFinishedCases: 0, lateCases: 0, caseClosed: 0,
   });
-  const [contracts, setContracts] = useState<any[]>([]);
   const [dueInstallments, setDueInstallments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +28,6 @@ export default function DashboardPage() {
       let contQuery = supabase.from('contracts').select('*');
       let expQuery = supabase.from('expenses').select('amount');
       let recQuery = supabase.from('receipt_vouchers').select('received_amount');
-      const legalQuery = supabase.from('legal_cases').select('*');
       if (fromDate) {
         contQuery = contQuery.gte('start_date', fromDate);
         expQuery = expQuery.gte('expense_date', fromDate);
@@ -40,26 +38,20 @@ export default function DashboardPage() {
         expQuery = expQuery.lte('expense_date', toDate);
         recQuery = recQuery.lte('receipt_date', toDate);
       }
-      const [custRes, contRes, expRes, recRes, legalRes] = await Promise.all([
-        custQuery, contQuery.order('created_at', { ascending: false }), expQuery, recQuery, legalQuery,
+      const [custRes, contRes, expRes, recRes] = await Promise.all([
+        custQuery, contQuery.order('created_at', { ascending: false }), expQuery, recQuery,
       ]);
       const allContracts = contRes.data || [];
-      const allLegalCases = legalRes.data || [];
       const totalRevenue = allContracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
       const totalReceivedAmounts = (recRes.data || []).reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
       const totalRemaining = totalRevenue - totalReceivedAmounts;
       const totalExpenses = (expRes.data || []).reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
-      // Case counts by status
       const operationalCases = allContracts.filter((c: any) => c.status === 'functional' || c.status === 'ongoing').length;
-      const finishedCases = allContracts.filter((c: any) => c.status === 'finished').length;
+      const finishedCases = allContracts.filter((c: any) => c.status === 'finished' || c.status === 'closed').length;
       const legalCasesCount = allContracts.filter((c: any) => c.status === 'legal_case').length;
-      const legalFinishedCases = allLegalCases.filter((lc: any) => {
-        const rcvd = (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0);
-        return rcvd >= (lc.case_amount || 0) && (lc.case_amount || 0) > 0;
-      }).length;
+      const caseClosed = allContracts.filter((c: any) => c.status === 'case_closed').length;
 
-      // Count late payment cases (contracts with overdue installments)
       const today = new Date();
       let lateCases = 0;
       const allDue: any[] = [];
@@ -86,7 +78,6 @@ export default function DashboardPage() {
         });
         if (hasOverdue) lateCases++;
       });
-      // Sort by due date ascending (oldest overdue first)
       allDue.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
       setStats({
@@ -94,22 +85,33 @@ export default function DashboardPage() {
         activeContracts: allContracts.length,
         totalRevenue, totalRemaining, totalExpenses,
         legalCases: legalCasesCount,
-        operationalCases, finishedCases, legalFinishedCases, lateCases,
+        operationalCases, finishedCases, legalFinishedCases: 0, lateCases, caseClosed,
       });
-      setContracts(allContracts.slice(0, 10));
       setDueInstallments(allDue);
     } catch (err) { console.error('Dashboard load error:', err); }
     setLoading(false);
   }
 
+  const totalContracts = stats.operationalCases + stats.finishedCases + stats.legalCases + stats.caseClosed;
+
   const kpiCards = [
-    { title: t('totalCustomers'), value: stats.totalCustomers, icon: Users, color: 'from-blue-500 to-blue-600', tc: 'text-blue-600' },
-    { title: t('functional'), value: stats.operationalCases, icon: Briefcase, color: 'from-emerald-500 to-emerald-600', tc: 'text-emerald-600' },
-    { title: t('finished'), value: stats.finishedCases, icon: CheckSquare, color: 'from-green-500 to-green-600', tc: 'text-green-600' },
-    { title: t('totalRevenue'), value: `${stats.totalRevenue.toLocaleString()} ${t('kd')}`, icon: TrendingUp, color: 'from-teal-500 to-teal-600', tc: 'text-teal-600' },
-    { title: t('totalRemaining'), value: `${stats.totalRemaining.toLocaleString()} ${t('kd')}`, icon: DollarSign, color: 'from-amber-500 to-amber-600', tc: 'text-amber-600' },
-    { title: t('totalExpenses'), value: `${stats.totalExpenses.toLocaleString()} ${t('kd')}`, icon: Receipt, color: 'from-rose-500 to-rose-600', tc: 'text-rose-600' },
+    { title: t('totalCustomers'), value: stats.totalCustomers, icon: Users, color: 'from-blue-500 to-blue-600', tc: 'text-blue-600', bg: 'bg-blue-50' },
+    { title: t('functional'), value: stats.operationalCases, icon: Briefcase, color: 'from-emerald-500 to-emerald-600', tc: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { title: t('closed'), value: stats.finishedCases, icon: CheckSquare, color: 'from-green-500 to-green-600', tc: 'text-green-600', bg: 'bg-green-50' },
+    { title: t('legalCase'), value: stats.legalCases, icon: Gavel, color: 'from-red-500 to-red-600', tc: 'text-red-600', bg: 'bg-red-50' },
+    { title: t('caseClosed'), value: stats.caseClosed, icon: Lock, color: 'from-purple-500 to-purple-600', tc: 'text-purple-600', bg: 'bg-purple-50' },
+    { title: t('totalRevenue'), value: `${stats.totalRevenue.toLocaleString()} ${t('kd')}`, icon: TrendingUp, color: 'from-teal-500 to-teal-600', tc: 'text-teal-600', bg: 'bg-teal-50' },
+    { title: t('totalRemaining'), value: `${stats.totalRemaining.toLocaleString()} ${t('kd')}`, icon: DollarSign, color: 'from-amber-500 to-amber-600', tc: 'text-amber-600', bg: 'bg-amber-50' },
+    { title: t('totalExpenses'), value: `${stats.totalExpenses.toLocaleString()} ${t('kd')}`, icon: Receipt, color: 'from-rose-500 to-rose-600', tc: 'text-rose-600', bg: 'bg-rose-50' },
   ];
+
+  const contractBreakdown = [
+    { label: t('functional'), count: stats.operationalCases, color: 'bg-emerald-500', pct: totalContracts > 0 ? (stats.operationalCases / totalContracts) * 100 : 0 },
+    { label: t('closed'), count: stats.finishedCases, color: 'bg-green-500', pct: totalContracts > 0 ? (stats.finishedCases / totalContracts) * 100 : 0 },
+    { label: t('legalCase'), count: stats.legalCases, color: 'bg-red-500', pct: totalContracts > 0 ? (stats.legalCases / totalContracts) * 100 : 0 },
+    { label: t('caseClosed'), count: stats.caseClosed, color: 'bg-purple-500', pct: totalContracts > 0 ? (stats.caseClosed / totalContracts) * 100 : 0 },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -129,14 +131,15 @@ export default function DashboardPage() {
         <div className="py-20 text-center text-slate-400">{t('loading')}</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {kpiCards.map((card, i) => (
-              <Card key={i} className="border-0 shadow-md hover:shadow-lg transition-shadow">
+              <Card key={i} className="border-0 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-slate-500 font-medium">{card.title}</p>
-                      <p className={`text-2xl font-bold mt-1 ${card.tc}`}>{card.value}</p>
+                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{card.title}</p>
+                      <p className={`text-2xl font-bold mt-1.5 ${card.tc}`}>{card.value}</p>
                     </div>
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow-lg`}>
                       <card.icon className="h-6 w-6 text-white" />
@@ -146,50 +149,86 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
-          <div>
-            <Card className="border-0 shadow-md">
-              <CardHeader><CardTitle className="text-base">{t('recentContracts')}</CardTitle></CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('contractNo')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('customerName')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('contractDate')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('period')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('startDate')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('endDate')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('instPerMonth')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('fileFee')}</th>
-                        <th className="text-start py-2 px-3 font-medium text-slate-600">{t('totalPaid')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contracts.length === 0 ? (
-                        <tr><td colSpan={9} className="py-8 text-center text-slate-400">{t('noData')}</td></tr>
-                      ) : contracts.map((c: any) => {
-                        const ipm = c.duration_months > 0 ? ((c.sale_price - (c.file_opening_charges || 0)) / c.duration_months) : 0;
-                        return (
-                          <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50">
-                            <td className="py-2 px-3 font-medium text-blue-600">{c.contract_no}</td>
-                            <td className="py-2 px-3">{c.customer_name}</td>
-                            <td className="py-2 px-3">{c.start_date}</td>
-                            <td className="py-2 px-3">{c.duration_months} {t('months')}</td>
-                            <td className="py-2 px-3">{c.start_date}</td>
-                            <td className="py-2 px-3">{c.end_date || c.last_installment_date}</td>
-                            <td className="py-2 px-3">{ipm.toFixed(3)} {t('kd')}</td>
-                            <td className="py-2 px-3">{(c.file_opening_charges || 0).toLocaleString()} {t('kd')}</td>
-                            <td className="py-2 px-3 text-green-600">{(c.paid_amount || 0).toLocaleString()} {t('kd')}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+
+          {/* Contract Status Breakdown */}
+          <Card className="border-0 shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-blue-500" />
+                {t('contractStatus') || 'Contract Status Breakdown'}
+                <span className="text-sm font-normal text-slate-400 ms-2">({totalContracts} {t('total')})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {/* Stacked bar */}
+              <div className="h-6 rounded-full overflow-hidden flex mb-4 shadow-inner bg-slate-100">
+                {contractBreakdown.map((item, i) => (
+                  item.pct > 0 && <div key={i} className={`${item.color} h-full transition-all`} style={{ width: `${item.pct}%` }} title={`${item.label}: ${item.count}`} />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {contractBreakdown.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                    <div>
+                      <p className="text-xs text-slate-500">{item.label}</p>
+                      <p className="text-sm font-bold text-slate-800">{item.count} <span className="text-xs font-normal text-slate-400">({item.pct.toFixed(1)}%)</span></p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Financial Overview */}
+          <Card className="border-0 shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-teal-500" />
+                {t('financialOverview') || 'Financial Overview'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-slate-600">{t('totalRevenue')}</span>
+                    <span className="font-bold text-teal-600">{stats.totalRevenue.toLocaleString()} {t('kd')}</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-teal-400 to-teal-600 rounded-full" style={{ width: '100%' }} />
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-slate-600">{t('received') || 'Received'}</span>
+                    <span className="font-bold text-green-600">{(stats.totalRevenue - stats.totalRemaining).toLocaleString()} {t('kd')}</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full" style={{ width: stats.totalRevenue > 0 ? `${((stats.totalRevenue - stats.totalRemaining) / stats.totalRevenue) * 100}%` : '0%' }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-slate-600">{t('totalRemaining')}</span>
+                    <span className="font-bold text-amber-600">{stats.totalRemaining.toLocaleString()} {t('kd')}</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full" style={{ width: stats.totalRevenue > 0 ? `${(stats.totalRemaining / stats.totalRevenue) * 100}%` : '0%' }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-slate-600">{t('totalExpenses')}</span>
+                    <span className="font-bold text-rose-600">{stats.totalExpenses.toLocaleString()} {t('kd')}</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-rose-400 to-rose-600 rounded-full" style={{ width: stats.totalRevenue > 0 ? `${Math.min((stats.totalExpenses / stats.totalRevenue) * 100, 100)}%` : '0%' }} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Due Installments Section */}
           <div>
