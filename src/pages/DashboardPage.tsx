@@ -53,6 +53,7 @@ export default function DashboardPage() {
       const today = new Date();
       let lateCases = 0;
       allContracts.forEach((c: any) => {
+        if (c.status !== 'functional' && c.status !== 'ongoing') return;
         const schedule = c.installment_schedule || c.installments || [];
         if (!Array.isArray(schedule)) return;
         const hasOverdue = schedule.some((inst: any) => {
