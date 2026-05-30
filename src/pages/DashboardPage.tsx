@@ -1,11 +1,90 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
-import { Users, TrendingUp, DollarSign, Receipt, AlertTriangle, Briefcase, CheckSquare, Gavel, Lock } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Receipt, AlertTriangle, Briefcase, CheckSquare, Gavel, Lock, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
-import { isBefore } from 'date-fns';
+import { isBefore, format } from 'date-fns';
+
+function DelayedInstallmentsList({ details, search, onSearchChange, t }: { details: any[]; search: string; onSearchChange: (v: string) => void; t: (k: string) => string }) {
+  const filtered = useMemo(() => {
+    if (!search.trim()) return details;
+    const q = search.trim().toLowerCase();
+    return details.filter((d: any) =>
+      d.customerName.toLowerCase().includes(q) || d.contractNo.toLowerCase().includes(q)
+    );
+  }, [details, search]);
+
+  const [expandedContract, setExpandedContract] = useState<string | null>(null);
+
+  return (
+    <div className="mt-4 border-t border-orange-200 pt-4">
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <Input
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={t('searchByName') || 'Search by customer name...'}
+          className="pl-9 text-sm"
+        />
+      </div>
+      <div className="max-h-80 overflow-y-auto space-y-1">
+        {filtered.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-4">{t('noResults') || 'No results found'}</p>
+        ) : (
+          filtered.map((item: any, idx: number) => (
+            <div key={idx} className="border border-orange-100 rounded-lg overflow-hidden">
+              <div
+                className="flex items-center justify-between p-3 bg-orange-50 hover:bg-orange-100 cursor-pointer transition-colors"
+                onClick={() => setExpandedContract(expandedContract === item.contractNo ? null : item.contractNo)}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{item.customerName}</p>
+                  <p className="text-xs text-slate-500">{item.contractNo}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="text-right">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                      {item.overdueCount} {t('overdue')}
+                    </span>
+                    <p className="text-xs font-bold text-orange-600 mt-0.5">{item.totalOverdue.toLocaleString()} {t('kd')}</p>
+                  </div>
+                  {expandedContract === item.contractNo ? <ChevronUp className="h-4 w-4 text-orange-400" /> : <ChevronDown className="h-4 w-4 text-orange-400" />}
+                </div>
+              </div>
+              {expandedContract === item.contractNo && (
+                <div className="bg-white p-2">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-slate-500 border-b">
+                        <th className="text-start py-1 px-2">{t('installmentNo') || '#'}</th>
+                        <th className="text-start py-1 px-2">{t('dueDate')}</th>
+                        <th className="text-end py-1 px-2">{t('amount')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {item.installments.map((inst: any, j: number) => (
+                        <tr key={j} className="border-b border-slate-50 hover:bg-red-50">
+                          <td className="py-1.5 px-2 text-slate-700">{inst.no || j + 1}</td>
+                          <td className="py-1.5 px-2 text-red-600 font-medium">
+                            {inst.dueDate ? format(new Date(inst.dueDate), 'dd/MM/yyyy') : '-'}
+                          </td>
+                          <td className="py-1.5 px-2 text-end font-semibold text-slate-800">{(inst.amount || 0).toLocaleString()} {t('kd')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { t } = useLang();
@@ -16,6 +95,9 @@ export default function DashboardPage() {
     operationalCases: 0, finishedCases: 0, legalFinishedCases: 0, lateCases: 0, caseClosed: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [delayedDetails, setDelayedDetails] = useState<any[]>([]);
+  const [showDelayed, setShowDelayed] = useState(false);
+  const [delayedSearch, setDelayedSearch] = useState('');
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
 
@@ -52,17 +134,40 @@ export default function DashboardPage() {
 
       const today = new Date();
       let lateCases = 0;
+      const delayedList: any[] = [];
+
+      // Get customer names for delayed contracts
+      const customerIds = [...new Set(allContracts.filter((c: any) => c.customer_id).map((c: any) => c.customer_id))];
+      const { data: customersData } = customerIds.length > 0
+        ? await supabase.from('customers').select('id, name').in('id', customerIds)
+        : { data: [] };
+      const customerMap = new Map((customersData || []).map((cu: any) => [cu.id, cu.name]));
+
       allContracts.forEach((c: any) => {
         if (c.status !== 'functional' && c.status !== 'ongoing') return;
         const schedule = c.installment_schedule || c.installments || [];
         if (!Array.isArray(schedule)) return;
-        const hasOverdue = schedule.some((inst: any) => {
+        const overdueInstallments = schedule.filter((inst: any) => {
           if (inst.status === 'paid') return false;
           const dueDate = inst.due_date ? new Date(inst.due_date) : null;
           return dueDate ? isBefore(dueDate, today) : false;
         });
-        if (hasOverdue) lateCases++;
+        if (overdueInstallments.length > 0) {
+          lateCases++;
+          delayedList.push({
+            contractNo: c.contract_number || c.id,
+            customerName: customerMap.get(c.customer_id) || c.customer_name || '-',
+            overdueCount: overdueInstallments.length,
+            totalOverdue: overdueInstallments.reduce((s: number, inst: any) => s + (inst.amount || 0), 0),
+            installments: overdueInstallments.map((inst: any) => ({
+              no: inst.installment_no || inst.number,
+              dueDate: inst.due_date,
+              amount: inst.amount || 0,
+            })),
+          });
+        }
       });
+      setDelayedDetails(delayedList);
 
       setStats({
         totalCustomers: custRes.count || 0,
@@ -215,16 +320,24 @@ export default function DashboardPage() {
           {/* Delayed Contracts Card */}
           <Card className="border-0 shadow-md border-l-4 border-l-orange-500">
             <CardContent className="p-5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between cursor-pointer" onClick={() => setShowDelayed(!showDelayed)}>
                 <div>
                   <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('delayedContracts') || 'Delayed Contracts'}</p>
                   <p className="text-3xl font-bold mt-1.5 text-orange-600">{stats.lateCases}</p>
                   <p className="text-xs text-slate-400 mt-1">{t('contractsWithOverdueInstallments') || 'Contracts with overdue installments'}</p>
                 </div>
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
-                  <AlertTriangle className="h-7 w-7 text-white" />
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
+                    <AlertTriangle className="h-7 w-7 text-white" />
+                  </div>
+                  {stats.lateCases > 0 && (
+                    showDelayed ? <ChevronUp className="h-5 w-5 text-orange-500" /> : <ChevronDown className="h-5 w-5 text-orange-500" />
+                  )}
                 </div>
               </div>
+              {showDelayed && stats.lateCases > 0 && (
+                <DelayedInstallmentsList details={delayedDetails} search={delayedSearch} onSearchChange={setDelayedSearch} t={t} />
+              )}
             </CardContent>
           </Card>
         </>

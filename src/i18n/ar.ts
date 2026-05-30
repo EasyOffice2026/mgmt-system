@@ -327,6 +327,8 @@ export const ar = {
   // Contract Lookup
   contractLookup: 'البحث عن عقد',
   searchByNameMobileCivil: 'بحث بالاسم أو الجوال أو الرقم المدني',
+  searchByName: 'بحث باسم العميل...',
+  noResults: 'لا توجد نتائج',
 
   // Owners / Partners
   ownersPartners: 'المالكون / الشركاء',

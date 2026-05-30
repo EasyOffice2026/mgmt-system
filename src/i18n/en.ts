@@ -353,6 +353,8 @@ export const en = {
   // Contract Lookup
   contractLookup: 'Contract Lookup',
   searchByNameMobileCivil: 'Search by Name, Mobile or Civil ID',
+  searchByName: 'Search by customer name...',
+  noResults: 'No results found',
 
   // Owners / Partners
   ownersPartners: 'Owners / Partners',
