@@ -329,6 +329,8 @@ export const ar = {
   searchByNameMobileCivil: 'بحث بالاسم أو الجوال أو الرقم المدني',
   searchByName: 'بحث باسم العميل...',
   noResults: 'لا توجد نتائج',
+  delayedContracts: 'العقود المتأخرة',
+  contractsWithOverdueInstallments: 'عقود بأقساط متأخرة',
 
   // Owners / Partners
   ownersPartners: 'المالكون / الشركاء',

@@ -355,6 +355,8 @@ export const en = {
   searchByNameMobileCivil: 'Search by Name, Mobile or Civil ID',
   searchByName: 'Search by customer name...',
   noResults: 'No results found',
+  delayedContracts: 'Delayed Contracts',
+  contractsWithOverdueInstallments: 'Contracts with overdue installments',
 
   // Owners / Partners
   ownersPartners: 'Owners / Partners',
