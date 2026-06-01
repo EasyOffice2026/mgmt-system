@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Modal, StatusBadge, DownloadButtons, AttachZone, CameraZone,
-  EmptyState, Spinner, InfoRow, KpiCard, useConfirm
+  EmptyState, Spinner
 } from '../layout/SharedComponents';
 
 // ── SALES / CONTRACTS ──────────────────────────────────────
@@ -23,6 +23,7 @@ export function Sales() {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [viewItem, setViewItem] = useState(null);
   const [form, setForm] = useState({
     customer_id: '', purchase_id: '', category_id: '', client_type: 'new',

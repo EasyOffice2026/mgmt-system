@@ -14,10 +14,11 @@ export default function Dashboard() {
   });
   const [recentContracts, setRecentContracts] = useState([]);
   const [expiringDocs, setExpiringDocs] = useState([]);
-  const [monthlyData, setMonthlyData] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadDashboard(); }, []);
+  useEffect(() => { loadDashboard(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadDashboard() {
     setLoading(true);
