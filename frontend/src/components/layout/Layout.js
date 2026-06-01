@@ -24,7 +24,7 @@ const NAV = [
   { path: '/settings',   icon: '⚙️', key: 'settings',  section: 'admin' },
 ];
 
-const SECTION_KEYS = { main: 'main', finance: 'finance', hrd: 'hrdSection', admin: 'admin' };
+const SECTION_KEYS = { main: 'main', finance: 'finance', hrd: 'hrdSection', admin: 'adminSection' };
 
 export default function Layout() {
   const { profile, signOut, isOwner } = useAuth();

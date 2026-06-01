@@ -26,7 +26,7 @@ export const translations = {
     main: 'MAIN',
     finance: 'FINANCE',
     hrdSection: 'HRD',
-    admin: 'ADMIN',
+    adminSection: 'ADMIN',
 
     // Common
     save: 'Save',
@@ -339,7 +339,7 @@ export const translations = {
     main: 'الرئيسية',
     finance: 'المالية',
     hrdSection: 'الموارد البشرية',
-    admin: 'الإدارة',
+    adminSection: 'الإدارة',
     save: 'حفظ',
     cancel: 'إلغاء',
     edit: 'تعديل',
@@ -468,7 +468,7 @@ export const translations = {
     caseReference: 'رقم القضية (مرجع)',
     rent: 'إيجار',
     salaries: 'رواتب',
-    courtFees: 'رسوم المحكمة',
+    courtFees: 'رسو�� المحكمة',
     lawyerFees: 'أتعاب المحامي',
     utilities: 'مرافق',
     officeSupplies: 'مستلزمات مكتبية',
