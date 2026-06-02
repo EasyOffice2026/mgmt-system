@@ -52,6 +52,7 @@ export const ar = {
   noData: 'لا توجد بيانات',
   exportPdf: 'تصدير PDF',
   exportExcel: 'تصدير Excel',
+  exportCsv: 'تصدير CSV',
   attachFiles: 'إرفاق ملفات',
   takePhoto: 'التقاط صورة',
   viewAttachments: 'عرض المرفقات',

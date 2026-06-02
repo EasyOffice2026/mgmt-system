@@ -141,7 +141,7 @@ export function FileAttachment({ bucket, folder, files, onFilesChange, disabled 
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,.pdf,.doc,.docx"
+        accept="image/*,.pdf,.doc,.docx,.xlsx,.xls,.csv"
         className="hidden"
         onChange={handleFileSelect}
       />

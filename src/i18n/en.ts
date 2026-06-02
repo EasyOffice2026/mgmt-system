@@ -54,6 +54,7 @@ export const en = {
   noData: 'No data found',
   exportPdf: 'Export PDF',
   exportExcel: 'Export Excel',
+  exportCsv: 'Export CSV',
   attachFiles: 'Attach Files',
   takePhoto: 'Take Photo',
   viewAttachments: 'View Attachments',
