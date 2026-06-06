@@ -38,10 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
       else { setProfile(null); setLoading(false); }
+      // Redirect to set-password page on recovery event
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/set-password';
+      }
     });
 
     return () => subscription.unsubscribe();

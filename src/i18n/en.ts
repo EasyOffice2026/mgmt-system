@@ -277,6 +277,11 @@ export const en = {
   confirmPassword: 'Confirm Password',
   passwordMismatch: 'Passwords do not match',
   passwordChanged: 'Password changed successfully',
+  setPassword: 'Set Your Password',
+  inviteUser: 'Invite via Email',
+  createWithPassword: 'Set Password',
+  sendInvite: 'Send Invite',
+  inviteDescription: 'An email will be sent to this address with a link to set their own password.',
   activate: 'Activate',
   deactivate: 'Deactivate',
 

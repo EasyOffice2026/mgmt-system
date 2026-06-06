@@ -14,6 +14,7 @@ import ReceiptsPage from '@/pages/ReceiptsPage';
 import AccountingPage from '@/pages/AccountingPage';
 import UsersPage from '@/pages/UsersPage';
 import ContractLookupPage from '@/pages/ContractLookupPage';
+import SetPasswordPage from '@/pages/SetPasswordPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -45,6 +46,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+            <Route path="/set-password" element={<SetPasswordPage />} />
             <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
               <Route path="customers" element={<CustomersPage />} />
