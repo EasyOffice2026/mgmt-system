@@ -199,6 +199,7 @@ export default function UsersPage() {
       owner: 'bg-purple-100 text-purple-700',
       salesman: 'bg-blue-100 text-blue-700',
       accountant: 'bg-teal-100 text-teal-700',
+      partner: 'bg-amber-100 text-amber-700',
     };
     return colors[role] || 'bg-slate-100 text-slate-700';
   };
@@ -425,6 +426,7 @@ export default function UsersPage() {
               <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
                 <option value="salesman">{t('salesman')}</option>
                 <option value="accountant">{t('accountant')}</option>
+                <option value="partner">{t('partner')}</option>
                 <option value="owner">{t('owner')}</option>
                 <option value="superadmin">{t('superAdmin')}</option>
               </select>

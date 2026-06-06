@@ -248,6 +248,7 @@ export const ar = {
   owner: 'مالك',
   salesman: 'بائع',
   accountant: 'محاسب',
+  partner: 'شريك',
   superAdmin: 'مدير عام',
   addUser: 'إضافة مستخدم',
   editUser: 'تعديل مستخدم',
