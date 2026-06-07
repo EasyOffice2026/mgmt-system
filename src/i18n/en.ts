@@ -426,6 +426,13 @@ export const en = {
   netLoss: 'Net Loss',
   count: 'Count',
   print: 'Print',
+  contractForm: 'Contract Form',
+  expenseVoucherForm: 'Expense Voucher',
+  receiptVoucherForm: 'Receipt Voucher',
+  signature: 'Signature',
+  preparedBy: 'Prepared By',
+  approvedBy: 'Approved By',
+  receivedBy: 'Received By',
 
   // Accounting - Customer Report
   customerReport: 'Customer Report',

@@ -10,7 +10,7 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, FileText } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Pagination } from '@/components/ui/pagination';
@@ -64,6 +64,7 @@ export default function ReceiptsPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [showForm, setShowForm] = useState<ReceiptVoucher | null>(null);
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
 
@@ -359,6 +360,7 @@ export default function ReceiptsPage() {
                       <td className="py-3 px-4 font-medium text-blue-600">{((r.received_amount || 0) - ((r as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setShowForm(r)}><Printer className="h-4 w-4 text-blue-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(r.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                         </div>
@@ -380,6 +382,49 @@ export default function ReceiptsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Printable Receipt Voucher Form */}
+      <Dialog open={!!showForm} onOpenChange={() => setShowForm(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{t('receiptVoucherForm')}</span>
+              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('receipt-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { w.document.write('<html><head><title>' + (showForm?.receipt_voucher_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:ltr}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
+                <Printer className="h-4 w-4 me-1" /> {t('print')}
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          {showForm && (
+            <div id="receipt-print-form">
+              <div className="text-center border-b pb-4 mb-4">
+                <h1 className="text-xl font-bold">{t('appName')}</h1>
+                <h2 className="text-lg text-slate-600">{t('receiptVoucherForm')}</h2>
+              </div>
+              <table className="w-full text-sm border">
+                <tbody>
+                  <tr><td className="border p-3 bg-slate-50 font-medium w-1/3">{t('receiptVoucherNo')}</td><td className="border p-3 font-bold">{showForm.receipt_voucher_no}</td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('receiptDate')}</td><td className="border p-3">{showForm.receipt_date}</td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('receiptType')}</td><td className="border p-3">{t(showForm.receipt_type as any) || showForm.receipt_type}</td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('customerName')}</td><td className="border p-3 font-bold">{showForm.customer_name}</td></tr>
+                  {showForm.contract_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('contractNo')}</td><td className="border p-3">{showForm.contract_no}</td></tr>}
+                  {showForm.installment_no !== null && showForm.installment_no !== undefined && <tr><td className="border p-3 bg-slate-50 font-medium">{t('installmentNo')}</td><td className="border p-3">#{showForm.installment_no + 1}</td></tr>}
+                  {showForm.court_case_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('courtCaseNo')}</td><td className="border p-3">{showForm.court_case_no}</td></tr>}
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('receivedAmount')}</td><td className="border p-3 font-bold text-lg text-green-700">{showForm.received_amount?.toLocaleString()} {t('kd')}</td></tr>
+                  {(showForm as any).discount_amount > 0 && <tr><td className="border p-3 bg-slate-50 font-medium">{t('discount')}</td><td className="border p-3 text-red-600">{(showForm as any).discount_amount?.toLocaleString()} {t('kd')}</td></tr>}
+                  {(showForm as any).discount_amount > 0 && <tr><td className="border p-3 bg-slate-50 font-medium">{t('netAmount')}</td><td className="border p-3 font-bold text-lg">{((showForm.received_amount || 0) - ((showForm as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td></tr>}
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{t(showForm.payment_mode as any) || showForm.payment_mode}</td></tr>
+                  {showForm.notes && <tr><td className="border p-3 bg-slate-50 font-medium">{t('notes')}</td><td className="border p-3">{showForm.notes}</td></tr>}
+                </tbody>
+              </table>
+
+              <div className="mt-8 flex justify-between text-sm">
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('receivedBy')}</div></div>
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('signature')} / {t('customerName')}</div></div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Court Case Receipts / Installment Schedule */}
       <Dialog open={!!showCaseReceipts} onOpenChange={() => setShowCaseReceipts(null)}>

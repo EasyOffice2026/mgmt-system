@@ -9,7 +9,7 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock, Printer } from 'lucide-react';
 import { format, addMonths, isBefore } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Pagination } from '@/components/ui/pagination';
@@ -59,6 +59,7 @@ export default function SalesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
+  const [showForm, setShowForm] = useState<Contract | null>(null);
 
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
 
@@ -342,6 +343,7 @@ export default function SalesPage() {
                       <td className="py-3 px-4"><Badge className={statusColor(c.status)} variant="secondary">{t(c.status as any)}</Badge></td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setShowForm(c)}><Printer className="h-4 w-4 text-blue-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(c)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                         </div>
@@ -363,6 +365,110 @@ export default function SalesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Printable Contract Form */}
+      <Dialog open={!!showForm} onOpenChange={() => setShowForm(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{t('contractForm')}</span>
+              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('contract-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { w.document.write('<html><head><title>' + (showForm?.contract_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:ltr}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.section{margin:15px 0}.section-title{font-size:14px;font-weight:bold;background:#f0f0f0;padding:8px;margin-bottom:5px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.info-item{font-size:13px}.info-label{color:#666;font-weight:600}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
+                <Printer className="h-4 w-4 me-1" /> {t('print')}
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          {showForm && (
+            <div id="contract-print-form">
+              <div className="text-center border-b pb-4 mb-4">
+                <h1 className="text-xl font-bold">{t('appName')}</h1>
+                <h2 className="text-lg text-slate-600">{t('contractForm')}</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                <div><span className="text-slate-500 font-medium">{t('contractNo')}:</span> <span className="font-bold">{showForm.contract_no}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('startDate')}:</span> <span>{showForm.start_date}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('customerName')}:</span> <span className="font-bold">{showForm.customer_name}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('endDate')}:</span> <span>{showForm.end_date || showForm.last_installment_date}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('paymentMode')}:</span> <span>{t(showForm.payment_mode as any) || showForm.payment_mode}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('status')}:</span> <span>{t(showForm.status as any) || showForm.status}</span></div>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="font-bold text-sm bg-slate-100 p-2 rounded mb-2">{t('items')}</h3>
+                <table className="w-full text-sm border">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="border p-2 text-start">#</th>
+                      <th className="border p-2 text-start">{t('itemName')}</th>
+                      <th className="border p-2 text-start">{t('modelType')}</th>
+                      <th className="border p-2 text-start">{t('category')}</th>
+                      <th className="border p-2 text-end">{t('purchasePrice')}</th>
+                      <th className="border p-2 text-end">{t('salePrice')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showForm.items && showForm.items.length > 0 ? showForm.items : [{ item_name: showForm.item_name, model_type: showForm.model_type, category: showForm.category, purchase_price: showForm.purchase_price, sale_price: showForm.sale_price }]).map((item: any, i: number) => (
+                      <tr key={i}>
+                        <td className="border p-2">{i + 1}</td>
+                        <td className="border p-2">{item.item_name}</td>
+                        <td className="border p-2">{item.model_type}</td>
+                        <td className="border p-2">{item.category}</td>
+                        <td className="border p-2 text-end">{(item.purchase_price || 0).toLocaleString()} {t('kd')}</td>
+                        <td className="border p-2 text-end">{(item.sale_price || 0).toLocaleString()} {t('kd')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="font-bold text-sm bg-slate-100 p-2 rounded mb-2">{t('installmentSummary')}</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="bg-blue-50 rounded p-3"><p className="text-blue-600 text-xs">{t('salePrice')}</p><p className="font-bold">{showForm.sale_price?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-slate-50 rounded p-3"><p className="text-slate-500 text-xs">{t('fileOpeningCharges')}</p><p className="font-bold">{showForm.file_opening_charges?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-green-50 rounded p-3"><p className="text-green-600 text-xs">{t('paidAmount')}</p><p className="font-bold text-green-700">{showForm.paid_amount?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-red-50 rounded p-3"><p className="text-red-600 text-xs">{t('remainingAmount')}</p><p className="font-bold text-red-700">{showForm.remaining_amount?.toLocaleString()} {t('kd')}</p></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-sm mt-3">
+                  <div><span className="text-slate-500">{t('duration')}:</span> <span className="font-medium">{showForm.duration_months} {t('months')}</span></div>
+                  <div><span className="text-slate-500">{t('installmentValue')}:</span> <span className="font-medium">{showForm.installment_amount?.toFixed(3)} {t('kd')}</span></div>
+                  <div><span className="text-slate-500">{t('firstInstallmentDate')}:</span> <span className="font-medium">{showForm.first_installment_date}</span></div>
+                </div>
+              </div>
+
+              {showForm.installment_schedule && showForm.installment_schedule.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="font-bold text-sm bg-slate-100 p-2 rounded mb-2">{t('installmentSchedule')}</h3>
+                  <table className="w-full text-sm border">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="border p-2 text-start">#</th>
+                        <th className="border p-2 text-start">{t('dueDate')}</th>
+                        <th className="border p-2 text-end">{t('amount')}</th>
+                        <th className="border p-2 text-start">{t('status')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {showForm.installment_schedule.map((inst: any, i: number) => (
+                        <tr key={i} className={inst.status === 'paid' ? 'bg-green-50' : ''}>
+                          <td className="border p-2">{inst.month || i + 1}</td>
+                          <td className="border p-2">{inst.due_date}</td>
+                          <td className="border p-2 text-end">{inst.amount?.toLocaleString()} {t('kd')}</td>
+                          <td className="border p-2">{inst.status === 'paid' ? t('paid') : t('pending')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-8 flex justify-between text-sm">
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('signature')} / {t('customerName')}</div></div>
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('signature')} / {t('appName')}</div></div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Installment Schedule Modal */}
       <Dialog open={!!showSchedule} onOpenChange={() => setShowSchedule(null)}>

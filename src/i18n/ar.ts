@@ -400,6 +400,13 @@ export const ar = {
   netLoss: 'صافي الخسارة',
   count: 'العدد',
   print: 'طباعة',
+  contractForm: 'نموذج العقد',
+  expenseVoucherForm: 'سند الصرف',
+  receiptVoucherForm: 'سند القبض',
+  signature: 'التوقيع',
+  preparedBy: 'أعد بواسطة',
+  approvedBy: 'اعتمد بواسطة',
+  receivedBy: 'استلم بواسطة',
 
   // Accounting - Customer Report
   customerReport: 'تقرير العميل',
