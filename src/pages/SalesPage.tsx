@@ -450,11 +450,11 @@ export default function SalesPage() {
                     </thead>
                     <tbody>
                       {showForm.installment_schedule.map((inst: any, i: number) => (
-                        <tr key={i} className={inst.status === 'paid' ? 'bg-green-50' : ''}>
+                        <tr key={i} className={inst.status === 'paid' ? 'bg-green-50' : inst.status === 'partially_paid' ? 'bg-amber-50' : ''}>
                           <td className="border p-2">{inst.month || i + 1}</td>
                           <td className="border p-2">{inst.due_date}</td>
                           <td className="border p-2 text-end">{inst.amount?.toLocaleString()} {t('kd')}</td>
-                          <td className="border p-2">{inst.status === 'paid' ? t('paid') : t('pending')}</td>
+                          <td className="border p-2">{inst.status === 'paid' ? t('paid') : inst.status === 'partially_paid' ? `${t('partiallyPaid')} (${(inst.paid_amount || 0).toLocaleString()})` : t('pending')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -480,9 +480,10 @@ export default function SalesPage() {
           {showSchedule && (() => {
             const schedule = showSchedule.installment_schedule || [];
             const paidCount = schedule.filter((inst: any) => inst.status === 'paid').length;
-            const pendingCount = schedule.length - paidCount;
-            const totalPaidAmt = schedule.filter((inst: any) => inst.status === 'paid').reduce((s: number, inst: any) => s + (inst.amount || 0), 0);
-            const totalPendingAmt = schedule.filter((inst: any) => inst.status !== 'paid').reduce((s: number, inst: any) => s + (inst.amount || 0), 0);
+            const partialCount = schedule.filter((inst: any) => inst.status === 'partially_paid').length;
+            const pendingCount = schedule.length - paidCount - partialCount;
+            const totalPaidAmt = schedule.reduce((s: number, inst: any) => s + (inst.paid_amount || 0), 0);
+            const totalPendingAmt = schedule.reduce((s: number, inst: any) => s + ((inst.amount || 0) - (inst.paid_amount || 0)), 0);
             const today = new Date();
             const overdueCount = schedule.filter((inst: any) => inst.status !== 'paid' && isBefore(new Date(inst.due_date), today)).length;
             return (
@@ -502,8 +503,8 @@ export default function SalesPage() {
                   <p className="font-semibold text-sm mt-1 text-green-700">{paidCount} / {schedule.length}</p>
                 </div>
                 <div className="bg-amber-50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-amber-600">{t('pendingInstallments')}</p>
-                  <p className="font-semibold text-sm mt-1 text-amber-700">{pendingCount}</p>
+                  <p className="text-xs text-amber-600">{partialCount > 0 ? t('partiallyPaid') : t('pendingInstallments')}</p>
+                  <p className="font-semibold text-sm mt-1 text-amber-700">{partialCount > 0 ? `${partialCount} / ${pendingCount}` : pendingCount}</p>
                 </div>
                 <div className="bg-green-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-green-600">{t('totalPaidAmount')}</p>
@@ -525,11 +526,11 @@ export default function SalesPage() {
               {/* Progress Bar */}
               <div>
                 <div className="flex justify-between text-xs text-slate-500 mb-1">
-                  <span>{t('paid')}: {paidCount}/{schedule.length}</span>
-                  <span>{Math.round(paidCount / Math.max(1, schedule.length) * 100)}%</span>
+                  <span>{t('paid')}: {totalPaidAmt.toLocaleString()} / {showSchedule.sale_price?.toLocaleString()} {t('kd')}</span>
+                  <span>{Math.round(totalPaidAmt / Math.max(1, showSchedule.sale_price || 1) * 100)}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2.5">
-                  <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${paidCount / Math.max(1, schedule.length) * 100}%` }} />
+                  <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${totalPaidAmt / Math.max(1, showSchedule.sale_price || 1) * 100}%` }} />
                 </div>
               </div>
 
@@ -540,28 +541,30 @@ export default function SalesPage() {
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">#</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('dueDate')}</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('amount')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('paid')}</th>
+                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('remaining')}</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('status')}</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('paymentDate')}</th>
-                    <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('runningBalance')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {schedule.map((inst: any, i: number) => {
-                    const runningPaid = schedule.slice(0, i + 1).filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
-                    const balance = (showSchedule.sale_price || 0) - runningPaid;
+                    const instPaid = inst.paid_amount || 0;
+                    const instRemaining = (inst.amount || 0) - instPaid;
                     const isOverdue = inst.status !== 'paid' && isBefore(new Date(inst.due_date), today);
                     return (
-                    <tr key={i} className={`border-b border-slate-100 ${inst.status === 'paid' ? 'bg-green-50/50' : isOverdue ? 'bg-red-50/50' : ''}`}>
+                    <tr key={i} className={`border-b border-slate-100 ${inst.status === 'paid' ? 'bg-green-50/50' : inst.status === 'partially_paid' ? 'bg-amber-50/50' : isOverdue ? 'bg-red-50/50' : ''}`}>
                       <td className="py-2.5 px-3 font-medium">{inst.month || i + 1}</td>
                       <td className="py-2.5 px-3">{inst.due_date}</td>
                       <td className="py-2.5 px-3 font-medium">{inst.amount?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-2.5 px-3 text-green-600">{instPaid > 0 ? instPaid.toLocaleString() : '-'} {instPaid > 0 && t('kd')}</td>
+                      <td className="py-2.5 px-3 text-red-600">{instRemaining > 0 ? instRemaining.toLocaleString() : '0'} {t('kd')}</td>
                       <td className="py-2.5 px-3">
-                        <Badge className={inst.status === 'paid' ? 'bg-green-100 text-green-700' : isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'} variant="secondary">
-                          {inst.status === 'paid' ? t('paid') : isOverdue ? t('overdue') : t('pending')}
+                        <Badge className={inst.status === 'paid' ? 'bg-green-100 text-green-700' : inst.status === 'partially_paid' ? 'bg-amber-100 text-amber-700' : isOverdue ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'} variant="secondary">
+                          {inst.status === 'paid' ? t('paid') : inst.status === 'partially_paid' ? t('partiallyPaid') : isOverdue ? t('overdue') : t('pending')}
                         </Badge>
                       </td>
                       <td className="py-2.5 px-3 text-slate-500">{inst.paid_date || '-'}</td>
-                      <td className="py-2.5 px-3 font-medium">{balance.toLocaleString()} {t('kd')}</td>
                     </tr>
                   );
                   })}

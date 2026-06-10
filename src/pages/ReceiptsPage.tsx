@@ -62,6 +62,7 @@ export default function ReceiptsPage() {
   const [editing, setEditing] = useState<ReceiptVoucher | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [selectedInstallments, setSelectedInstallments] = useState<number[]>([]);
+  const [installmentAmounts, setInstallmentAmounts] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -99,7 +100,7 @@ export default function ReceiptsPage() {
       ? legalCases.filter(lc => lc.customer_id === form.customer_id)
       : legalCases;
 
-  // Get pending installments for selected contract
+  // Get pending/partially_paid installments for selected contract
   const selectedContract = allContracts.find(c => c.id === form.contract_id);
   const pendingInstallments = selectedContract?.installment_schedule
     ? (selectedContract.installment_schedule || [])
@@ -118,10 +119,19 @@ export default function ReceiptsPage() {
         if (formData.installment_no !== null && formData.installment_no !== undefined) {
           const instIdx = formData.installment_no;
           if (schedule[instIdx] && schedule[instIdx].status !== 'paid') {
-            schedule[instIdx] = { ...schedule[instIdx], status: 'paid', paid_date: formData.receipt_date || format(new Date(), 'yyyy-MM-dd') };
+            const prevPaid = schedule[instIdx].paid_amount || 0;
+            const newPaid = prevPaid + (formData.received_amount || 0);
+            const instTotal = schedule[instIdx].amount || 0;
+            const newStatus = newPaid >= instTotal ? 'paid' : newPaid > 0 ? 'partially_paid' : 'pending';
+            schedule[instIdx] = {
+              ...schedule[instIdx],
+              paid_amount: newPaid,
+              status: newStatus,
+              paid_date: newStatus === 'paid' ? (formData.receipt_date || format(new Date(), 'yyyy-MM-dd')) : schedule[instIdx].paid_date || null,
+            };
           }
         }
-        const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+        const schedulePaidTotal = schedule.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
         const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
         const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', formData.contract_id);
@@ -150,11 +160,19 @@ export default function ReceiptsPage() {
         const schedule = [...(contractData.installment_schedule || [])];
         if (receipt.installment_no !== null && receipt.installment_no !== undefined) {
           const instIdx = receipt.installment_no;
-          if (schedule[instIdx] && schedule[instIdx].status === 'paid') {
-            schedule[instIdx] = { ...schedule[instIdx], status: 'pending', paid_date: null };
+          if (schedule[instIdx]) {
+            const prevPaid = schedule[instIdx].paid_amount || 0;
+            const newPaid = Math.max(0, prevPaid - (receipt.received_amount || 0));
+            const newStatus = newPaid <= 0 ? 'pending' : newPaid >= (schedule[instIdx].amount || 0) ? 'paid' : 'partially_paid';
+            schedule[instIdx] = {
+              ...schedule[instIdx],
+              paid_amount: newPaid,
+              status: newStatus,
+              paid_date: newStatus === 'paid' ? schedule[instIdx].paid_date : null,
+            };
           }
         }
-        const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+        const schedulePaidTotal = schedule.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
         const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
         const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', receipt.contract_id);
@@ -207,20 +225,24 @@ export default function ReceiptsPage() {
     if (form.receipt_type === 'installment' && !editing && selectedInstallments.length > 0) {
       for (const instIdx of selectedInstallments) {
         const inst = selectedContract?.installment_schedule?.[instIdx];
-        const instAmount = inst?.amount || 0;
+        const instTotal = inst?.amount || 0;
+        const instPaid = inst?.paid_amount || 0;
+        const instRemaining = instTotal - instPaid;
+        // Use custom amount if user specified one for this installment, otherwise use remaining
+        const payAmount = installmentAmounts[instIdx] !== undefined ? installmentAmounts[instIdx] : instRemaining;
         const data: any = {
           receipt_date: form.receipt_date, receipt_type: form.receipt_type,
           customer_id: form.customer_id || null, customer_name: customer?.name || '',
           contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
-          court_case_no: '', received_amount: instAmount,
-          discount_amount: 0, net_amount: instAmount,
+          court_case_no: '', received_amount: payAmount,
+          discount_amount: 0, net_amount: payAmount,
           payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
           installment_no: instIdx,
         };
         const ok = await tryUpsert(data, false);
-        if (ok) await applyReceiptEffects({ ...form, installment_no: instIdx, received_amount: instAmount });
+        if (ok) await applyReceiptEffects({ ...form, installment_no: instIdx, received_amount: payAmount });
       }
-      setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setEditing(null); loadData();
+      setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setInstallmentAmounts({}); setEditing(null); loadData();
       return;
     }
 
@@ -243,7 +265,7 @@ export default function ReceiptsPage() {
       const ok = await tryUpsert(data, false);
       if (ok) await applyReceiptEffects(form);
     }
-    setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setEditing(null); loadData();
+    setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setInstallmentAmounts({}); setEditing(null); loadData();
   }
 
   async function handleDelete(id: string) {
@@ -475,7 +497,7 @@ export default function ReceiptsPage() {
       </Dialog>
 
       {/* Add/Edit Receipt Dialog */}
-      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setSelectedInstallments([]); }}>
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) { setSelectedInstallments([]); setInstallmentAmounts({}); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? t('editReceipt') : t('addReceipt')}</DialogTitle>
@@ -542,7 +564,7 @@ export default function ReceiptsPage() {
                   </select>
                 ) : (
                   // Multi-select checkbox mode for new receipts
-                  <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                  <div className="mt-2 border rounded-lg max-h-80 overflow-y-auto">
                     <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
                       <button
                         type="button"
@@ -550,6 +572,7 @@ export default function ReceiptsPage() {
                         onClick={() => {
                           if (selectedInstallments.length === pendingInstallments.length) {
                             setSelectedInstallments([]);
+                            setInstallmentAmounts({});
                           } else {
                             setSelectedInstallments(pendingInstallments.map((inst: any) => inst.index));
                           }
@@ -563,29 +586,63 @@ export default function ReceiptsPage() {
                     </div>
                     {pendingInstallments.map((inst: any) => {
                       const isChecked = selectedInstallments.includes(inst.index);
+                      const instPaid = inst.paid_amount || 0;
+                      const instRemaining = (inst.amount || 0) - instPaid;
                       return (
-                        <label
+                        <div
                           key={inst.index}
-                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-blue-50 border-b last:border-b-0 transition-colors ${
+                          className={`border-b last:border-b-0 transition-colors ${
                             isChecked ? 'bg-blue-50/70' : ''
                           }`}
                         >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            checked={isChecked}
-                            onChange={() => {
-                              setSelectedInstallments(prev =>
-                                isChecked ? prev.filter(i => i !== inst.index) : [...prev, inst.index]
-                              );
-                            }}
-                          />
-                          <div className="flex-1 flex items-center justify-between text-sm">
-                            <span className="font-medium">#{inst.month || inst.index + 1}</span>
-                            <span className="text-slate-500">{inst.due_date}</span>
-                            <span className="font-medium text-green-700">{inst.amount?.toLocaleString()} {t('kd')}</span>
-                          </div>
-                        </label>
+                          <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-blue-50">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              checked={isChecked}
+                              onChange={() => {
+                                setSelectedInstallments(prev =>
+                                  isChecked ? prev.filter(i => i !== inst.index) : [...prev, inst.index]
+                                );
+                                if (isChecked) {
+                                  setInstallmentAmounts(prev => { const n = { ...prev }; delete n[inst.index]; return n; });
+                                }
+                              }}
+                            />
+                            <div className="flex-1 flex items-center justify-between text-sm">
+                              <span className="font-medium">#{inst.month || inst.index + 1}</span>
+                              <span className="text-slate-500">{inst.due_date}</span>
+                              <span className="font-medium">{inst.amount?.toLocaleString()} {t('kd')}</span>
+                              {inst.status === 'partially_paid' && (
+                                <Badge className="bg-amber-100 text-amber-700 text-[10px]" variant="secondary">{t('partiallyPaid')}</Badge>
+                              )}
+                            </div>
+                          </label>
+                          {/* Show remaining and amount input when checked */}
+                          {isChecked && (
+                            <div className="px-3 pb-2.5 flex items-center gap-2 ms-7">
+                              <span className="text-xs text-slate-500 whitespace-nowrap">
+                                {instPaid > 0 && <>{t('paid')}: {instPaid.toLocaleString()} | </>}{t('remaining')}: {instRemaining.toLocaleString()} {t('kd')}
+                              </span>
+                              <input
+                                type="number"
+                                className="h-7 w-28 rounded border border-slate-300 px-2 text-xs"
+                                placeholder={instRemaining.toString()}
+                                value={installmentAmounts[inst.index] ?? ''}
+                                onChange={e => {
+                                  const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                  setInstallmentAmounts(prev => {
+                                    if (val === undefined) { const n = { ...prev }; delete n[inst.index]; return n; }
+                                    return { ...prev, [inst.index]: val };
+                                  });
+                                }}
+                                max={instRemaining}
+                                min={0}
+                              />
+                              <span className="text-[10px] text-slate-400">{t('kd')}</span>
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -598,23 +655,35 @@ export default function ReceiptsPage() {
                       <span className="font-bold text-blue-700">
                         {selectedInstallments.reduce((sum, idx) => {
                           const inst = selectedContract?.installment_schedule?.[idx];
-                          return sum + (inst?.amount || 0);
+                          const instRemaining = (inst?.amount || 0) - (inst?.paid_amount || 0);
+                          return sum + (installmentAmounts[idx] !== undefined ? installmentAmounts[idx] : instRemaining);
                         }, 0).toLocaleString()} {t('kd')}
                       </span>
                     </div>
-                    <p className="text-xs text-blue-500 mt-1">{t('multiInstallmentNote')}</p>
+                    <p className="text-xs text-blue-500 mt-1">{t('partialPaymentNote')}</p>
                   </div>
                 )}
                 {/* Summary for single select (edit mode) */}
-                {editing && form.installment_no !== null && form.installment_no !== undefined && selectedContract?.installment_schedule?.[form.installment_no] && (
+                {editing && form.installment_no !== null && form.installment_no !== undefined && selectedContract?.installment_schedule?.[form.installment_no] && (() => {
+                  const inst = selectedContract.installment_schedule[form.installment_no];
+                  const instPaid = inst.paid_amount || 0;
+                  const instRemaining = (inst.amount || 0) - instPaid;
+                  return (
                   <div className="mt-2 bg-blue-50 rounded-lg p-3 text-sm">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div><span className="text-blue-600 text-xs">{t('installmentNo')}</span><p className="font-medium">#{(selectedContract.installment_schedule[form.installment_no].month || form.installment_no + 1)}</p></div>
-                      <div><span className="text-blue-600 text-xs">{t('dueDate')}</span><p className="font-medium">{selectedContract.installment_schedule[form.installment_no].due_date}</p></div>
-                      <div><span className="text-blue-600 text-xs">{t('amount')}</span><p className="font-medium">{selectedContract.installment_schedule[form.installment_no].amount?.toLocaleString()} {t('kd')}</p></div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div><span className="text-blue-600 text-xs">{t('installmentNo')}</span><p className="font-medium">#{inst.month || form.installment_no + 1}</p></div>
+                      <div><span className="text-blue-600 text-xs">{t('dueDate')}</span><p className="font-medium">{inst.due_date}</p></div>
+                      <div><span className="text-blue-600 text-xs">{t('amount')}</span><p className="font-medium">{inst.amount?.toLocaleString()} {t('kd')}</p></div>
+                      <div><span className="text-blue-600 text-xs">{t('remaining')}</span><p className="font-medium text-amber-600">{instRemaining.toLocaleString()} {t('kd')}</p></div>
                     </div>
+                    {instPaid > 0 && (
+                      <div className="mt-2 pt-2 border-t border-blue-200">
+                        <span className="text-xs text-blue-500">{t('previouslyPaid')}: {instPaid.toLocaleString()} {t('kd')}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 

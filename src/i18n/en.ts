@@ -236,6 +236,10 @@ export const en = {
   selected: 'selected',
   totalForSelected: 'Total for selected installments',
   multiInstallmentNote: 'A separate receipt will be created for each selected installment',
+  partialPaymentNote: 'You can enter a partial amount for each installment. Leave blank to pay the full remaining.',
+  partiallyPaid: 'Partially Paid',
+  previouslyPaid: 'Previously Paid',
+  remaining: 'Remaining',
   selectLegalCase: 'Select Legal Case',
   noLegalCases: 'No legal cases found for this customer/contract',
 
