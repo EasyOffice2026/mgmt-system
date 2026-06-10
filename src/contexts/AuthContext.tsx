@@ -6,7 +6,7 @@ interface Profile {
   id: string;
   full_name: string;
   full_name_ar: string;
-  role: 'owner' | 'admin' | 'staff';
+  role: 'superadmin' | 'owner' | 'salesman' | 'accountant' | 'partner';
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -19,6 +19,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   changePassword: (newPassword: string) => Promise<void>;
+  isSuperAdmin: boolean;
   isOwner: boolean;
   isAdmin: boolean;
 }
@@ -37,10 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
       else { setProfile(null); setLoading(false); }
+      // Redirect to set-password page on recovery event
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/set-password';
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -71,11 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }
 
-  const isOwner = profile?.role === 'owner';
-  const isAdmin = profile?.role === 'owner' || profile?.role === 'admin';
+  const isSuperAdmin = profile?.role === 'superadmin';
+  const isOwner = profile?.role === 'owner' || profile?.role === 'partner' || profile?.role === 'superadmin';
+  const isAdmin = profile?.role === 'owner' || profile?.role === 'partner' || profile?.role === 'accountant' || profile?.role === 'superadmin';
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, changePassword, isOwner, isAdmin }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, changePassword, isSuperAdmin, isOwner, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

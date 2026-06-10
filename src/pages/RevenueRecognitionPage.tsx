@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
-import { Search, TrendingUp, Calendar } from 'lucide-react';
+import { Search, TrendingUp } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Contract {
   id: string; contract_no: string; customer_id: string; customer_name: string;
@@ -129,10 +130,9 @@ export default function RevenueRecognitionPage() {
           <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 

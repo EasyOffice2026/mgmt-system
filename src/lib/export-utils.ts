@@ -50,3 +50,25 @@ export function exportToExcel(
 
   XLSX.writeFile(wb, `${filename}.xlsx`);
 }
+
+export function exportToCsv(
+  headers: string[],
+  rows: (string | number)[][],
+  filename: string
+) {
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => {
+      const str = String(cell ?? '');
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    }).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${filename}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}

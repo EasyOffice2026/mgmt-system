@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
-import { FileDown, FileSpreadsheet } from 'lucide-react';
-import { exportToPdf, exportToExcel } from '@/lib/export-utils';
+import { FileDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { exportToPdf, exportToExcel, exportToCsv } from '@/lib/export-utils';
 import { useLang } from '@/contexts/LangContext';
 
 interface DataExportProps {
@@ -30,6 +30,14 @@ export function DataExport({ title, headers, rows, filename }: DataExportProps) 
       >
         <FileSpreadsheet className="h-4 w-4 me-1" />
         {t('exportExcel')}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => exportToCsv(headers, rows, filename)}
+      >
+        <FileText className="h-4 w-4 me-1" />
+        {t('exportCsv')}
       </Button>
     </div>
   );

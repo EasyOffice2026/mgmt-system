@@ -27,8 +27,17 @@ export function FileAttachment({ bucket, folder, files, onFilesChange, disabled 
     try {
       const ext = file.name.split('.').pop();
       const path = `${folder}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
-      if (error) throw error;
+      const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+      if (error) {
+        if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
+          alert('Storage bucket "' + bucket + '" not found. Please run the migration SQL (migration-v6) in Supabase SQL Editor to create storage buckets.');
+        } else if (error.message?.includes('security') || error.message?.includes('policy') || error.message?.includes('RLS') || error.message?.includes('violates')) {
+          alert('Storage permission error. Please run this SQL in Supabase SQL Editor:\n\nDROP POLICY IF EXISTS "Allow all operations" ON storage.objects;\nCREATE POLICY "Allow all operations" ON storage.objects FOR ALL USING (true) WITH CHECK (true);');
+        } else {
+          alert('Upload failed: ' + error.message);
+        }
+        throw error;
+      }
       const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
       onFilesChange([...files, urlData.publicUrl]);
     } catch (err) {
@@ -132,7 +141,7 @@ export function FileAttachment({ bucket, folder, files, onFilesChange, disabled 
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,.pdf,.doc,.docx"
+        accept="image/*,.pdf,.doc,.docx,.xlsx,.xls,.csv"
         className="hidden"
         onChange={handleFileSelect}
       />

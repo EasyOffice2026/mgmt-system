@@ -10,8 +10,11 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, FileText, Calendar } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Printer } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { format } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface ReceiptVoucher {
   id: string; receipt_voucher_no: string; receipt_date: string; receipt_type: string;
@@ -58,7 +61,11 @@ export default function ReceiptsPage() {
   const [showCaseReceipts, setShowCaseReceipts] = useState<string | null>(null);
   const [editing, setEditing] = useState<ReceiptVoucher | null>(null);
   const [form, setForm] = useState(defaultForm);
+  const [selectedInstallments, setSelectedInstallments] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [showForm, setShowForm] = useState<ReceiptVoucher | null>(null);
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
 
@@ -80,9 +87,9 @@ export default function ReceiptsPage() {
     setLoading(false);
   }
 
-  // Filter contracts by selected customer
+  // Filter contracts by selected customer; for Court Money, show only contracts with legal_case status
   const filteredContracts = form.customer_id
-    ? allContracts.filter(c => c.customer_id === form.customer_id)
+    ? allContracts.filter(c => c.customer_id === form.customer_id && (form.receipt_type === 'courtMoney' ? c.status === 'legal_case' : true))
     : allContracts;
 
   // Filter legal cases by selected customer AND contract
@@ -116,7 +123,7 @@ export default function ReceiptsPage() {
         }
         const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
         const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
-        const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
+        const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', formData.contract_id);
       }
     }
@@ -149,7 +156,7 @@ export default function ReceiptsPage() {
         }
         const schedulePaidTotal = schedule.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
         const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
-        const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'functional' : contractData.status;
+        const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', receipt.contract_id);
       }
     }
@@ -166,9 +173,58 @@ export default function ReceiptsPage() {
     }
   }
 
+  // Helper to try insert/update, progressively stripping optional columns if they don't exist in DB
+  const optionalCols = ['installment_no', 'discount_amount', 'net_amount'];
+  async function tryUpsert(data: any, isEdit: boolean, editId?: string): Promise<boolean> {
+    let payload = { ...data };
+    for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
+      const { error } = isEdit
+        ? await supabase.from('receipt_vouchers').update(payload).eq('id', editId!)
+        : await supabase.from('receipt_vouchers').insert(payload);
+      if (!error) return true;
+      const badCol = optionalCols.find(col => !!(error.message || error.details || '').includes(col) || (error.code === '42703' && (error.message || '').includes(col)));
+      if (badCol) {
+        const { [badCol]: _, ...rest } = payload;
+        payload = rest;
+        continue;
+      }
+      if (attempt === 0 && (error.code === '42703' || (error.message || '').includes('column'))) {
+        for (const col of optionalCols) delete payload[col];
+        continue;
+      }
+      console.error(isEdit ? 'Receipt update error:' : 'Receipt insert error:', error);
+      alert(`Failed to ${isEdit ? 'update' : 'save'} receipt: ${error.message}`);
+      return false;
+    }
+    return true;
+  }
+
   async function handleSave() {
     const customer = customers.find(c => c.id === form.customer_id);
     const contract = allContracts.find(c => c.id === form.contract_id);
+
+    // Multi-installment: create one receipt per selected installment
+    if (form.receipt_type === 'installment' && !editing && selectedInstallments.length > 0) {
+      for (const instIdx of selectedInstallments) {
+        const inst = selectedContract?.installment_schedule?.[instIdx];
+        const instAmount = inst?.amount || 0;
+        const data: any = {
+          receipt_date: form.receipt_date, receipt_type: form.receipt_type,
+          customer_id: form.customer_id || null, customer_name: customer?.name || '',
+          contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
+          court_case_no: '', received_amount: instAmount,
+          discount_amount: 0, net_amount: instAmount,
+          payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
+          installment_no: instIdx,
+        };
+        const ok = await tryUpsert(data, false);
+        if (ok) await applyReceiptEffects({ ...form, installment_no: instIdx, received_amount: instAmount });
+      }
+      setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setEditing(null); loadData();
+      return;
+    }
+
+    // Single installment or edit mode or court money
     const data: any = {
       receipt_date: form.receipt_date, receipt_type: form.receipt_type,
       customer_id: form.customer_id || null, customer_name: customer?.name || '',
@@ -179,42 +235,15 @@ export default function ReceiptsPage() {
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
       installment_no: form.installment_no,
     };
-    // Helper to try insert/update, progressively stripping optional columns if they don't exist in DB
-    const optionalCols = ['installment_no', 'discount_amount', 'net_amount'];
-    async function tryUpsert(isEdit: boolean): Promise<boolean> {
-      let payload = { ...data };
-      for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
-        const { error } = isEdit
-          ? await supabase.from('receipt_vouchers').update(payload).eq('id', editing!.id)
-          : await supabase.from('receipt_vouchers').insert(payload);
-        if (!error) return true;
-        // If error mentions a column name we can strip, remove it and retry
-        const badCol = optionalCols.find(col => !!(error.message || error.details || '').includes(col) || (error.code === '42703' && (error.message || '').includes(col)));
-        if (badCol) {
-          const { [badCol]: _, ...rest } = payload;
-          payload = rest;
-          continue;
-        }
-        // If generic 400/column error, try stripping all optional cols at once
-        if (attempt === 0 && (error.code === '42703' || (error.message || '').includes('column'))) {
-          for (const col of optionalCols) delete payload[col];
-          continue;
-        }
-        console.error(isEdit ? 'Receipt update error:' : 'Receipt insert error:', error);
-        alert(`Failed to ${isEdit ? 'update' : 'save'} receipt: ${error.message}`);
-        return false;
-      }
-      return true;
-    }
     if (editing) {
       await reverseReceiptEffects(editing);
-      const ok = await tryUpsert(true);
+      const ok = await tryUpsert(data, true, editing.id);
       if (ok) await applyReceiptEffects(form);
     } else {
-      const ok = await tryUpsert(false);
+      const ok = await tryUpsert(data, false);
       if (ok) await applyReceiptEffects(form);
     }
-    setShowDialog(false); setForm(defaultForm); setEditing(null); loadData();
+    setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setEditing(null); loadData();
   }
 
   async function handleDelete(id: string) {
@@ -244,6 +273,7 @@ export default function ReceiptsPage() {
     r.contract_no?.toLowerCase().includes(search.toLowerCase()) ||
     r.court_case_no?.toLowerCase().includes(search.toLowerCase())
   );
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalReceived = filtered.reduce((sum, r) => sum + (r.received_amount || 0), 0);
 
@@ -256,8 +286,8 @@ export default function ReceiptsPage() {
     return legalCases.find(lc => lc.case_no === caseNo);
   }
 
-  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('customerName'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('receivedAmount'), t('paymentMode')];
-  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.customer_name, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, r.received_amount, r.payment_mode]);
+  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('netAmount'), t('paymentMode')];
+  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, (r.received_amount || 0) - ((r as any).discount_amount || 0), r.payment_mode]);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = { fileOpening: 'bg-blue-100 text-blue-700', installment: 'bg-green-100 text-green-700', courtMoney: 'bg-purple-100 text-purple-700' };
@@ -273,7 +303,7 @@ export default function ReceiptsPage() {
         </div>
         <div className="flex items-center gap-3">
           <DataExport title={t('receipts')} headers={exportHeaders} rows={exportRows} filename="receipts" />
-          <Button onClick={() => { setEditing(null); setForm(defaultForm); setShowDialog(true); }} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+          <Button onClick={() => { setEditing(null); setForm(defaultForm); setSelectedInstallments([]); setShowDialog(true); }} className="bg-gradient-to-r from-blue-600 to-indigo-600">
             <Plus className="h-4 w-4 me-1" /> {t('addReceipt')}
           </Button>
         </div>
@@ -282,13 +312,12 @@ export default function ReceiptsPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 
@@ -301,6 +330,7 @@ export default function ReceiptsPage() {
               <FileText className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -308,23 +338,19 @@ export default function ReceiptsPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptVoucherNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptDate')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptType')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customerName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('installmentNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtCaseNo')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('discount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('netAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(r => (
+                  {paginated.map(r => (
                     <tr key={r.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600">{r.receipt_voucher_no}</td>
                       <td className="py-3 px-4">{r.receipt_date}</td>
                       <td className="py-3 px-4"><Badge className={typeColor(r.receipt_type)} variant="secondary">{r.receipt_type}</Badge></td>
-                      <td className="py-3 px-4">{r.customer_name}</td>
                       <td className="py-3 px-4">{r.contract_no}</td>
                       <td className="py-3 px-4">{r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '-'}</td>
                       <td className="py-3 px-4">
@@ -332,11 +358,10 @@ export default function ReceiptsPage() {
                           <span className="text-purple-600 cursor-pointer underline" onClick={() => setShowCaseReceipts(r.court_case_no)}>{r.court_case_no}</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 font-medium text-green-600">{r.received_amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4 text-orange-600">{(r as any).discount_amount ? `${(r as any).discount_amount.toLocaleString()} ${t('kd')}` : '-'}</td>
                       <td className="py-3 px-4 font-medium text-blue-600">{((r.received_amount || 0) - ((r as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setShowForm(r)}><Printer className="h-4 w-4 text-blue-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(r.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                         </div>
@@ -346,9 +371,61 @@ export default function ReceiptsPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Printable Receipt Voucher Form */}
+      <Dialog open={!!showForm} onOpenChange={() => setShowForm(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{t('receiptVoucherForm')}</span>
+              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('receipt-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { w.document.write('<html><head><title>' + (showForm?.receipt_voucher_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:ltr}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
+                <Printer className="h-4 w-4 me-1" /> {t('print')}
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          {showForm && (
+            <div id="receipt-print-form">
+              <div className="text-center border-b pb-4 mb-4">
+                <h1 className="text-xl font-bold">{t('appName')}</h1>
+                <h2 className="text-lg text-slate-600">{t('receiptVoucherForm')}</h2>
+              </div>
+              <table className="w-full text-sm border">
+                <tbody>
+                  <tr><td className="border p-3 bg-slate-50 font-medium w-1/3">{t('receiptVoucherNo')}</td><td className="border p-3 font-bold">{showForm.receipt_voucher_no}</td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('receiptDate')}</td><td className="border p-3">{showForm.receipt_date}</td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('receiptType')}</td><td className="border p-3">{t(showForm.receipt_type as any) || showForm.receipt_type}</td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('customerName')}</td><td className="border p-3 font-bold">{showForm.customer_name}</td></tr>
+                  {showForm.contract_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('contractNo')}</td><td className="border p-3">{showForm.contract_no}</td></tr>}
+                  {showForm.installment_no !== null && showForm.installment_no !== undefined && <tr><td className="border p-3 bg-slate-50 font-medium">{t('installmentNo')}</td><td className="border p-3">#{showForm.installment_no + 1}</td></tr>}
+                  {showForm.court_case_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('courtCaseNo')}</td><td className="border p-3">{showForm.court_case_no}</td></tr>}
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('receivedAmount')}</td><td className="border p-3 font-bold text-lg text-green-700">{showForm.received_amount?.toLocaleString()} {t('kd')}</td></tr>
+                  {(showForm as any).discount_amount > 0 && <tr><td className="border p-3 bg-slate-50 font-medium">{t('discount')}</td><td className="border p-3 text-red-600">{(showForm as any).discount_amount?.toLocaleString()} {t('kd')}</td></tr>}
+                  {(showForm as any).discount_amount > 0 && <tr><td className="border p-3 bg-slate-50 font-medium">{t('netAmount')}</td><td className="border p-3 font-bold text-lg">{((showForm.received_amount || 0) - ((showForm as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td></tr>}
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{t(showForm.payment_mode as any) || showForm.payment_mode}</td></tr>
+                  {showForm.notes && <tr><td className="border p-3 bg-slate-50 font-medium">{t('notes')}</td><td className="border p-3">{showForm.notes}</td></tr>}
+                </tbody>
+              </table>
+
+              <div className="mt-8 flex justify-between text-sm">
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('receivedBy')}</div></div>
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('signature')} / {t('customerName')}</div></div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Court Case Receipts / Installment Schedule */}
       <Dialog open={!!showCaseReceipts} onOpenChange={() => setShowCaseReceipts(null)}>
@@ -398,7 +475,7 @@ export default function ReceiptsPage() {
       </Dialog>
 
       {/* Add/Edit Receipt Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setSelectedInstallments([]); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? t('editReceipt') : t('addReceipt')}</DialogTitle>
@@ -407,58 +484,129 @@ export default function ReceiptsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>{t('receiptDate')}</Label>
-                <Input type="date" value={form.receipt_date} onChange={e => setForm({ ...form, receipt_date: e.target.value })} />
+                <DatePicker value={form.receipt_date} onChange={(v) => setForm({ ...form, receipt_date: v })} placeholder={t("date")} className="w-full" />
               </div>
               <div>
                 <Label>{t('receiptType')} *</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.receipt_type} onChange={e => setForm({ ...form, receipt_type: e.target.value, installment_no: null })}>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.receipt_type} onChange={e => { setForm({ ...form, receipt_type: e.target.value, installment_no: null, court_case_no: '' }); setSelectedInstallments([]); }}>
                   {receiptTypes.map(rt => <option key={rt} value={rt}>{t(rt as any) || rt}</option>)}
                 </select>
               </div>
               <div>
                 <Label>{t('customer')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value, contract_id: '', court_case_no: '', installment_no: null })}>
-                  <option value="">Select</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={customers.map(c => ({ value: c.id, label: `${c.customer_no} - ${c.name}` }))}
+                  value={form.customer_id}
+                  onChange={(v) => { setForm({ ...form, customer_id: v, contract_id: '', court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}
+                  placeholder={t('selectCustomer') || 'Select Customer'}
+                />
               </div>
               <div>
                 <Label>{t('contractNo')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value, court_case_no: '', installment_no: null })}>
-                  <option value="">Select</option>
-                  {filteredContracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={filteredContracts.map(c => ({ value: c.id, label: `${c.contract_no} - ${c.customer_name}` }))}
+                  value={form.contract_id}
+                  onChange={(v) => { setForm({ ...form, contract_id: v, court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}
+                  placeholder={t('selectContract') || 'Select Contract'}
+                />
               </div>
             </div>
 
-            {/* Installment Selector */}
+            {/* Installment Selector - Multi-select with checkboxes */}
             {form.receipt_type === 'installment' && form.contract_id && (
               <div>
-                <Label>{t('selectInstallment')} *</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={form.installment_no ?? ''}
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (val === '') { setForm({ ...form, installment_no: null }); }
-                    else {
-                      const idx = Number(val);
-                      const inst = selectedContract?.installment_schedule?.[idx];
-                      setForm({ ...form, installment_no: idx, received_amount: inst?.amount || form.received_amount });
-                    }
-                  }}
-                >
-                  <option value="">{t('selectInstallment')}</option>
-                  {pendingInstallments.map((inst: any) => (
-                    <option key={inst.index} value={inst.index}>
-                      #{inst.month || inst.index + 1} - {t('dueDate')}: {inst.due_date} - {inst.amount?.toLocaleString()} {t('kd')}
-                    </option>
-                  ))}
-                </select>
-                {pendingInstallments.length === 0 && (
+                <Label>{editing ? t('selectInstallment') + ' *' : t('selectInstallments') + ' *'}</Label>
+                {pendingInstallments.length === 0 ? (
                   <p className="text-xs text-amber-600 mt-1">{t('allInstallmentsPaid')}</p>
+                ) : editing ? (
+                  // Single select mode for editing
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={form.installment_no ?? ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === '') { setForm({ ...form, installment_no: null }); }
+                      else {
+                        const idx = Number(val);
+                        const inst = selectedContract?.installment_schedule?.[idx];
+                        setForm({ ...form, installment_no: idx, received_amount: inst?.amount || form.received_amount });
+                      }
+                    }}
+                  >
+                    <option value="">{t('selectInstallment')}</option>
+                    {pendingInstallments.map((inst: any) => (
+                      <option key={inst.index} value={inst.index}>
+                        #{inst.month || inst.index + 1} - {t('dueDate')}: {inst.due_date} - {inst.amount?.toLocaleString()} {t('kd')}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  // Multi-select checkbox mode for new receipts
+                  <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                    <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        onClick={() => {
+                          if (selectedInstallments.length === pendingInstallments.length) {
+                            setSelectedInstallments([]);
+                          } else {
+                            setSelectedInstallments(pendingInstallments.map((inst: any) => inst.index));
+                          }
+                        }}
+                      >
+                        {selectedInstallments.length === pendingInstallments.length ? t('deselectAll') : t('selectAll')}
+                      </button>
+                      <span className="text-xs text-slate-500">
+                        {selectedInstallments.length} {t('selected')}
+                      </span>
+                    </div>
+                    {pendingInstallments.map((inst: any) => {
+                      const isChecked = selectedInstallments.includes(inst.index);
+                      return (
+                        <label
+                          key={inst.index}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-blue-50 border-b last:border-b-0 transition-colors ${
+                            isChecked ? 'bg-blue-50/70' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            checked={isChecked}
+                            onChange={() => {
+                              setSelectedInstallments(prev =>
+                                isChecked ? prev.filter(i => i !== inst.index) : [...prev, inst.index]
+                              );
+                            }}
+                          />
+                          <div className="flex-1 flex items-center justify-between text-sm">
+                            <span className="font-medium">#{inst.month || inst.index + 1}</span>
+                            <span className="text-slate-500">{inst.due_date}</span>
+                            <span className="font-medium text-green-700">{inst.amount?.toLocaleString()} {t('kd')}</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
                 )}
-                {form.installment_no !== null && form.installment_no !== undefined && selectedContract?.installment_schedule?.[form.installment_no] && (
+                {/* Summary for multi-select */}
+                {!editing && selectedInstallments.length > 0 && (
+                  <div className="mt-2 bg-blue-50 rounded-lg p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-blue-600 font-medium">{t('totalForSelected')}:</span>
+                      <span className="font-bold text-blue-700">
+                        {selectedInstallments.reduce((sum, idx) => {
+                          const inst = selectedContract?.installment_schedule?.[idx];
+                          return sum + (inst?.amount || 0);
+                        }, 0).toLocaleString()} {t('kd')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-500 mt-1">{t('multiInstallmentNote')}</p>
+                  </div>
+                )}
+                {/* Summary for single select (edit mode) */}
+                {editing && form.installment_no !== null && form.installment_no !== undefined && selectedContract?.installment_schedule?.[form.installment_no] && (
                   <div className="mt-2 bg-blue-50 rounded-lg p-3 text-sm">
                     <div className="grid grid-cols-3 gap-2">
                       <div><span className="text-blue-600 text-xs">{t('installmentNo')}</span><p className="font-medium">#{(selectedContract.installment_schedule[form.installment_no].month || form.installment_no + 1)}</p></div>
@@ -484,16 +632,76 @@ export default function ReceiptsPage() {
               </div>
             )}
 
+            {/* Court Money - Legal Cases List */}
+            {form.receipt_type === 'courtMoney' && (
+              <div>
+                <Label>{t('selectLegalCase')} *</Label>
+                {!form.customer_id ? (
+                  <p className="text-xs text-amber-600 mt-2">{t('selectCustomer')}</p>
+                ) : !form.contract_id ? (
+                  <p className="text-xs text-amber-600 mt-2">{t('selectContract')}</p>
+                ) : filteredCases.length === 0 ? (
+                  <p className="text-xs text-amber-600 mt-2">{t('noLegalCases')}</p>
+                ) : (
+                  <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-slate-50 text-xs">
+                          <th className="text-start py-2 px-3 w-8"></th>
+                          <th className="text-start py-2 px-3">{t('caseNo')}</th>
+                          <th className="text-start py-2 px-3">{t('customerName')}</th>
+                          <th className="text-start py-2 px-3">{t('caseAmount')}</th>
+                          <th className="text-start py-2 px-3">{t('receivedAmount')}</th>
+                          <th className="text-start py-2 px-3">{t('balanceAmount')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCases.map(lc => {
+                          const isSelected = form.court_case_no === lc.case_no;
+                          const totalRcvd = (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0);
+                          const balance = (lc.claimed_amount || lc.case_amount || 0) - totalRcvd;
+                          return (
+                            <tr
+                              key={lc.id}
+                              className={`border-b last:border-b-0 cursor-pointer transition-colors ${
+                                isSelected ? 'bg-purple-50' : 'hover:bg-slate-50'
+                              }`}
+                              onClick={() => setForm({ ...form, court_case_no: lc.case_no })}
+                            >
+                              <td className="py-2 px-3">
+                                <input type="radio" checked={isSelected} readOnly className="h-4 w-4 text-purple-600" />
+                              </td>
+                              <td className="py-2 px-3 font-medium text-purple-600">{lc.case_no}</td>
+                              <td className="py-2 px-3">{lc.customer_name}</td>
+                              <td className="py-2 px-3">{(lc.claimed_amount || lc.case_amount || 0).toLocaleString()} {t('kd')}</td>
+                              <td className="py-2 px-3 text-green-600">{totalRcvd.toLocaleString()} {t('kd')}</td>
+                              <td className={`py-2 px-3 font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{balance.toLocaleString()} {t('kd')}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {form.court_case_no && (() => {
+                  const lc = filteredCases.find(c => c.case_no === form.court_case_no);
+                  if (!lc) return null;
+                  const totalRcvd = (lc.rcvd_from_court || 0) + (lc.rcvd_from_customer || 0);
+                  const balance = (lc.claimed_amount || lc.case_amount || 0) - totalRcvd;
+                  return (
+                    <div className="mt-2 bg-purple-50 rounded-lg p-3 text-sm">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div><span className="text-purple-600 text-xs">{t('caseAmount')}</span><p className="font-bold">{(lc.claimed_amount || lc.case_amount || 0).toLocaleString()} {t('kd')}</p></div>
+                        <div><span className="text-green-600 text-xs">{t('totalReceived')}</span><p className="font-bold text-green-700">{totalRcvd.toLocaleString()} {t('kd')}</p></div>
+                        <div><span className="text-amber-600 text-xs">{t('balanceAmount')}</span><p className="font-bold text-amber-700">{balance.toLocaleString()} {t('kd')}</p></div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(form.receipt_type === 'courtMoney') && (
-                <div>
-                  <Label>{t('courtCaseNo')}</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.court_case_no} onChange={e => setForm({ ...form, court_case_no: e.target.value })}>
-                    <option value="">Select</option>
-                    {filteredCases.map(lc => <option key={lc.id} value={lc.case_no}>{lc.case_no} - {lc.customer_name}</option>)}
-                  </select>
-                </div>
-              )}
               <div>
                 <Label>{t('receivedAmount')} *</Label>
                 <Input type="number" value={form.received_amount} onChange={e => setForm({ ...form, received_amount: Number(e.target.value) })} />
@@ -523,7 +731,7 @@ export default function ReceiptsPage() {
             </div>
             <FileAttachment bucket="receipts" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowDialog(false)}>{t('cancel')}</Button>
+              <Button variant="outline" onClick={() => { setShowDialog(false); setSelectedInstallments([]); }}>{t('cancel')}</Button>
               <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-indigo-600">{t('save')}</Button>
             </div>
           </div>

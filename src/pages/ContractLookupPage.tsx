@@ -172,7 +172,7 @@ export default function ContractLookupPage() {
                         <div className="flex items-center gap-3">
                           <span className="font-medium text-blue-600">{ct.contract_no}</span>
                           <span className="text-sm text-slate-500">{ct.item_name}</span>
-                          <Badge className={ct.status === 'functional' ? 'bg-blue-100 text-blue-700' : ct.status === 'finished' ? 'bg-green-100 text-green-700' : ct.status === 'case_closed' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'} variant="secondary">
+                          <Badge className={ct.status === 'functional' || ct.status === 'ongoing' ? 'bg-blue-100 text-blue-700' : ct.status === 'finished' ? 'bg-green-100 text-green-700' : ct.status === 'case_closed' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'} variant="secondary">
                             {t(ct.status as any)}
                           </Badge>
                         </div>
@@ -250,7 +250,7 @@ export default function ContractLookupPage() {
               </div>
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-xs text-slate-500">{t('status')}</p>
-                <Badge className={selectedContract.status === 'functional' ? 'bg-blue-100 text-blue-700' : selectedContract.status === 'finished' ? 'bg-green-100 text-green-700' : selectedContract.status === 'case_closed' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'} variant="secondary">
+                <Badge className={selectedContract.status === 'functional' || selectedContract.status === 'ongoing' ? 'bg-blue-100 text-blue-700' : selectedContract.status === 'finished' ? 'bg-green-100 text-green-700' : selectedContract.status === 'case_closed' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'} variant="secondary">
                   {t(selectedContract.status as any)}
                 </Badge>
               </div>

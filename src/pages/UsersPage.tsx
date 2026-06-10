@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, Pencil, Key, UserCheck, UserX, Settings, Trash2, CreditCard, Tag } from 'lucide-react';
+import { Plus, Search, Pencil, Key, UserCheck, UserX, Settings, Trash2, CreditCard, Tag, Truck, Mail, Send } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -21,8 +21,10 @@ interface UserProfile {
 }
 
 const defaultForm = {
-  email: '', password: '', full_name: '', full_name_ar: '', role: 'staff',
+  email: '', password: '', full_name: '', full_name_ar: '', role: 'salesman',
 };
+
+type CreateMode = 'create' | 'invite';
 
 const defaultCategories = ['Mobile', 'Car', 'Furniture', 'Electronics', 'Jewelry', 'Other'];
 const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
@@ -39,15 +41,19 @@ export default function UsersPage() {
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const [passwordError, setPasswordError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [createMode, setCreateMode] = useState<CreateMode>('invite');
+  const [inviteStatus, setInviteStatus] = useState<string>('');
 
   // Payment Mode & Category management
   const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
   const [categories, setCategories] = useState<string[]>(defaultCategories);
   const [newPaymentMode, setNewPaymentMode] = useState('');
   const [newCategory, setNewCategory] = useState('');
-  const [activeTab, setActiveTab] = useState<'users' | 'paymentModes' | 'categories'>('users');
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [newSupplier, setNewSupplier] = useState('');
+  const [activeTab, setActiveTab] = useState<'users' | 'paymentModes' | 'categories' | 'suppliers'>('users');
 
-  useEffect(() => { loadUsers(); loadPaymentModes(); loadCategories(); }, []);
+  useEffect(() => { loadUsers(); loadPaymentModes(); loadCategories(); loadSuppliers(); }, []);
 
   async function loadUsers() {
     setLoading(true);
@@ -69,6 +75,26 @@ export default function UsersPage() {
     const cats = new Set(defaultCategories);
     (data || []).forEach((p: any) => { if (p.category) cats.add(p.category); });
     setCategories([...cats]);
+  }
+
+  async function loadSuppliers() {
+    const { data } = await supabase.from('suppliers').select('name').order('name');
+    if (data) setSuppliers(data.map((d: any) => d.name));
+  }
+
+  async function addSupplier() {
+    const name = newSupplier.trim();
+    if (!name) return;
+    if (suppliers.includes(name)) { alert(t('supplierExists') || 'Supplier already exists!'); return; }
+    await supabase.from('suppliers').upsert({ name }, { onConflict: 'name' });
+    setNewSupplier('');
+    await loadSuppliers();
+  }
+
+  async function deleteSupplier(name: string) {
+    if (!window.confirm(`Delete supplier "${name}"?`)) return;
+    await supabase.from('suppliers').delete().eq('name', name);
+    await loadSuppliers();
   }
 
   async function addPaymentMode() {
@@ -108,8 +134,37 @@ export default function UsersPage() {
         full_name_ar: form.full_name_ar,
         role: form.role,
       }).eq('id', editing.id);
+    } else if (createMode === 'invite') {
+      // Invite user: create with temp password, then send password reset email
+      setInviteStatus('Creating account...');
+      const tempPassword = Math.random().toString(36).slice(-12) + 'A1!';
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: tempPassword,
+      });
+      if (error) { alert(error.message); setInviteStatus(''); return; }
+      if (authData.user) {
+        await supabase.from('user_profiles').insert({
+          id: authData.user.id,
+          full_name: form.full_name,
+          full_name_ar: form.full_name_ar,
+          role: form.role,
+          is_active: true,
+        });
+        // Send password reset email so user can set their own password
+        setInviteStatus('Sending invitation email...');
+        const redirectUrl = window.location.origin + '/set-password';
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(form.email, {
+          redirectTo: redirectUrl,
+        });
+        if (resetError) {
+          alert('User created but invitation email failed: ' + resetError.message);
+        } else {
+          setInviteStatus('Invitation sent successfully!');
+        }
+      }
     } else {
-      // Create new user via Supabase Auth
+      // Create new user with password directly
       const { data: authData, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
@@ -128,6 +183,7 @@ export default function UsersPage() {
     setShowDialog(false);
     setForm(defaultForm);
     setEditing(null);
+    setInviteStatus('');
     loadUsers();
   }
 
@@ -173,9 +229,11 @@ export default function UsersPage() {
 
   const roleColor = (role: string) => {
     const colors: Record<string, string> = {
+      superadmin: 'bg-red-100 text-red-700',
       owner: 'bg-purple-100 text-purple-700',
-      admin: 'bg-blue-100 text-blue-700',
-      staff: 'bg-slate-100 text-slate-700',
+      salesman: 'bg-blue-100 text-blue-700',
+      accountant: 'bg-teal-100 text-teal-700',
+      partner: 'bg-amber-100 text-amber-700',
     };
     return colors[role] || 'bg-slate-100 text-slate-700';
   };
@@ -203,6 +261,9 @@ export default function UsersPage() {
         </button>
         <button className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('categories')}>
           <Tag className="h-4 w-4 inline me-1" /> {t('categories')}
+        </button>
+        <button className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'suppliers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('suppliers')}>
+          <Truck className="h-4 w-4 inline me-1" /> {t('suppliers')}
         </button>
       </div>
 
@@ -337,8 +398,38 @@ export default function UsersPage() {
         </Card>
       )}
 
+      {/* Suppliers Tab */}
+      {activeTab === 'suppliers' && (
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-6 space-y-4">
+            <h3 className="font-medium text-lg">{t('manageSuppliers')}</h3>
+            <p className="text-sm text-slate-500">{t('manageSuppliersDesc') || 'Add or remove suppliers. No duplicates allowed. Suppliers added here appear in the Purchase form.'}</p>
+            <div className="flex gap-2">
+              <Input placeholder={t('addSupplier') || 'Add supplier name'} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} className="max-w-xs"
+                onKeyDown={e => { if (e.key === 'Enter') addSupplier(); }} />
+              <Button onClick={addSupplier} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+                <Plus className="h-4 w-4 me-1" /> {t('add')}
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suppliers.length === 0 ? (
+                <p className="text-sm text-slate-400">{t('noData')}</p>
+              ) : suppliers.map(sup => (
+                <div key={sup} className="flex items-center gap-1 bg-slate-100 rounded-lg px-3 py-2 text-sm">
+                  <Truck className="h-3 w-3 text-slate-500" />
+                  <span>{sup}</span>
+                  <button onClick={() => deleteSupplier(sup)} className="ms-1 text-red-400 hover:text-red-600">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Add/Edit User Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setInviteStatus(''); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? t('editUser') : t('addUser')}</DialogTitle>
@@ -346,14 +437,40 @@ export default function UsersPage() {
           <div className="space-y-4">
             {!editing && (
               <>
+                {/* Mode Toggle */}
+                <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
+                  <button
+                    type="button"
+                    className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${createMode === 'invite' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    onClick={() => setCreateMode('invite')}
+                  >
+                    <Send className="h-3.5 w-3.5" /> {t('inviteUser') || 'Invite via Email'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${createMode === 'create' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    onClick={() => setCreateMode('create')}
+                  >
+                    <Key className="h-3.5 w-3.5" /> {t('createWithPassword') || 'Set Password'}
+                  </button>
+                </div>
+
                 <div>
                   <Label>{t('email')} *</Label>
-                  <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                  <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="user@example.com" />
                 </div>
-                <div>
-                  <Label>{t('password')} *</Label>
-                  <Input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-                </div>
+                {createMode === 'create' && (
+                  <div>
+                    <Label>{t('password')} *</Label>
+                    <Input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                  </div>
+                )}
+                {createMode === 'invite' && (
+                  <div className="bg-blue-50 text-blue-700 text-sm px-4 py-3 rounded-lg border border-blue-200 flex items-start gap-2">
+                    <Mail className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>{t('inviteDescription') || 'An email will be sent to this address with a link to set their own password.'}</span>
+                  </div>
+                )}
               </>
             )}
             <div>
@@ -367,14 +484,27 @@ export default function UsersPage() {
             <div>
               <Label>{t('role')}</Label>
               <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
-                <option value="staff">{t('staff')}</option>
-                <option value="admin">{t('admin')}</option>
+                <option value="salesman">{t('salesman')}</option>
+                <option value="accountant">{t('accountant')}</option>
+                <option value="partner">{t('partner')}</option>
                 <option value="owner">{t('owner')}</option>
+                <option value="superadmin">{t('superAdmin')}</option>
               </select>
             </div>
+            {inviteStatus && (
+              <div className="bg-green-50 text-green-700 text-sm px-4 py-3 rounded-lg border border-green-200">
+                {inviteStatus}
+              </div>
+            )}
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowDialog(false)}>{t('cancel')}</Button>
-              <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-indigo-600">{t('save')}</Button>
+              <Button variant="outline" onClick={() => { setShowDialog(false); setInviteStatus(''); }}>{t('cancel')}</Button>
+              <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+                {!editing && createMode === 'invite' ? (
+                  <><Send className="h-4 w-4 me-1" /> {t('sendInvite') || 'Send Invite'}</>
+                ) : (
+                  t('save')
+                )}
+              </Button>
             </div>
           </div>
         </DialogContent>

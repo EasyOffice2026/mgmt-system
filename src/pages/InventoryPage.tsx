@@ -5,11 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
-import { Search, Warehouse, Calendar } from 'lucide-react';
+import { Search, Warehouse } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface InventoryItem {
   id: string; item_name: string; model_type: string; category: string;
-  purchase_price: number; supplier_name: string; purchase_date: string; status: string;
+  purchase_price: number; quantity: number; quantity_available: number;
+  supplier_name: string; purchase_date: string; status: string;
 }
 
 export default function InventoryPage() {
@@ -20,6 +23,8 @@ export default function InventoryPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => { loadInventory(); }, [fromDate, toDate]);
 
@@ -42,43 +47,44 @@ export default function InventoryPage() {
     const matchCategory = !categoryFilter || i.category === categoryFilter;
     return matchSearch && matchCategory;
   });
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const inStock = filtered.filter(i => i.status === 'in_stock').length;
-  const soldCount = filtered.filter(i => i.status === 'sold').length;
+  const totalQty = filtered.reduce((s, i) => s + (i.quantity || 1), 0);
+  const totalAvailable = filtered.reduce((s, i) => s + (i.quantity_available ?? i.quantity ?? 1), 0);
+  const totalSold = totalQty - totalAvailable;
 
-  const exportHeaders = [t('itemName'), t('modelType'), t('category'), t('purchasePrice'), t('supplierName'), t('purchaseDate'), t('status')];
-  const exportRows = filtered.map(i => [i.item_name, i.model_type, i.category, i.purchase_price, i.supplier_name, i.purchase_date, i.status]);
+  const exportHeaders = [t('itemName'), t('modelType'), t('category'), t('purchasePrice'), t('quantity'), t('available'), t('supplierName'), t('purchaseDate'), t('status')];
+  const exportRows = filtered.map(i => [i.item_name, i.model_type, i.category, i.purchase_price, i.quantity || 1, i.quantity_available ?? i.quantity ?? 1, i.supplier_name, i.purchase_date, i.status]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('inventory')}</h1>
-          <p className="text-slate-500 text-sm">{inStock} {t('inStock')} &middot; {soldCount} {t('sold')}</p>
+          <p className="text-slate-500 text-sm">{totalAvailable} {t('inStock')} &middot; {totalSold} {t('sold')}</p>
         </div>
         <DataExport title={t('inventory')} headers={exportHeaders} rows={exportRows} filename="inventory" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('total')}</p><p className="text-2xl font-bold">{filtered.length}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('inStock')}</p><p className="text-2xl font-bold text-green-600">{inStock}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('sold')}</p><p className="text-2xl font-bold text-slate-500">{soldCount}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('totalQuantity')}</p><p className="text-2xl font-bold">{totalQty}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('available')}</p><p className="text-2xl font-bold text-green-600">{totalAvailable}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-5"><p className="text-sm text-slate-500">{t('sold')}</p><p className="text-2xl font-bold text-slate-500">{totalSold}</p></CardContent></Card>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-40" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
           <option value="">{t('allCategories')}</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 
@@ -91,6 +97,7 @@ export default function InventoryPage() {
               <Warehouse className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -99,18 +106,22 @@ export default function InventoryPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('modelType')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('category')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('purchasePrice')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('quantity')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('available')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('supplierName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('purchaseDate')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(item => (
+                  {paginated.map(item => (
                     <tr key={item.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium">{item.item_name}</td>
                       <td className="py-3 px-4">{item.model_type}</td>
                       <td className="py-3 px-4">{item.category}</td>
                       <td className="py-3 px-4">{item.purchase_price?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4">{item.quantity || 1}</td>
+                      <td className="py-3 px-4">{item.quantity_available ?? item.quantity ?? 1}</td>
                       <td className="py-3 px-4">{item.supplier_name}</td>
                       <td className="py-3 px-4">{item.purchase_date}</td>
                       <td className="py-3 px-4">
@@ -123,6 +134,15 @@ export default function InventoryPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>

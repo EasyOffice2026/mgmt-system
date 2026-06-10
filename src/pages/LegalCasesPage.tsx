@@ -8,7 +8,9 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Scale, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Scale, DollarSign } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface LegalCase {
   id: string; legal_case_no: string; customer_id: string; customer_name: string;
@@ -33,7 +35,7 @@ export default function LegalCasesPage() {
   const { t } = useLang();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
+
   const [search, setSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -41,6 +43,8 @@ export default function LegalCasesPage() {
   const [editing, setEditing] = useState<LegalCase | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [showPaymentDetail, setShowPaymentDetail] = useState<LegalCase | null>(null);
   const [caseReceipts, setCaseReceipts] = useState<any[]>([]);
 
@@ -51,20 +55,15 @@ export default function LegalCasesPage() {
     let casesQuery = supabase.from('legal_cases').select('*').order('created_at', { ascending: false });
     if (fromDate) casesQuery = casesQuery.gte('created_at', fromDate);
     if (toDate) casesQuery = casesQuery.lte('created_at', toDate + 'T23:59:59');
-    const [casesRes, contractsRes, expRes] = await Promise.all([
+    const [casesRes, contractsRes] = await Promise.all([
       casesQuery,
-      supabase.from('contracts').select('*').eq('status', 'legal_case'),
-      supabase.from('expenses').select('amount, case_no, expense_type').in('expense_type', ['courtFees']),
+      supabase.from('contracts').select('*').in('status', ['legal_case', 'case_closed']),
     ]);
     setCases(casesRes.data || []);
     setContracts(contractsRes.data || []);
-    setExpenses(expRes.data || []);
     setLoading(false);
   }
 
-  function getCourtFees(caseNo: string) {
-    return expenses.filter(e => e.case_no === caseNo).reduce((s: number, e: any) => s + (e.amount || 0), 0);
-  }
 
   async function openPaymentDetail(lc: LegalCase) {
     setShowPaymentDetail(lc);
@@ -76,7 +75,7 @@ export default function LegalCasesPage() {
   }
 
   function calculateBalance() {
-    return Math.max(0, (form.rcvd_from_court + form.rcvd_from_customer) - form.remaining_from_customer);
+    return Math.max(0, (form.case_amount || 0) - (form.rcvd_from_court || 0));
   }
 
   async function handleSave() {
@@ -127,17 +126,17 @@ export default function LegalCasesPage() {
     c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
     c.case_no?.toLowerCase().includes(search.toLowerCase())
   );
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalCases = filtered.length;
   const totalClaimed = filtered.reduce((s, c) => s + (c.case_amount || 0), 0);
   const totalActual = filtered.reduce((s, c) => s + (c.original_amount || 0), 0);
-  const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0) + (c.rcvd_from_customer || 0), 0);
+  const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0), 0);
 
-  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('courtFees'), t('receivedAmount'), t('outstanding'), t('caseDate')];
+  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('receivedAmount'), t('outstanding')];
   const exportRows = filtered.map(c => {
-    const cf = getCourtFees(c.case_no);
-    const rcvd = (c.rcvd_from_customer || 0) + (c.rcvd_from_court || 0);
-    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, cf, rcvd, c.case_amount - rcvd, c.case_date];
+    const rcvd = c.rcvd_from_court || 0;
+    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.case_amount - rcvd];
   });
 
   return (
@@ -166,13 +165,12 @@ export default function LegalCasesPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+          <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+          <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
         </div>
       </div>
 
@@ -185,6 +183,7 @@ export default function LegalCasesPage() {
               <Scale className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -193,17 +192,15 @@ export default function LegalCasesPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actualAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('claimedAmount')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtFees')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('outstanding')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseDate')}</th>
+
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => {
-                    const cf = getCourtFees(c.case_no);
-                    const rcvd = (c.rcvd_from_customer || 0) + (c.rcvd_from_court || 0);
+                  {paginated.map(c => {
+                    const rcvd = c.rcvd_from_court || 0;
                     const outstanding = (c.case_amount || 0) - rcvd;
                     return (
                       <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
@@ -211,10 +208,9 @@ export default function LegalCasesPage() {
                         <td className="py-3 px-4 text-blue-600">{c.case_no}</td>
                         <td className="py-3 px-4">{Math.round(c.original_amount || 0).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4">{Math.round(c.case_amount || 0).toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4 text-red-600">{Math.round(cf).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4 text-green-600">{Math.round(rcvd).toLocaleString()} {t('kd')}</td>
                         <td className="py-3 px-4 font-medium">{Math.round(outstanding).toLocaleString()} {t('kd')}</td>
-                        <td className="py-3 px-4">{c.case_date}</td>
+
                         <td className="py-3 px-4">
                           <div className="flex gap-1">
                             <Button variant="ghost" size="sm" onClick={() => openPaymentDetail(c)} title={t('paymentDetails')}><DollarSign className="h-4 w-4 text-green-500" /></Button>
@@ -228,6 +224,15 @@ export default function LegalCasesPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>
@@ -333,6 +338,9 @@ export default function LegalCasesPage() {
                   setForm({ ...form, contract_id: e.target.value, customer_id: contract?.customer_id || '', purchase_price: contract?.purchase_price || 0, original_amount: origAmt, remaining_from_customer: remFromCust, rcvd_from_customer: Math.max(0, origAmt - remFromCust) });
                 }}>
                   <option value="">Select Contract</option>
+                  {editing && form.contract_id && !contracts.find(c => c.id === form.contract_id) && (
+                    <option value={form.contract_id}>{editing.contract_no} - {editing.customer_name}</option>
+                  )}
                   {contracts.filter(c => editing ? true : !usedContractIds.has(c.id)).map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
                 </select>
               </div>
@@ -342,7 +350,7 @@ export default function LegalCasesPage() {
               </div>
               <div>
                 <Label>{t('caseDate')}</Label>
-                <Input type="date" value={form.case_date} onChange={e => setForm({ ...form, case_date: e.target.value })} />
+                <DatePicker value={form.case_date} onChange={(v) => setForm({ ...form, case_date: v })} placeholder={t("date")} className="w-full" />
               </div>
               <div>
                 <Label>{t('purchasePrice')}</Label>
@@ -372,7 +380,7 @@ export default function LegalCasesPage() {
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-1">{t('balanceAmount')}</h4>
               <p className="text-2xl font-bold text-blue-700">{Math.round(calculateBalance()).toLocaleString()} {t('kd')}</p>
-              <p className="text-xs text-blue-600 mt-1">({t('rcvdFromCourt')} + {t('rcvdFromCustomer')}) - {t('remainingFromCustomer')}</p>
+              <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCourt')}</p>
             </div>
             <FileAttachment bucket="legal" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
             <div className="flex justify-end gap-3 pt-4 border-t">

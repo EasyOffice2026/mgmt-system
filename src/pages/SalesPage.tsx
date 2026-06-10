@@ -9,8 +9,11 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, ShoppingCart, Calendar, X, Clock } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock, Printer } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { format, addMonths, isBefore } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination } from '@/components/ui/pagination';
 
 interface Contract {
   id: string; contract_no: string; customer_id: string; customer_name: string;
@@ -24,18 +27,18 @@ interface Contract {
 }
 
 interface Customer { id: string; customer_no: string; name: string; }
-interface Purchase { id: string; item_name: string; model_type: string; category: string; purchase_price: number; status: string; }
+interface Purchase { id: string; item_name: string; model_type: string; category: string; purchase_price: number; quantity: number; quantity_available: number; status: string; }
 
-interface ContractItem { purchase_id: string; item_name: string; model_type: string; category: string; purchase_price: number; profit_percentage: number; sale_price: number; }
+interface ContractItem { purchase_id: string; item_name: string; model_type: string; category: string; purchase_price: number; profit_percentage: number; sale_price: number; quantity: number; }
 
-const emptyItem: ContractItem = { purchase_id: '', item_name: '', model_type: '', category: '', purchase_price: 0, profit_percentage: 0, sale_price: 0 };
+const emptyItem: ContractItem = { purchase_id: '', item_name: '', model_type: '', category: '', purchase_price: 0, profit_percentage: 0, sale_price: 0, quantity: 1 };
 
 const defaultForm = {
   customer_id: '', items: [{ ...emptyItem }] as ContractItem[],
   file_opening_charges: 0, duration_months: 12,
   start_date: format(new Date(), 'yyyy-MM-dd'),
   first_installment_date: format(addMonths(new Date(), 1), 'yyyy-MM-dd'),
-  payment_mode: 'cash', status: 'functional', attachments: [] as string[],
+  payment_mode: 'cash', status: 'ongoing', attachments: [] as string[],
 };
 
 const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
@@ -46,6 +49,7 @@ export default function SalesPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [showDialog, setShowDialog] = useState(false);
@@ -53,7 +57,10 @@ export default function SalesPage() {
   const [editing, setEditing] = useState<Contract | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
+  const [showForm, setShowForm] = useState<Contract | null>(null);
 
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
 
@@ -75,7 +82,7 @@ export default function SalesPage() {
     const [contRes, custRes, purRes] = await Promise.all([
       contQuery,
       supabase.from('customers').select('id, customer_no, name'),
-      supabase.from('purchases').select('id, item_name, model_type, category, purchase_price, status').eq('status', 'in_stock'),
+      supabase.from('purchases').select('id, item_name, model_type, category, purchase_price, quantity, quantity_available, status').eq('status', 'in_stock'),
     ]);
     setContracts(contRes.data || []);
     setCustomers(custRes.data || []);
@@ -99,8 +106,13 @@ export default function SalesPage() {
     if (field === 'purchase_id') {
       const purchase = purchases.find(p => p.id === value);
       if (purchase) {
-        newItems[index] = { ...newItems[index], item_name: purchase.item_name, model_type: purchase.model_type, category: purchase.category, purchase_price: purchase.purchase_price };
+        newItems[index] = { ...newItems[index], item_name: purchase.item_name, model_type: purchase.model_type, category: purchase.category, purchase_price: purchase.purchase_price, quantity: 1 };
       }
+    }
+    if (field === 'quantity') {
+      const purchase = purchases.find(p => p.id === newItems[index].purchase_id);
+      const maxQty = purchase ? (purchase.quantity_available ?? purchase.quantity ?? 1) : 9999;
+      newItems[index] = { ...newItems[index], quantity: Math.min(Math.max(1, Number(value)), maxQty) };
     }
     // Auto-calculate sale price when purchase price or profit percentage changes
     if (field === 'purchase_price' || field === 'profit_percentage') {
@@ -115,12 +127,11 @@ export default function SalesPage() {
   }
 
   function getTotalSalePrice() {
-    return form.items.reduce((sum, item) => sum + (item.sale_price || 0), 0);
+    return form.items.reduce((sum, item) => sum + (item.sale_price || 0) * (item.quantity || 1), 0);
   }
 
   function calculateInstallment() {
-    const totalFinanced = getTotalSalePrice() - form.file_opening_charges;
-    return form.duration_months > 0 ? totalFinanced / form.duration_months : 0;
+    return form.duration_months > 0 ? getTotalSalePrice() / form.duration_months : 0;
   }
 
   function generateSchedule() {
@@ -134,19 +145,43 @@ export default function SalesPage() {
     return schedule;
   }
 
+  async function generateContractNo(): Promise<string> {
+    const year = new Date().getFullYear();
+    const { data } = await supabase.from('contracts').select('contract_no').order('created_at', { ascending: false }).limit(100);
+    let maxNum = 0;
+    (data || []).forEach((c: any) => {
+      const no = c.contract_no || '';
+      // Handle CON-YYYY-NNNN format
+      const match = no.match(/CON-\d{4}-(\d+)/);
+      if (match) { maxNum = Math.max(maxNum, parseInt(match[1], 10)); }
+      // Handle CON-NNNNN format
+      const match2 = no.match(/^CON-(\d+)$/);
+      if (match2) { maxNum = Math.max(maxNum, parseInt(match2[1], 10)); }
+    });
+    return `CON-${year}-${String(maxNum + 1).padStart(4, '0')}`;
+  }
+
   async function handleSave() {
+    // Validate mandatory fields
+    if (!form.customer_id) { alert(t('selectCustomer') || 'Please select a customer'); return; }
+    const hasValidItem = form.items.some(i => i.purchase_id || (i.item_name && i.sale_price > 0));
+    if (!hasValidItem) { alert(t('selectProduct') || 'Please select at least one item'); return; }
+    if (form.first_installment_date && form.start_date && form.first_installment_date < form.start_date) {
+      alert(t('firstInstallmentBeforeStart') || 'First installment date cannot be before start date');
+      return;
+    }
     const customer = customers.find(c => c.id === form.customer_id);
     const totalSalePrice = getTotalSalePrice();
     const instAmount = calculateInstallment();
     const schedule = generateSchedule();
     const lastDate = schedule.length > 0 ? schedule[schedule.length - 1].due_date : form.start_date;
-    const data = {
+    const data: any = {
       customer_id: form.customer_id, customer_name: customer?.name || '',
       items: form.items,
       item_name: form.items.map(i => i.item_name).join(', '),
       category: form.items.map(i => i.category).join(', '),
       model_type: form.items.map(i => i.model_type).join(', '),
-      purchase_price: form.items.reduce((s, i) => s + (i.purchase_price || 0), 0),
+      purchase_price: form.items.reduce((s, i) => s + (i.purchase_price || 0) * (i.quantity || 1), 0),
       sale_price: totalSalePrice,
       file_opening_charges: form.file_opening_charges,
       duration_months: form.duration_months,
@@ -160,13 +195,23 @@ export default function SalesPage() {
     if (editing) {
       data.paid_amount = editing.paid_amount;
       data.remaining_amount = totalSalePrice - editing.paid_amount;
-      await supabase.from('contracts').update(data).eq('id', editing.id);
+      const { error } = await supabase.from('contracts').update(data).eq('id', editing.id);
+      if (error) { console.error('Contract update error:', error); alert(`Failed to update contract: ${error.message}`); return; }
     } else {
-      await supabase.from('contracts').insert(data);
-      // Mark items as sold
+      data.contract_no = await generateContractNo();
+      const { error } = await supabase.from('contracts').insert(data);
+      if (error) { console.error('Contract insert error:', error); alert(`Failed to create contract: ${error.message}`); return; }
+      // Deduct quantity from inventory
       for (const item of form.items) {
         if (item.purchase_id) {
-          await supabase.from('purchases').update({ status: 'sold' }).eq('id', item.purchase_id);
+          const purchase = purchases.find(p => p.id === item.purchase_id);
+          if (purchase) {
+            const newAvail = Math.max(0, (purchase.quantity_available ?? purchase.quantity ?? 1) - (item.quantity || 1));
+            await supabase.from('purchases').update({
+              quantity_available: newAvail,
+              status: newAvail <= 0 ? 'sold' : 'in_stock'
+            }).eq('id', item.purchase_id);
+          }
         }
       }
     }
@@ -192,16 +237,23 @@ export default function SalesPage() {
     setShowDialog(true);
   }
 
-  const filtered = contracts.filter(c =>
-    c.contract_no?.toLowerCase().includes(search.toLowerCase()) ||
-    c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.item_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = contracts.filter(c => {
+    const matchesSearch = c.contract_no?.toLowerCase().includes(search.toLowerCase()) ||
+      c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.item_name?.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' ||
+      (statusFilter === 'functional' && (c.status === 'functional' || c.status === 'ongoing')) ||
+      (statusFilter === 'closed' && (c.status === 'finished' || c.status === 'closed')) ||
+      (statusFilter === 'legal_case' && c.status === 'legal_case') ||
+      (statusFilter === 'case_closed' && c.status === 'case_closed');
+    return matchesSearch && matchesStatus;
+  });
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const statusColor = (s: string) => {
-    if (s === 'functional') return 'bg-blue-100 text-blue-700';
+    if (s === 'ongoing' || s === 'functional') return 'bg-blue-100 text-blue-700';
     if (s === 'finished') return 'bg-green-100 text-green-700';
-    if (s === 'case_closed') return 'bg-purple-100 text-purple-700';
+    if (s === 'case_closed' || s === 'legal_case') return 'bg-purple-100 text-purple-700';
     return 'bg-red-100 text-red-700';
   };
 
@@ -223,16 +275,36 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative max-w-md flex-1">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input placeholder={t('search')} value={search} onChange={e => setSearch(e.target.value)} className="ps-9" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative max-w-md flex-1">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
+          </div>
+          <div className="flex items-center gap-2">
+            <DatePicker value={fromDate} onChange={setFromDate} placeholder={t('from')} />
+            <span className="text-slate-400">-</span>
+            <DatePicker value={toDate} onChange={setToDate} placeholder={t('to')} />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-36 h-9" />
-          <span className="text-slate-400">-</span>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-36 h-9" />
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: 'all', label: t('all') || 'All' },
+            { key: 'functional', label: t('functional') },
+            { key: 'closed', label: t('closed') },
+            { key: 'legal_case', label: t('legalCase') },
+            { key: 'case_closed', label: t('caseClosed') },
+          ].map(opt => (
+            <Button
+              key={opt.key}
+              variant={statusFilter === opt.key ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setStatusFilter(opt.key); setCurrentPage(1); }}
+              className={statusFilter === opt.key ? 'bg-blue-600 text-white' : ''}
+            >
+              {opt.label}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -245,6 +317,7 @@ export default function SalesPage() {
               <ShoppingCart className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -260,7 +333,7 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => (
+                  {paginated.map(c => (
                     <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600 cursor-pointer" onClick={() => setShowSchedule(c)}>{c.contract_no}</td>
                       <td className="py-3 px-4">{c.customer_name}</td>
@@ -271,6 +344,7 @@ export default function SalesPage() {
                       <td className="py-3 px-4"><Badge className={statusColor(c.status)} variant="secondary">{t(c.status as any)}</Badge></td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setShowForm(c)}><Printer className="h-4 w-4 text-blue-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(c)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                         </div>
@@ -280,9 +354,122 @@ export default function SalesPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Printable Contract Form */}
+      <Dialog open={!!showForm} onOpenChange={() => setShowForm(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{t('contractForm')}</span>
+              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('contract-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { w.document.write('<html><head><title>' + (showForm?.contract_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:ltr}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.section{margin:15px 0}.section-title{font-size:14px;font-weight:bold;background:#f0f0f0;padding:8px;margin-bottom:5px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.info-item{font-size:13px}.info-label{color:#666;font-weight:600}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
+                <Printer className="h-4 w-4 me-1" /> {t('print')}
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          {showForm && (
+            <div id="contract-print-form">
+              <div className="text-center border-b pb-4 mb-4">
+                <h1 className="text-xl font-bold">{t('appName')}</h1>
+                <h2 className="text-lg text-slate-600">{t('contractForm')}</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                <div><span className="text-slate-500 font-medium">{t('contractNo')}:</span> <span className="font-bold">{showForm.contract_no}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('startDate')}:</span> <span>{showForm.start_date}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('customerName')}:</span> <span className="font-bold">{showForm.customer_name}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('endDate')}:</span> <span>{showForm.end_date || showForm.last_installment_date}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('paymentMode')}:</span> <span>{t(showForm.payment_mode as any) || showForm.payment_mode}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('status')}:</span> <span>{t(showForm.status as any) || showForm.status}</span></div>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="font-bold text-sm bg-slate-100 p-2 rounded mb-2">{t('items')}</h3>
+                <table className="w-full text-sm border">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="border p-2 text-start">#</th>
+                      <th className="border p-2 text-start">{t('itemName')}</th>
+                      <th className="border p-2 text-start">{t('modelType')}</th>
+                      <th className="border p-2 text-start">{t('category')}</th>
+                      <th className="border p-2 text-end">{t('purchasePrice')}</th>
+                      <th className="border p-2 text-end">{t('salePrice')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showForm.items && showForm.items.length > 0 ? showForm.items : [{ item_name: showForm.item_name, model_type: showForm.model_type, category: showForm.category, purchase_price: showForm.purchase_price, sale_price: showForm.sale_price }]).map((item: any, i: number) => (
+                      <tr key={i}>
+                        <td className="border p-2">{i + 1}</td>
+                        <td className="border p-2">{item.item_name}</td>
+                        <td className="border p-2">{item.model_type}</td>
+                        <td className="border p-2">{item.category}</td>
+                        <td className="border p-2 text-end">{(item.purchase_price || 0).toLocaleString()} {t('kd')}</td>
+                        <td className="border p-2 text-end">{(item.sale_price || 0).toLocaleString()} {t('kd')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="font-bold text-sm bg-slate-100 p-2 rounded mb-2">{t('installmentSummary')}</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="bg-blue-50 rounded p-3"><p className="text-blue-600 text-xs">{t('salePrice')}</p><p className="font-bold">{showForm.sale_price?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-slate-50 rounded p-3"><p className="text-slate-500 text-xs">{t('fileOpeningCharges')}</p><p className="font-bold">{showForm.file_opening_charges?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-green-50 rounded p-3"><p className="text-green-600 text-xs">{t('paidAmount')}</p><p className="font-bold text-green-700">{showForm.paid_amount?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-red-50 rounded p-3"><p className="text-red-600 text-xs">{t('remainingAmount')}</p><p className="font-bold text-red-700">{showForm.remaining_amount?.toLocaleString()} {t('kd')}</p></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-sm mt-3">
+                  <div><span className="text-slate-500">{t('duration')}:</span> <span className="font-medium">{showForm.duration_months} {t('months')}</span></div>
+                  <div><span className="text-slate-500">{t('installmentValue')}:</span> <span className="font-medium">{showForm.installment_amount?.toFixed(3)} {t('kd')}</span></div>
+                  <div><span className="text-slate-500">{t('firstInstallmentDate')}:</span> <span className="font-medium">{showForm.first_installment_date}</span></div>
+                </div>
+              </div>
+
+              {showForm.installment_schedule && showForm.installment_schedule.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="font-bold text-sm bg-slate-100 p-2 rounded mb-2">{t('installmentSchedule')}</h3>
+                  <table className="w-full text-sm border">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="border p-2 text-start">#</th>
+                        <th className="border p-2 text-start">{t('dueDate')}</th>
+                        <th className="border p-2 text-end">{t('amount')}</th>
+                        <th className="border p-2 text-start">{t('status')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {showForm.installment_schedule.map((inst: any, i: number) => (
+                        <tr key={i} className={inst.status === 'paid' ? 'bg-green-50' : ''}>
+                          <td className="border p-2">{inst.month || i + 1}</td>
+                          <td className="border p-2">{inst.due_date}</td>
+                          <td className="border p-2 text-end">{inst.amount?.toLocaleString()} {t('kd')}</td>
+                          <td className="border p-2">{inst.status === 'paid' ? t('paid') : t('pending')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-8 flex justify-between text-sm">
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('signature')} / {t('customerName')}</div></div>
+                <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('signature')} / {t('appName')}</div></div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Installment Schedule Modal */}
       <Dialog open={!!showSchedule} onOpenChange={() => setShowSchedule(null)}>
@@ -395,16 +582,18 @@ export default function SalesPage() {
           <div className="space-y-4">
             <div>
               <Label>{t('customer')} *</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
-                <option value="">Select Customer</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={customers.map(c => ({ value: c.id, label: `${c.customer_no} - ${c.name}` }))}
+                value={form.customer_id}
+                onChange={(v) => setForm({ ...form, customer_id: v })}
+                placeholder={t('selectCustomer') || 'Select Customer'}
+              />
             </div>
 
             {/* Multiple Items Section */}
             <div className="border rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">{t('items')}</h3>
+                <h3 className="font-medium">{t('items')} *</h3>
                 <Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 me-1" /> {t('addItem')}</Button>
               </div>
               {form.items.map((item, idx) => (
@@ -420,7 +609,7 @@ export default function SalesPage() {
                       <Label className="text-xs">{t('selectProduct')}</Label>
                       <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={item.purchase_id} onChange={e => updateItem(idx, 'purchase_id', e.target.value)}>
                         <option value="">Select from inventory</option>
-                        {purchases.map(p => <option key={p.id} value={p.id}>{p.item_name} - {p.model_type} ({p.category})</option>)}
+                        {purchases.map(p => <option key={p.id} value={p.id}>{p.item_name} - {p.model_type} ({p.category}) [{t('available')}: {p.quantity_available ?? p.quantity ?? 1}]</option>)}
                       </select>
                     </div>
                     <div>
@@ -434,6 +623,11 @@ export default function SalesPage() {
                     <div>
                       <Label className="text-xs">{t('salePrice')} *</Label>
                       <Input className="h-9" type="number" value={item.sale_price} onChange={e => updateItem(idx, 'sale_price', Number(e.target.value))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">{t('quantity')} *</Label>
+                      <Input className="h-9" type="number" min={1} max={item.purchase_id ? (purchases.find(p => p.id === item.purchase_id)?.quantity_available ?? 1) : 9999} value={item.quantity} onChange={e => updateItem(idx, 'quantity', Number(e.target.value))} />
+                      {item.purchase_id && <p className="text-xs text-slate-500 mt-0.5">{t('available')}: {purchases.find(p => p.id === item.purchase_id)?.quantity_available ?? '?'}</p>}
                     </div>
                   </div>
                 </div>
@@ -454,11 +648,14 @@ export default function SalesPage() {
               </div>
               <div>
                 <Label>{t('startDate')}</Label>
-                <Input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} />
+                <DatePicker value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} placeholder={t('startDate')} className="w-full" />
               </div>
               <div>
                 <Label>{t('firstInstallmentDate')}</Label>
-                <Input type="date" value={form.first_installment_date} onChange={e => setForm({ ...form, first_installment_date: e.target.value })} />
+                <DatePicker value={form.first_installment_date} onChange={(v) => {
+                  if (v < form.start_date) { alert(t('firstInstallmentBeforeStart') || 'First installment date cannot be before start date'); return; }
+                  setForm({ ...form, first_installment_date: v });
+                }} placeholder={t('firstInstallmentDate')} className="w-full" />
               </div>
               <div>
                 <Label>{t('paymentMode')}</Label>
@@ -474,8 +671,8 @@ export default function SalesPage() {
                   }
                   setForm({ ...form, status: e.target.value });
                 }}>
-                  <option value="functional">{t('functional')}</option>
-                  <option value="finished">{t('finished')}</option>
+                  <option value="ongoing">{t('functional')}</option>
+                  <option value="finished">{t('closed')}</option>
                   <option value="legal_case">{t('legalCase')}</option>
                   <option value="case_closed">{t('caseClosed')}</option>
                 </select>
@@ -484,8 +681,9 @@ export default function SalesPage() {
 
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900">{t('installmentSummary')}</h4>
-              <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
-                <div><p className="text-blue-600">{t('totalFinanced')}</p><p className="font-bold">{(getTotalSalePrice() - form.file_opening_charges).toLocaleString()} {t('kd')}</p></div>
+              <div className="grid grid-cols-4 gap-4 mt-2 text-sm">
+                <div><p className="text-blue-600">{t('totalSalePrice')}</p><p className="font-bold">{getTotalSalePrice().toLocaleString()} {t('kd')}</p></div>
+                <div><p className="text-blue-600">{t('fileOpeningCharges')}</p><p className="font-bold">{form.file_opening_charges.toLocaleString()} {t('kd')}</p></div>
                 <div><p className="text-blue-600">{t('installmentAmount')}</p><p className="font-bold">{calculateInstallment().toFixed(3)} {t('kd')}</p></div>
                 <div><p className="text-blue-600">{t('totalInstallments')}</p><p className="font-bold">{form.duration_months}</p></div>
               </div>
