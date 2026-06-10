@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Modal, StatusBadge, DownloadButtons, AttachZone, CameraZone,
-  EmptyState, Spinner
+  EmptyState, Spinner, SearchableSelect
 } from '../layout/SharedComponents';
 
 // ── SALES / CONTRACTS ──────────────────────────────────────
@@ -129,10 +129,12 @@ export function Sales() {
       >
         <div className="form-grid">
           <div className="form-group"><label className="field-label">{t('customer')} *</label>
-            <select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}>
-              <option value="">{t('selectCustomer')}</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} — {c.full_name}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.customer_id}
+              onChange={val => f('customer_id', val)}
+              placeholder={t('selectCustomer')}
+              options={customers.map(c => ({ value: c.id, label: `${c.customer_no} — ${c.full_name}` }))}
+            />
           </div>
           <div className="form-group"><label className="field-label">{t('category')}</label>
             <select value={form.category_id} onChange={e => f('category_id', e.target.value)}>
@@ -602,7 +604,14 @@ export function Receipts() {
           <div className="form-group"><label className="field-label">{t('receiptDate')} *</label><input type="date" value={form.receipt_date} onChange={e => f('receipt_date', e.target.value)} /></div>
           <div className="form-group"><label className="field-label">{t('receiptType')}</label><select value={form.receipt_type} onChange={e => f('receipt_type', e.target.value)}><option value="file_opening">{t('fileOpening')}</option><option value="installment">{t('installmentReceipt')}</option><option value="court_money">{t('courtMoney')}</option><option value="other">{t('other')}</option></select></div>
           <div className="form-group"><label className="field-label">{t('receiptAmount')} (KD) *</label><input type="number" value={form.amount} onChange={e => f('amount', e.target.value)} /></div>
-          <div className="form-group"><label className="field-label">{t('customer')}</label><select value={form.customer_id} onChange={e => f('customer_id', e.target.value)}><option value="">—</option>{customers.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}</select></div>
+          <div className="form-group"><label className="field-label">{t('customer')}</label>
+            <SearchableSelect
+              value={form.customer_id}
+              onChange={val => f('customer_id', val)}
+              placeholder={t('selectCustomer')}
+              options={customers.map(c => ({ value: c.id, label: `${c.customer_no} — ${c.full_name}` }))}
+            />
+          </div>
           <div className="form-group"><label className="field-label">{t('courtCaseNo')}</label><input value={form.legal_case_id} onChange={e => f('legal_case_id', e.target.value)} placeholder="LC-YYYY-XXX" /></div>
           <div className="form-group"><label className="field-label">{t('paymentMode')}</label><select value={form.payment_mode_id} onChange={e => f('payment_mode_id', e.target.value)}><option value="">—</option>{paymentModes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
         </div>
