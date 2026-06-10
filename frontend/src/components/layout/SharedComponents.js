@@ -1,5 +1,5 @@
 // src/components/layout/SharedComponents.js
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useLang } from '../../contexts/LangContext';
 import { supabase, exportToPDF, exportToExcel } from '../../utils/supabaseClient';
 import toast from 'react-hot-toast';
@@ -194,6 +194,79 @@ export function InfoRow({ label, value, mono }) {
     <div className="info-row">
       <span className="info-label">{label}</span>
       <span className="info-value" style={mono ? { fontFamily: 'monospace', fontSize: 12 } : {}}>{value || '—'}</span>
+    </div>
+  );
+}
+
+// ── Searchable Select ─────────────────────────────────────
+export function SearchableSelect({ options, value, onChange, placeholder, renderOption }) {
+  const { t } = useLang();
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  const selected = options.find(o => o.value === value);
+
+  const filtered = options.filter(o =>
+    o.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleSelect = useCallback((val) => {
+    onChange(val);
+    setSearch('');
+    setOpen(false);
+  }, [onChange]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setSearch('');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="searchable-select" ref={wrapRef}>
+      <div
+        className={`searchable-select-trigger${open ? ' active' : ''}`}
+        onClick={() => setOpen(true)}
+      >
+        {open ? (
+          <input
+            autoFocus
+            className="searchable-select-input"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={placeholder || t('search') + '...'}
+            onClick={e => e.stopPropagation()}
+          />
+        ) : (
+          <span className={selected ? 'searchable-select-value' : 'searchable-select-placeholder'}>
+            {selected ? (renderOption ? renderOption(selected) : selected.label) : (placeholder || t('selectCustomer'))}
+          </span>
+        )}
+        <span className="searchable-select-arrow">{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div className="searchable-select-dropdown">
+          {filtered.length === 0 ? (
+            <div className="searchable-select-empty">{t('noData')}</div>
+          ) : (
+            filtered.map(o => (
+              <div
+                key={o.value}
+                className={`searchable-select-option${o.value === value ? ' selected' : ''}`}
+                onClick={() => handleSelect(o.value)}
+              >
+                {renderOption ? renderOption(o) : o.label}
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
