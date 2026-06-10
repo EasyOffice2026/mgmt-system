@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, FileText, Printer } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Pagination } from '@/components/ui/pagination';
@@ -493,17 +494,21 @@ export default function ReceiptsPage() {
               </div>
               <div>
                 <Label>{t('customer')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => { setForm({ ...form, customer_id: e.target.value, contract_id: '', court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}>
-                  <option value="">Select</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={customers.map(c => ({ value: c.id, label: `${c.customer_no} - ${c.name}` }))}
+                  value={form.customer_id}
+                  onChange={(v) => { setForm({ ...form, customer_id: v, contract_id: '', court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}
+                  placeholder={t('selectCustomer') || 'Select Customer'}
+                />
               </div>
               <div>
                 <Label>{t('contractNo')}</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.contract_id} onChange={e => { setForm({ ...form, contract_id: e.target.value, court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}>
-                  <option value="">Select</option>
-                  {filteredContracts.map(c => <option key={c.id} value={c.id}>{c.contract_no} - {c.customer_name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={filteredContracts.map(c => ({ value: c.id, label: `${c.contract_no} - ${c.customer_name}` }))}
+                  value={form.contract_id}
+                  onChange={(v) => { setForm({ ...form, contract_id: v, court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}
+                  placeholder={t('selectContract') || 'Select Contract'}
+                />
               </div>
             </div>
 

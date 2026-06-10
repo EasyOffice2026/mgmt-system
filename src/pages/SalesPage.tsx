@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock, Printer } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { format, addMonths, isBefore } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Pagination } from '@/components/ui/pagination';
@@ -581,10 +582,12 @@ export default function SalesPage() {
           <div className="space-y-4">
             <div>
               <Label>{t('customer')} *</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
-                <option value="">Select Customer</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.customer_no} - {c.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={customers.map(c => ({ value: c.id, label: `${c.customer_no} - ${c.name}` }))}
+                value={form.customer_id}
+                onChange={(v) => setForm({ ...form, customer_id: v })}
+                placeholder={t('selectCustomer') || 'Select Customer'}
+              />
             </div>
 
             {/* Multiple Items Section */}
