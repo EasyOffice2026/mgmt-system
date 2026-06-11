@@ -257,8 +257,15 @@ export default function SalesPage() {
     return 'bg-red-100 text-red-700';
   };
 
+  const getContractPaid = (c: Contract) => {
+    const schedule = c.installment_schedule || [];
+    if (schedule.length === 0) return c.paid_amount || 0;
+    return schedule.reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
+  };
+  const getContractRemaining = (c: Contract) => (c.sale_price || 0) - getContractPaid(c);
+
   const exportHeaders = [t('contractNo'), t('customerName'), t('itemName'), t('salePrice'), t('paidAmount'), t('remainingAmount'), t('status')];
-  const exportRows = filtered.map(c => [c.contract_no, c.customer_name, c.item_name, c.sale_price, c.paid_amount, c.remaining_amount, c.status]);
+  const exportRows = filtered.map(c => [c.contract_no, c.customer_name, c.item_name, c.sale_price, getContractPaid(c), getContractRemaining(c), c.status]);
 
   return (
     <div className="space-y-6">
@@ -339,8 +346,8 @@ export default function SalesPage() {
                       <td className="py-3 px-4">{c.customer_name}</td>
                       <td className="py-3 px-4">{c.item_name}</td>
                       <td className="py-3 px-4">{c.sale_price?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4 text-green-600">{c.paid_amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4 text-red-600">{c.remaining_amount?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4 text-green-600">{getContractPaid(c).toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4 text-red-600">{getContractRemaining(c).toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4"><Badge className={statusColor(c.status)} variant="secondary">{t(c.status as any)}</Badge></td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
@@ -426,8 +433,8 @@ export default function SalesPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div className="bg-blue-50 rounded p-3"><p className="text-blue-600 text-xs">{t('salePrice')}</p><p className="font-bold">{showForm.sale_price?.toLocaleString()} {t('kd')}</p></div>
                   <div className="bg-slate-50 rounded p-3"><p className="text-slate-500 text-xs">{t('fileOpeningCharges')}</p><p className="font-bold">{showForm.file_opening_charges?.toLocaleString()} {t('kd')}</p></div>
-                  <div className="bg-green-50 rounded p-3"><p className="text-green-600 text-xs">{t('paidAmount')}</p><p className="font-bold text-green-700">{showForm.paid_amount?.toLocaleString()} {t('kd')}</p></div>
-                  <div className="bg-red-50 rounded p-3"><p className="text-red-600 text-xs">{t('remainingAmount')}</p><p className="font-bold text-red-700">{showForm.remaining_amount?.toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-green-50 rounded p-3"><p className="text-green-600 text-xs">{t('paidAmount')}</p><p className="font-bold text-green-700">{getContractPaid(showForm).toLocaleString()} {t('kd')}</p></div>
+                  <div className="bg-red-50 rounded p-3"><p className="text-red-600 text-xs">{t('remainingAmount')}</p><p className="font-bold text-red-700">{getContractRemaining(showForm).toLocaleString()} {t('kd')}</p></div>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-sm mt-3">
                   <div><span className="text-slate-500">{t('duration')}:</span> <span className="font-medium">{showForm.duration_months} {t('months')}</span></div>
@@ -482,8 +489,9 @@ export default function SalesPage() {
             const paidCount = schedule.filter((inst: any) => inst.status === 'paid').length;
             const partialCount = schedule.filter((inst: any) => inst.status === 'partially_paid').length;
             const pendingCount = schedule.length - paidCount - partialCount;
-            const totalPaidAmt = schedule.reduce((s: number, inst: any) => s + (inst.paid_amount || 0), 0);
-            const totalPendingAmt = schedule.reduce((s: number, inst: any) => s + ((inst.amount || 0) - (inst.paid_amount || 0)), 0);
+            const getEffectivePaid = (inst: any) => inst.status === 'paid' ? (inst.amount || 0) : (inst.paid_amount || 0);
+            const totalPaidAmt = schedule.reduce((s: number, inst: any) => s + getEffectivePaid(inst), 0);
+            const totalPendingAmt = schedule.reduce((s: number, inst: any) => s + ((inst.amount || 0) - getEffectivePaid(inst)), 0);
             const today = new Date();
             const overdueCount = schedule.filter((inst: any) => inst.status !== 'paid' && isBefore(new Date(inst.due_date), today)).length;
             return (
@@ -549,7 +557,7 @@ export default function SalesPage() {
                 </thead>
                 <tbody>
                   {schedule.map((inst: any, i: number) => {
-                    const instPaid = inst.paid_amount || 0;
+                    const instPaid = inst.status === 'paid' ? (inst.amount || 0) : (inst.paid_amount || 0);
                     const instRemaining = (inst.amount || 0) - instPaid;
                     const isOverdue = inst.status !== 'paid' && isBefore(new Date(inst.due_date), today);
                     return (

@@ -76,14 +76,21 @@ export default function ContractLookupPage() {
     ? ['#', t('dueDate'), t('amount'), t('status'), t('paymentDate'), t('runningBalance')]
     : [t('contractNo'), t('itemName'), t('salePrice'), t('paidAmount'), t('remainingAmount'), t('status')];
 
+  const getContractPaid = (c: Contract) => {
+    const schedule = c.installment_schedule || [];
+    if (schedule.length === 0) return c.paid_amount || 0;
+    return schedule.reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
+  };
+  const getContractRemaining = (c: Contract) => (c.sale_price || 0) - getContractPaid(c);
+
   const exportRows = selectedContract
     ? (selectedContract.installment_schedule || []).map((inst: any, i: number) => {
         const runningPaid = (selectedContract.installment_schedule || []).slice(0, i + 1)
-          .filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+          .reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
         const balance = (selectedContract.sale_price || 0) - runningPaid;
-        return [i + 1, inst.due_date, inst.amount, inst.status === 'paid' ? 'Paid' : 'Unpaid', inst.paid_date || '-', balance];
+        return [i + 1, inst.due_date, inst.amount, inst.status === 'paid' ? 'Paid' : inst.status === 'partially_paid' ? 'Partial' : 'Unpaid', inst.paid_date || '-', balance];
       })
-    : customerContracts.map(ct => [ct.contract_no, ct.item_name, ct.sale_price, ct.paid_amount, ct.remaining_amount, ct.status]);
+    : customerContracts.map(ct => [ct.contract_no, ct.item_name, ct.sale_price, getContractPaid(ct), getContractRemaining(ct), ct.status]);
 
   return (
     <div className="space-y-6">
@@ -177,7 +184,7 @@ export default function ContractLookupPage() {
                           </Badge>
                         </div>
                         <div className="text-sm">
-                          <span className="text-green-600 font-medium">{ct.paid_amount?.toLocaleString()}</span>
+                          <span className="text-green-600 font-medium">{getContractPaid(ct).toLocaleString()}</span>
                           <span className="text-slate-400 mx-1">/</span>
                           <span className="font-medium">{ct.sale_price?.toLocaleString()} {t('kd')}</span>
                         </div>
@@ -218,11 +225,11 @@ export default function ContractLookupPage() {
               </div>
               <div className="bg-green-50 rounded-lg p-3">
                 <p className="text-xs text-green-600">{t('paidAmount')}</p>
-                <p className="font-semibold mt-1 text-green-700">{selectedContract.paid_amount?.toLocaleString()} {t('kd')}</p>
+                <p className="font-semibold mt-1 text-green-700">{getContractPaid(selectedContract).toLocaleString()} {t('kd')}</p>
               </div>
               <div className="bg-red-50 rounded-lg p-3">
                 <p className="text-xs text-red-600">{t('remainingAmount')}</p>
-                <p className="font-semibold mt-1 text-red-700">{selectedContract.remaining_amount?.toLocaleString()} {t('kd')}</p>
+                <p className="font-semibold mt-1 text-red-700">{getContractRemaining(selectedContract).toLocaleString()} {t('kd')}</p>
               </div>
               <div className="bg-amber-50 rounded-lg p-3">
                 <p className="text-xs text-amber-600">{t('fileOpeningCharges')}</p>
