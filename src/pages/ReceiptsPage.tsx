@@ -131,7 +131,7 @@ export default function ReceiptsPage() {
             };
           }
         }
-        const schedulePaidTotal = schedule.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
+        const schedulePaidTotal = schedule.reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
         const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
         const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', formData.contract_id);
@@ -172,7 +172,7 @@ export default function ReceiptsPage() {
             };
           }
         }
-        const schedulePaidTotal = schedule.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
+        const schedulePaidTotal = schedule.reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
         const finalRemaining = (contractData.sale_price || 0) - schedulePaidTotal;
         const newStatus = schedulePaidTotal >= (contractData.sale_price || 0) ? 'finished' : contractData.status === 'finished' ? 'ongoing' : contractData.status;
         await supabase.from('contracts').update({ installment_schedule: schedule, paid_amount: schedulePaidTotal, remaining_amount: finalRemaining, status: newStatus }).eq('id', receipt.contract_id);
