@@ -46,7 +46,7 @@ const defaultForm = {
 };
 
 const receiptTypes = ['installment', 'courtMoney'];
-const paymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
+const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function ReceiptsPage() {
   const { t } = useLang();
@@ -67,8 +67,16 @@ export default function ReceiptsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showForm, setShowForm] = useState<ReceiptVoucher | null>(null);
+  const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
 
-  useEffect(() => { loadData(); }, [fromDate, toDate]);
+  useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
+
+  async function loadPaymentModes() {
+    const { data } = await supabase.from('payment_modes').select('name').order('name');
+    if (data && data.length > 0) {
+      setPaymentModes(data.map((d: any) => d.name));
+    }
+  }
 
   async function loadData() {
     setLoading(true);
