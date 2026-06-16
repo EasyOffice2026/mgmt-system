@@ -16,7 +16,7 @@ interface LegalCase {
   id: string; legal_case_no: string; customer_id: string; customer_name: string;
   contract_id: string; contract_no: string; case_no: string; purchase_price: number;
   original_amount: number; remaining_from_customer: number; case_amount: number;
-  rcvd_from_customer: number; rcvd_from_court: number; balance_amount: number;
+  rcvd_from_customer: number; rcvd_from_court: number; discount: number; balance_amount: number;
   case_date: string; court_fees: number; attachments: string[]; created_at: string;
 }
 
@@ -28,7 +28,7 @@ interface Contract {
 const defaultForm = {
   customer_id: '', contract_id: '', case_no: '', purchase_price: 0,
   original_amount: 0, remaining_from_customer: 0, case_amount: 0,
-  rcvd_from_customer: 0, rcvd_from_court: 0, case_date: '', attachments: [] as string[],
+  rcvd_from_customer: 0, rcvd_from_court: 0, discount: 0, case_date: '', attachments: [] as string[],
 };
 
 export default function LegalCasesPage() {
@@ -75,7 +75,7 @@ export default function LegalCasesPage() {
   }
 
   function calculateBalance() {
-    return Math.max(0, (form.case_amount || 0) - (form.rcvd_from_court || 0));
+    return Math.max(0, (form.case_amount || 0) - (form.rcvd_from_court || 0) - (form.discount || 0));
   }
 
   async function handleSave() {
@@ -88,7 +88,7 @@ export default function LegalCasesPage() {
       original_amount: form.original_amount || contract?.sale_price || 0,
       remaining_from_customer: form.remaining_from_customer || contract?.remaining_amount || 0,
       case_amount: form.case_amount, rcvd_from_customer: form.rcvd_from_customer,
-      rcvd_from_court: form.rcvd_from_court, balance_amount: calculateBalance(),
+      rcvd_from_court: form.rcvd_from_court, discount: form.discount || 0, balance_amount: calculateBalance(),
       case_date: form.case_date, attachments: form.attachments,
     };
     if (editing) {
@@ -113,7 +113,7 @@ export default function LegalCasesPage() {
       purchase_price: c.purchase_price, original_amount: c.original_amount,
       remaining_from_customer: c.remaining_from_customer, case_amount: c.case_amount,
       rcvd_from_customer: rcvdCalc, rcvd_from_court: c.rcvd_from_court,
-      case_date: c.case_date || '', attachments: c.attachments || [],
+      discount: c.discount || 0, case_date: c.case_date || '', attachments: c.attachments || [],
     });
     setShowDialog(true);
   }
@@ -136,7 +136,7 @@ export default function LegalCasesPage() {
   const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('receivedAmount'), t('outstanding')];
   const exportRows = filtered.map(c => {
     const rcvd = c.rcvd_from_court || 0;
-    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.case_amount - rcvd];
+    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.case_amount - rcvd - (c.discount || 0)];
   });
 
   return (
@@ -201,7 +201,7 @@ export default function LegalCasesPage() {
                 <tbody>
                   {paginated.map(c => {
                     const rcvd = c.rcvd_from_court || 0;
-                    const outstanding = (c.case_amount || 0) - rcvd;
+                    const outstanding = (c.case_amount || 0) - rcvd - (c.discount || 0);
                     return (
                       <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                         <td className="py-3 px-4 font-medium">{c.customer_name}</td>
@@ -376,11 +376,15 @@ export default function LegalCasesPage() {
                 <Label>{t('rcvdFromCourt')}</Label>
                 <Input type="number" value={form.rcvd_from_court} onChange={e => setForm({ ...form, rcvd_from_court: Number(e.target.value) })} />
               </div>
+              <div>
+                <Label>{t('discount')}</Label>
+                <Input type="number" value={form.discount} onChange={e => setForm({ ...form, discount: Number(e.target.value) })} />
+              </div>
             </div>
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-1">{t('balanceAmount')}</h4>
               <p className="text-2xl font-bold text-blue-700">{Math.round(calculateBalance()).toLocaleString()} {t('kd')}</p>
-              <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCourt')}</p>
+              <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCourt')} - {t('discount')}</p>
             </div>
             <FileAttachment bucket="legal" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
             <div className="flex justify-end gap-3 pt-4 border-t">
