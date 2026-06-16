@@ -253,7 +253,7 @@ export default function ReceiptsPage() {
       contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
       court_case_no: form.court_case_no, received_amount: form.received_amount,
       discount_amount: form.discount_amount || 0,
-      net_amount: (form.received_amount || 0) - (form.discount_amount || 0),
+      net_amount: (selectedContract?.remaining_amount || 0) - (form.received_amount || 0) - (form.discount_amount || 0),
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
       installment_no: form.installment_no,
     };
@@ -434,7 +434,7 @@ export default function ReceiptsPage() {
                   {showForm.court_case_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('courtCaseNo')}</td><td className="border p-3">{showForm.court_case_no}</td></tr>}
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('receivedAmount')}</td><td className="border p-3 font-bold text-lg text-green-700">{showForm.received_amount?.toLocaleString()} {t('kd')}</td></tr>
                   {(showForm as any).discount_amount > 0 && <tr><td className="border p-3 bg-slate-50 font-medium">{t('discount')}</td><td className="border p-3 text-red-600">{(showForm as any).discount_amount?.toLocaleString()} {t('kd')}</td></tr>}
-                  {(showForm as any).discount_amount > 0 && <tr><td className="border p-3 bg-slate-50 font-medium">{t('netAmount')}</td><td className="border p-3 font-bold text-lg">{((showForm.received_amount || 0) - ((showForm as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td></tr>}
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('netAmount')}</td><td className="border p-3 font-bold text-lg">{(showForm.net_amount ?? ((showForm.received_amount || 0) - ((showForm as any).discount_amount || 0))).toLocaleString()} {t('kd')}</td></tr>
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{t(showForm.payment_mode as any) || showForm.payment_mode}</td></tr>
                   {showForm.notes && <tr><td className="border p-3 bg-slate-50 font-medium">{t('notes')}</td><td className="border p-3">{showForm.notes}</td></tr>}
                 </tbody>
@@ -779,11 +779,11 @@ export default function ReceiptsPage() {
                 <Label>{t('discount')}</Label>
                 <Input type="number" value={form.discount_amount} onChange={e => setForm({ ...form, discount_amount: Number(e.target.value) })} placeholder="0" />
               </div>
-              {(form.received_amount > 0 && form.discount_amount > 0) && (
+              {form.contract_id && (
                 <div className="md:col-span-2">
                   <div className="bg-blue-50 rounded-lg p-3 text-sm flex items-center justify-between">
                     <span className="text-blue-600 font-medium">{t('netAmount')}:</span>
-                    <span className="font-bold text-blue-700">{((form.received_amount || 0) - (form.discount_amount || 0)).toLocaleString()} {t('kd')}</span>
+                    <span className="font-bold text-blue-700">{((selectedContract?.remaining_amount || 0) - (form.received_amount || 0) - (form.discount_amount || 0)).toLocaleString()} {t('kd')}</span>
                   </div>
                 </div>
               )}
