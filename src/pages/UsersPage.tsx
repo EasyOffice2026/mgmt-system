@@ -65,8 +65,9 @@ export default function UsersPage() {
   async function loadPaymentModes() {
     const { data } = await supabase.from('payment_modes').select('name').order('name');
     if (data && data.length > 0) {
-      const merged = [...new Set([...defaultPaymentModes, ...data.map((d: any) => d.name)])];
-      setPaymentModes(merged);
+      setPaymentModes(data.map((d: any) => d.name));
+    } else {
+      setPaymentModes(defaultPaymentModes);
     }
   }
 
@@ -101,15 +102,24 @@ export default function UsersPage() {
     const modeName = newPaymentMode.trim().toLowerCase().replace(/\s+/g, '_');
     if (!modeName) return;
     if (paymentModes.includes(modeName)) { alert('Payment mode already exists!'); return; }
-    await supabase.from('payment_modes').upsert({ name: modeName }, { onConflict: 'name' });
+    const { error } = await supabase.from('payment_modes').insert({ name: modeName });
+    if (error) {
+      console.error('Add payment mode error:', error);
+      alert('Failed to add payment mode: ' + error.message);
+      return;
+    }
     setNewPaymentMode('');
     await loadPaymentModes();
   }
 
   async function deletePaymentMode(mode: string) {
-    if (defaultPaymentModes.includes(mode)) { alert('Cannot delete default payment mode'); return; }
     if (!window.confirm(`Delete payment mode "${mode}"?`)) return;
-    await supabase.from('payment_modes').delete().eq('name', mode);
+    const { error } = await supabase.from('payment_modes').delete().eq('name', mode);
+    if (error) {
+      console.error('Delete payment mode error:', error);
+      alert('Failed to delete payment mode: ' + error.message);
+      return;
+    }
     await loadPaymentModes();
   }
 
@@ -356,11 +366,9 @@ export default function UsersPage() {
                 <div key={mode} className="flex items-center gap-1 bg-slate-100 rounded-lg px-3 py-2 text-sm">
                   <CreditCard className="h-3 w-3 text-slate-500" />
                   <span>{t(mode as any) || mode}</span>
-                  {!defaultPaymentModes.includes(mode) && (
-                    <button onClick={() => deletePaymentMode(mode)} className="ms-1 text-red-400 hover:text-red-600">
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
+                  <button onClick={() => deletePaymentMode(mode)} className="ms-1 text-red-400 hover:text-red-600">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>
