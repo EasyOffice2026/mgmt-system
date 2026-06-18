@@ -173,7 +173,29 @@ export default function SalesPage() {
     const customer = customers.find(c => c.id === form.customer_id);
     const totalSalePrice = getTotalSalePrice();
     const instAmount = calculateInstallment();
-    const schedule = generateSchedule();
+    const newSchedule = generateSchedule();
+
+    // When editing, preserve existing installment payment data if financial terms unchanged
+    let schedule = newSchedule;
+    if (editing && editing.installment_schedule && editing.installment_schedule.length > 0) {
+      const termsChanged = editing.sale_price !== totalSalePrice ||
+        editing.duration_months !== form.duration_months ||
+        editing.first_installment_date !== form.first_installment_date;
+      if (!termsChanged) {
+        schedule = editing.installment_schedule;
+      } else {
+        // Terms changed: regenerate but carry over payment data by month number
+        const oldByMonth = new Map(editing.installment_schedule.map((inst: any) => [inst.month, inst]));
+        schedule = newSchedule.map((inst: any) => {
+          const old = oldByMonth.get(inst.month);
+          if (old && (old.status === 'paid' || old.status === 'partially_paid')) {
+            return { ...inst, status: old.status, paid_amount: old.paid_amount || 0 };
+          }
+          return inst;
+        });
+      }
+    }
+
     const lastDate = schedule.length > 0 ? schedule[schedule.length - 1].due_date : form.start_date;
     const data: any = {
       customer_id: form.customer_id, customer_name: customer?.name || '',
