@@ -158,11 +158,11 @@ export default function DashboardPage() {
             contractNo: c.contract_number || c.id,
             customerName: customerMap.get(c.customer_id) || c.customer_name || '-',
             overdueCount: overdueInstallments.length,
-            totalOverdue: overdueInstallments.reduce((s: number, inst: any) => s + (inst.amount || 0), 0),
+            totalOverdue: overdueInstallments.reduce((s: number, inst: any) => s + Math.max(0, (inst.amount || 0) - (inst.paid_amount || 0)), 0),
             installments: overdueInstallments.map((inst: any) => ({
               no: inst.installment_no || inst.number,
               dueDate: inst.due_date,
-              amount: inst.amount || 0,
+              amount: Math.max(0, (inst.amount || 0) - (inst.paid_amount || 0)),
             })),
           });
         }
