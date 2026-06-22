@@ -1,6 +1,14 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { amiriRegularBase64, amiriBoldBase64 } from './fonts/amiri';
+
+function registerArabicFonts(doc: jsPDF) {
+  doc.addFileToVFS('Amiri-Regular.ttf', amiriRegularBase64);
+  doc.addFileToVFS('Amiri-Bold.ttf', amiriBoldBase64);
+  doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
+  doc.addFont('Amiri-Bold.ttf', 'Amiri', 'bold');
+}
 
 export function exportToPdf(
   title: string,
@@ -9,10 +17,12 @@ export function exportToPdf(
   filename: string
 ) {
   const doc = new jsPDF();
+  registerArabicFonts(doc);
+
   doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('Amiri', 'bold');
   doc.text('Approve Trading Company', 14, 15);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('Amiri', 'normal');
   doc.setFontSize(14);
   doc.text(title, 14, 25);
   doc.setFontSize(10);
@@ -22,7 +32,7 @@ export function exportToPdf(
     head: [headers],
     body: rows,
     startY: 40,
-    styles: { fontSize: 8, cellPadding: 3 },
+    styles: { fontSize: 8, cellPadding: 3, font: 'Amiri' },
     headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 250, 252] },
   });
