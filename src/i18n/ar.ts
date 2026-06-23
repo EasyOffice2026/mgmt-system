@@ -105,6 +105,7 @@ export const ar = {
   existingClient: 'عميل حالي',
   clientType: 'نوع العميل',
   salePrice: 'سعر البيع',
+  unitPrice: 'سعر الوحدة',
   purchasePrice: 'سعر الشراء',
   duration: 'المدة (أشهر)',
   startDate: 'تاريخ البداية',

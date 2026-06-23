@@ -410,13 +410,8 @@ export default function SalesPage() {
           </DialogHeader>
           {showForm && (
             <div id="contract-print-form" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-              <div className="flex items-center gap-4 border-b pb-4 mb-4">
-                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-16 w-auto" />
-                <div className={lang === 'ar' ? 'text-right flex-1' : 'text-left flex-1'}>
-                  <h1 className="text-xl font-bold">Approv</h1>
-                  <p className="text-sm text-slate-500">شركة ابروف لتجارة الجمله والتجزئة</p>
-                  <h2 className="text-lg text-slate-600 font-semibold mt-1">{t('contractForm')}</h2>
-                </div>
+              <div className="text-center border-b pb-4 mb-4">
+                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-20 w-auto mx-auto" />
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div><span className="text-slate-500 font-medium">{t('contractNo')}:</span> <span className="font-bold">{showForm.contract_no}</span></div>
@@ -436,21 +431,28 @@ export default function SalesPage() {
                       <th className="border p-2 text-start">{t('itemName')}</th>
                       <th className="border p-2 text-start">{t('modelType')}</th>
                       <th className="border p-2 text-start">{t('category')}</th>
-                      <th className="border p-2 text-end">{t('purchasePrice')}</th>
-                      <th className="border p-2 text-end">{t('salePrice')}</th>
+                      <th className="border p-2 text-end">{t('quantity')}</th>
+                      <th className="border p-2 text-end">{t('unitPrice')}</th>
+                      <th className="border p-2 text-end">{t('totalSalePrice')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(showForm.items && showForm.items.length > 0 ? showForm.items : [{ item_name: showForm.item_name, model_type: showForm.model_type, category: showForm.category, purchase_price: showForm.purchase_price, sale_price: showForm.sale_price }]).map((item: any, i: number) => (
-                      <tr key={i}>
-                        <td className="border p-2">{i + 1}</td>
-                        <td className="border p-2">{item.item_name}</td>
-                        <td className="border p-2">{item.model_type}</td>
-                        <td className="border p-2">{item.category}</td>
-                        <td className="border p-2 text-end">{(item.purchase_price || 0).toLocaleString()} {t('kd')}</td>
-                        <td className="border p-2 text-end">{(item.sale_price || 0).toLocaleString()} {t('kd')}</td>
-                      </tr>
-                    ))}
+                    {(showForm.items && showForm.items.length > 0 ? showForm.items : [{ item_name: showForm.item_name, model_type: showForm.model_type, category: showForm.category, purchase_price: showForm.purchase_price, sale_price: showForm.sale_price, quantity: 1 }]).map((item: any, i: number) => {
+                      const qty = item.quantity || 1;
+                      const unitPrice = item.sale_price || 0;
+                      const totalPrice = qty * unitPrice;
+                      return (
+                        <tr key={i}>
+                          <td className="border p-2">{i + 1}</td>
+                          <td className="border p-2">{item.item_name}</td>
+                          <td className="border p-2">{item.model_type}</td>
+                          <td className="border p-2">{item.category}</td>
+                          <td className="border p-2 text-end">{qty}</td>
+                          <td className="border p-2 text-end">{unitPrice.toLocaleString()} {t('kd')}</td>
+                          <td className="border p-2 text-end">{totalPrice.toLocaleString()} {t('kd')}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
