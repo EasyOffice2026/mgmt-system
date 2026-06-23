@@ -411,7 +411,7 @@ export default function SalesPage() {
           {showForm && (
             <div id="contract-print-form" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
               <div className="text-center border-b pb-4 mb-4">
-                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-20 w-auto mx-auto" />
+                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-24 w-auto mx-auto" />
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div><span className="text-slate-500 font-medium">{t('contractNo')}:</span> <span className="font-bold">{showForm.contract_no}</span></div>
@@ -465,11 +465,11 @@ export default function SalesPage() {
                   <div className="bg-green-50 rounded p-3"><p className="text-green-600 text-xs">{t('paidAmount')}</p><p className="font-bold text-green-700">{getContractPaid(showForm).toLocaleString()} {t('kd')}</p></div>
                   <div className="bg-red-50 rounded p-3"><p className="text-red-600 text-xs">{t('remainingAmount')}</p><p className="font-bold text-red-700">{getContractRemaining(showForm).toLocaleString()} {t('kd')}</p></div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mt-3">
-                  <div><span className="text-slate-500">{t('duration')}:</span> <span className="font-medium">{showForm.duration_months} {t('months')}</span></div>
-                  <div><span className="text-slate-500">{t('installmentValue')}:</span> <span className="font-medium">{showForm.installment_amount?.toFixed(3)} {t('kd')}</span></div>
-                  <div><span className="text-slate-500">{t('firstInstallmentDate')}:</span> <span className="font-medium">{showForm.first_installment_date}</span></div>
-                  <div><span className="text-slate-500">{t('lastInstallmentDate')}:</span> <span className="font-medium">{showForm.last_installment_date || (showForm.installment_schedule && showForm.installment_schedule.length > 0 ? showForm.installment_schedule[showForm.installment_schedule.length - 1]?.due_date : '-')}</span></div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mt-3">
+                  <span><span className="text-slate-500">{t('duration')}:</span> <span className="font-medium">{showForm.duration_months} {t('months')}</span></span>
+                  <span><span className="text-slate-500">{t('installmentValue')}:</span> <span className="font-medium">{showForm.installment_amount?.toFixed(3)} {t('kd')}</span></span>
+                  <span><span className="text-slate-500">{t('firstInstallmentDate')}:</span> <span className="font-medium">{showForm.first_installment_date}</span></span>
+                  <span><span className="text-slate-500">{t('lastInstallmentDate')}:</span> <span className="font-medium">{showForm.last_installment_date || (showForm.installment_schedule && showForm.installment_schedule.length > 0 ? showForm.installment_schedule[showForm.installment_schedule.length - 1]?.due_date : '-')}</span></span>
                 </div>
               </div>
 
