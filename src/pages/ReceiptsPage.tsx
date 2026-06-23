@@ -13,6 +13,7 @@ import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, FileText, Printer } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { format } from 'date-fns';
+import { approvLogoBase64 } from '@/lib/fonts/logo';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Pagination } from '@/components/ui/pagination';
 
@@ -49,7 +50,7 @@ const receiptTypes = ['installment', 'courtMoney'];
 const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function ReceiptsPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [receipts, setReceipts] = useState<ReceiptVoucher[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [allContracts, setAllContracts] = useState<FullContract[]>([]);
@@ -420,16 +421,20 @@ export default function ReceiptsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>{t('receiptVoucherForm')}</span>
-              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('receipt-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { w.document.write('<html><head><title>' + (showForm?.receipt_voucher_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:ltr}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
+              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('receipt-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { const d = lang === 'ar' ? 'rtl' : 'ltr'; const ta = lang === 'ar' ? 'right' : 'left'; w.document.write('<html><head><title>' + (showForm?.receipt_voucher_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:' + d + '}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:10px;text-align:' + ta + ';font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
                 <Printer className="h-4 w-4 me-1" /> {t('print')}
               </Button>
             </DialogTitle>
           </DialogHeader>
           {showForm && (
-            <div id="receipt-print-form">
-              <div className="text-center border-b pb-4 mb-4">
-                <h1 className="text-xl font-bold">{t('appName')}</h1>
-                <h2 className="text-lg text-slate-600">{t('receiptVoucherForm')}</h2>
+            <div id="receipt-print-form" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+              <div className="flex items-center gap-4 border-b pb-4 mb-4">
+                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-16 w-auto" />
+                <div className={lang === 'ar' ? 'text-right flex-1' : 'text-left flex-1'}>
+                  <h1 className="text-xl font-bold">Approv</h1>
+                  <p className="text-sm text-slate-500">شركة ابروف لتجارة الجمله والتجزئة</p>
+                  <h2 className="text-lg text-slate-600 font-semibold mt-1">{t('receiptVoucherForm')}</h2>
+                </div>
               </div>
               <table className="w-full text-sm border">
                 <tbody>
