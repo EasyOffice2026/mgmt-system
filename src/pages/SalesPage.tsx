@@ -12,6 +12,7 @@ import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock, Printer } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { format, addMonths, isBefore } from 'date-fns';
+import { approvLogoBase64 } from '@/lib/fonts/logo';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Pagination } from '@/components/ui/pagination';
 
@@ -44,7 +45,7 @@ const defaultForm = {
 const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function SalesPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -402,16 +403,15 @@ export default function SalesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>{t('contractForm')}</span>
-              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('contract-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { w.document.write('<html><head><title>' + (showForm?.contract_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:ltr}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.section{margin:15px 0}.section-title{font-size:14px;font-weight:bold;background:#f0f0f0;padding:8px;margin-bottom:5px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.info-item{font-size:13px}.info-label{color:#666;font-weight:600}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
+              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('contract-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { const d = lang === 'ar' ? 'rtl' : 'ltr'; const ta = lang === 'ar' ? 'right' : 'left'; w.document.write('<html><head><title>' + (showForm?.contract_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:' + d + '}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:8px;text-align:' + ta + ';font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.section{margin:15px 0}.section-title{font-size:14px;font-weight:bold;background:#f0f0f0;padding:8px;margin-bottom:5px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.info-item{font-size:13px}.info-label{color:#666;font-weight:600}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
                 <Printer className="h-4 w-4 me-1" /> {t('print')}
               </Button>
             </DialogTitle>
           </DialogHeader>
           {showForm && (
-            <div id="contract-print-form">
+            <div id="contract-print-form" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
               <div className="text-center border-b pb-4 mb-4">
-                <h1 className="text-xl font-bold">{t('appName')}</h1>
-                <h2 className="text-lg text-slate-600">{t('contractForm')}</h2>
+                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-24 w-auto mx-auto" />
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div><span className="text-slate-500 font-medium">{t('contractNo')}:</span> <span className="font-bold">{showForm.contract_no}</span></div>
@@ -431,21 +431,28 @@ export default function SalesPage() {
                       <th className="border p-2 text-start">{t('itemName')}</th>
                       <th className="border p-2 text-start">{t('modelType')}</th>
                       <th className="border p-2 text-start">{t('category')}</th>
-                      <th className="border p-2 text-end">{t('purchasePrice')}</th>
-                      <th className="border p-2 text-end">{t('salePrice')}</th>
+                      <th className="border p-2 text-end">{t('quantity')}</th>
+                      <th className="border p-2 text-end">{t('unitPrice')}</th>
+                      <th className="border p-2 text-end">{t('totalSalePrice')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(showForm.items && showForm.items.length > 0 ? showForm.items : [{ item_name: showForm.item_name, model_type: showForm.model_type, category: showForm.category, purchase_price: showForm.purchase_price, sale_price: showForm.sale_price }]).map((item: any, i: number) => (
-                      <tr key={i}>
-                        <td className="border p-2">{i + 1}</td>
-                        <td className="border p-2">{item.item_name}</td>
-                        <td className="border p-2">{item.model_type}</td>
-                        <td className="border p-2">{item.category}</td>
-                        <td className="border p-2 text-end">{(item.purchase_price || 0).toLocaleString()} {t('kd')}</td>
-                        <td className="border p-2 text-end">{(item.sale_price || 0).toLocaleString()} {t('kd')}</td>
-                      </tr>
-                    ))}
+                    {(showForm.items && showForm.items.length > 0 ? showForm.items : [{ item_name: showForm.item_name, model_type: showForm.model_type, category: showForm.category, purchase_price: showForm.purchase_price, sale_price: showForm.sale_price, quantity: 1 }]).map((item: any, i: number) => {
+                      const qty = item.quantity || 1;
+                      const unitPrice = item.sale_price || 0;
+                      const totalPrice = qty * unitPrice;
+                      return (
+                        <tr key={i}>
+                          <td className="border p-2">{i + 1}</td>
+                          <td className="border p-2">{item.item_name}</td>
+                          <td className="border p-2">{item.model_type}</td>
+                          <td className="border p-2">{item.category}</td>
+                          <td className="border p-2 text-end">{qty}</td>
+                          <td className="border p-2 text-end">{unitPrice.toLocaleString()} {t('kd')}</td>
+                          <td className="border p-2 text-end">{totalPrice.toLocaleString()} {t('kd')}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -458,10 +465,11 @@ export default function SalesPage() {
                   <div className="bg-green-50 rounded p-3"><p className="text-green-600 text-xs">{t('paidAmount')}</p><p className="font-bold text-green-700">{getContractPaid(showForm).toLocaleString()} {t('kd')}</p></div>
                   <div className="bg-red-50 rounded p-3"><p className="text-red-600 text-xs">{t('remainingAmount')}</p><p className="font-bold text-red-700">{getContractRemaining(showForm).toLocaleString()} {t('kd')}</p></div>
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-sm mt-3">
-                  <div><span className="text-slate-500">{t('duration')}:</span> <span className="font-medium">{showForm.duration_months} {t('months')}</span></div>
-                  <div><span className="text-slate-500">{t('installmentValue')}:</span> <span className="font-medium">{showForm.installment_amount?.toFixed(3)} {t('kd')}</span></div>
-                  <div><span className="text-slate-500">{t('firstInstallmentDate')}:</span> <span className="font-medium">{showForm.first_installment_date}</span></div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mt-3">
+                  <span><span className="text-slate-500">{t('duration')}:</span> <span className="font-medium">{showForm.duration_months} {t('months')}</span></span>
+                  <span><span className="text-slate-500">{t('installmentValue')}:</span> <span className="font-medium">{showForm.installment_amount?.toFixed(3)} {t('kd')}</span></span>
+                  <span><span className="text-slate-500">{t('firstInstallmentDate')}:</span> <span className="font-medium">{showForm.first_installment_date}</span></span>
+                  <span><span className="text-slate-500">{t('lastInstallmentDate')}:</span> <span className="font-medium">{showForm.last_installment_date || (showForm.installment_schedule && showForm.installment_schedule.length > 0 ? showForm.installment_schedule[showForm.installment_schedule.length - 1]?.due_date : '-')}</span></span>
                 </div>
               </div>
 
