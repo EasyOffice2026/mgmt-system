@@ -75,7 +75,7 @@ export default function LegalCasesPage() {
   }
 
   function calculateBalance() {
-    return Math.max(0, (form.case_amount || 0) - (form.rcvd_from_court || 0) - (form.discount || 0));
+    return Math.max(0, (form.case_amount || 0) - (form.rcvd_from_customer || 0) - (form.rcvd_from_court || 0) - (form.discount || 0));
   }
 
   async function handleSave() {
@@ -136,7 +136,7 @@ export default function LegalCasesPage() {
   const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('receivedAmount'), t('outstanding')];
   const exportRows = filtered.map(c => {
     const rcvd = c.rcvd_from_court || 0;
-    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.case_amount - rcvd - (c.discount || 0)];
+    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, (c.case_amount || 0) - (c.rcvd_from_customer || 0) - rcvd - (c.discount || 0)];
   });
 
   return (
@@ -201,7 +201,7 @@ export default function LegalCasesPage() {
                 <tbody>
                   {paginated.map(c => {
                     const rcvd = c.rcvd_from_court || 0;
-                    const outstanding = (c.case_amount || 0) - rcvd - (c.discount || 0);
+                    const outstanding = (c.case_amount || 0) - (c.rcvd_from_customer || 0) - rcvd - (c.discount || 0);
                     return (
                       <tr key={c.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                         <td className="py-3 px-4 font-medium">{c.customer_name}</td>
@@ -384,7 +384,7 @@ export default function LegalCasesPage() {
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-1">{t('balanceAmount')}</h4>
               <p className="text-2xl font-bold text-blue-700">{Math.round(calculateBalance()).toLocaleString()} {t('kd')}</p>
-              <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCourt')} - {t('discount')}</p>
+              <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCustomer')} - {t('rcvdFromCourt')} - {t('discount')}</p>
             </div>
             <FileAttachment bucket="legal" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
             <div className="flex justify-end gap-3 pt-4 border-t">
