@@ -104,7 +104,6 @@ export default function SalesPage() {
         received_amount: inst.amount || 0,
         discount: 0,
         net_amount: inst.amount || 0,
-        created_by: profile?.full_name || 'Unknown',
       });
     } else {
       // Uncheck → mark as pending, delete receipt voucher
