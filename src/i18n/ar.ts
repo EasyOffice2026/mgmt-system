@@ -227,6 +227,8 @@ export const ar = {
   remaining: 'المتبقي',
   selectLegalCase: 'اختر القضية القانونية',
   noLegalCases: 'لا توجد قضايا قانونية لهذا العميل/العقد',
+  createdBy: 'أنشئ بواسطة',
+  updatedBy: 'تم التحديث بواسطة',
   monthlySummary: 'الملخص الشهري',
   totalSales: 'إجمالي المبيعات',
   totalPurchases: 'إجمالي المشتريات',

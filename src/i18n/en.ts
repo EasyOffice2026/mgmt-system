@@ -243,6 +243,8 @@ export const en = {
   remaining: 'Remaining',
   selectLegalCase: 'Select Legal Case',
   noLegalCases: 'No legal cases found for this customer/contract',
+  createdBy: 'Created By',
+  updatedBy: 'Updated By',
 
   // Accounting
   monthlySummary: 'Monthly Summary',
