@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock, Printer } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock, Printer, Undo2 } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { format, addMonths, isBefore } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -45,6 +46,8 @@ const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function SalesPage() {
   const { t } = useLang();
+  const { profile } = useAuth();
+  const canReversePayment = profile?.role === 'accountant' || profile?.role === 'owner' || profile?.role === 'superadmin';
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -63,6 +66,46 @@ export default function SalesPage() {
   const [showForm, setShowForm] = useState<Contract | null>(null);
 
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
+
+  async function reverseInstallmentPayment(contract: Contract, instIdx: number) {
+    if (!window.confirm(t('confirmReversePayment') || 'Are you sure you want to reverse this payment? The receipt will be deleted and installment set to pending.')) return;
+    const inst = contract.installment_schedule?.[instIdx];
+    if (!inst) return;
+
+    // Find and delete the receipt voucher for this installment
+    const { data: receipts } = await supabase.from('receipt_vouchers')
+      .select('id, received_amount')
+      .eq('contract_id', contract.id)
+      .eq('installment_no', instIdx);
+    
+    if (receipts && receipts.length > 0) {
+      for (const r of receipts) {
+        await supabase.from('receipt_vouchers').delete().eq('id', r.id);
+      }
+    }
+
+    // Reset installment status in schedule
+    const schedule = [...(contract.installment_schedule || [])];
+    schedule[instIdx] = { ...schedule[instIdx], status: 'pending', paid_amount: 0, paid_date: null };
+
+    // Recalculate contract totals
+    const totalPaid = schedule.reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
+    const remaining = (contract.sale_price || 0) - totalPaid;
+    const newStatus = totalPaid >= (contract.sale_price || 0) ? 'finished' : contract.status === 'finished' ? 'ongoing' : contract.status;
+
+    await supabase.from('contracts').update({
+      installment_schedule: schedule,
+      paid_amount: totalPaid,
+      remaining_amount: remaining,
+      status: newStatus,
+    }).eq('id', contract.id);
+
+    // Refresh data
+    loadData();
+    // Update the showSchedule dialog with fresh data
+    const { data: fresh } = await supabase.from('contracts').select('*').eq('id', contract.id).single();
+    if (fresh) setShowSchedule(fresh);
+  }
 
   async function loadPaymentModes() {
     const { data } = await supabase.from('payment_modes').select('name').order('name');
@@ -575,6 +618,7 @@ export default function SalesPage() {
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('remaining')}</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('status')}</th>
                     <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('paymentDate')}</th>
+                    {canReversePayment && <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('actions')}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -595,6 +639,15 @@ export default function SalesPage() {
                         </Badge>
                       </td>
                       <td className="py-2.5 px-3 text-slate-500">{inst.paid_date || '-'}</td>
+                      {canReversePayment && (
+                        <td className="py-2.5 px-3">
+                          {(inst.status === 'paid' || inst.status === 'partially_paid') && (
+                            <Button variant="ghost" size="sm" onClick={() => reverseInstallmentPayment(showSchedule!, i)} title={t('reversePayment') || 'Reverse Payment'}>
+                              <Undo2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                   })}
