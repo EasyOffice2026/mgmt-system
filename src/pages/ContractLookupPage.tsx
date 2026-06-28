@@ -7,8 +7,8 @@ import { useLang } from '@/contexts/LangContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
-import { Search, FileSearch, ChevronDown, ChevronUp, Undo2 } from 'lucide-react';
-import { isBefore } from 'date-fns';
+import { Search, FileSearch, ChevronDown, ChevronUp } from 'lucide-react';
+import { isBefore, format } from 'date-fns';
 
 interface Customer {
   id: string; customer_no: string; name: string; civil_id: string; mobile: string;
@@ -28,7 +28,7 @@ interface Contract {
 export default function ContractLookupPage() {
   const { t } = useLang();
   const { profile } = useAuth();
-  const canReversePayment = profile?.role === 'accountant' || profile?.role === 'owner' || profile?.role === 'superadmin';
+  const canTogglePayment = profile?.role === 'accountant' || profile?.role === 'owner' || profile?.role === 'superadmin';
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [search, setSearch] = useState('');
@@ -40,35 +40,59 @@ export default function ContractLookupPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  async function reverseInstallmentPayment(contract: Contract, instIdx: number) {
-    if (!window.confirm(t('confirmReversePayment') || 'Are you sure you want to reverse this payment? The receipt will be deleted and installment set to pending.')) return;
-
+  async function toggleInstallmentPayment(contract: Contract, instIdx: number, markPaid: boolean) {
     // Fetch fresh contract data from DB to avoid stale state overwrites
     const { data: freshContract } = await supabase.from('contracts')
-      .select('sale_price, installment_schedule, status')
+      .select('id, sale_price, installment_schedule, status, contract_no, customer_id, customer_name')
       .eq('id', contract.id).single();
     if (!freshContract) return;
 
     const inst = freshContract.installment_schedule?.[instIdx];
     if (!inst) return;
 
-    // Validate installment is actually paid or partially_paid
-    if (inst.status !== 'paid' && inst.status !== 'partially_paid') return;
+    const schedule = [...(freshContract.installment_schedule || [])];
 
-    const { data: receipts } = await supabase.from('receipt_vouchers')
-      .select('id, received_amount')
-      .eq('contract_id', contract.id)
-      .eq('installment_no', instIdx);
-    
-    if (receipts && receipts.length > 0) {
-      for (const r of receipts) {
-        await supabase.from('receipt_vouchers').delete().eq('id', r.id);
+    if (markPaid) {
+      if (inst.status === 'paid') return;
+      const today = format(new Date(), 'yyyy-MM-dd');
+      schedule[instIdx] = { ...schedule[instIdx], status: 'paid', paid_amount: inst.amount || 0, paid_date: today };
+
+      const { data: lastRv } = await supabase.from('receipt_vouchers')
+        .select('receipt_voucher_no').order('created_at', { ascending: false }).limit(1);
+      const nextNo = lastRv && lastRv.length > 0
+        ? 'RV-' + String(parseInt(lastRv[0].receipt_voucher_no?.replace('RV-', '') || '0') + 1).padStart(6, '0')
+        : 'RV-000001';
+
+      await supabase.from('receipt_vouchers').insert({
+        receipt_voucher_no: nextNo,
+        receipt_date: today,
+        receipt_type: 'installment',
+        customer_id: freshContract.customer_id,
+        customer_name: freshContract.customer_name,
+        contract_id: freshContract.id,
+        contract_no: freshContract.contract_no,
+        installment_no: instIdx,
+        received_amount: inst.amount || 0,
+        discount: 0,
+        net_amount: inst.amount || 0,
+        created_by: profile?.full_name || profile?.email || 'Unknown',
+      });
+    } else {
+      if (inst.status !== 'paid' && inst.status !== 'partially_paid') return;
+      if (!window.confirm(t('confirmReversePayment') || 'Are you sure you want to reverse this payment? The receipt will be deleted and installment set to pending.')) return;
+
+      schedule[instIdx] = { ...schedule[instIdx], status: 'pending', paid_amount: 0, paid_date: null };
+
+      const { data: receipts } = await supabase.from('receipt_vouchers')
+        .select('id')
+        .eq('contract_id', contract.id)
+        .eq('installment_no', instIdx);
+      if (receipts && receipts.length > 0) {
+        for (const r of receipts) {
+          await supabase.from('receipt_vouchers').delete().eq('id', r.id);
+        }
       }
     }
-
-    // Reset installment status in schedule using fresh data
-    const schedule = [...(freshContract.installment_schedule || [])];
-    schedule[instIdx] = { ...schedule[instIdx], status: 'pending', paid_amount: 0, paid_date: null };
 
     const totalPaid = schedule.reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
     const remaining = (freshContract.sale_price || 0) - totalPaid;
@@ -341,7 +365,7 @@ export default function ContractLookupPage() {
                       <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('status')}</th>
                       <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('paymentDate')}</th>
                       <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('runningBalance')}</th>
-                      {canReversePayment && <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('actions')}</th>}
+                      {canTogglePayment && <th className="text-center py-2.5 px-3 font-medium text-slate-600">{t('paid')}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -362,13 +386,14 @@ export default function ContractLookupPage() {
                           </td>
                           <td className="py-2.5 px-3 text-slate-500">{inst.paid_date || '-'}</td>
                           <td className="py-2.5 px-3 font-medium">{balance.toLocaleString()} {t('kd')}</td>
-                          {canReversePayment && (
-                            <td className="py-2.5 px-3">
-                              {(inst.status === 'paid' || inst.status === 'partially_paid') && (
-                                <Button variant="ghost" size="sm" onClick={() => reverseInstallmentPayment(selectedContract!, i)} title={t('reversePayment') || 'Reverse Payment'}>
-                                  <Undo2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              )}
+                          {canTogglePayment && (
+                            <td className="py-2.5 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={inst.status === 'paid' || inst.status === 'partially_paid'}
+                                onChange={(e) => toggleInstallmentPayment(selectedContract!, i, e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
                             </td>
                           )}
                         </tr>
