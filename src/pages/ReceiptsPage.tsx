@@ -390,7 +390,12 @@ export default function ReceiptsPage() {
                       <td className="py-3 px-4">{r.receipt_date}</td>
                       <td className="py-3 px-4">{r.customer_name}</td>
                       <td className="py-3 px-4"><Badge className={typeColor(r.receipt_type)} variant="secondary">{r.receipt_type}</Badge></td>
-                      <td className="py-3 px-4">{r.contract_no}</td>
+                      <td className="py-3 px-4">
+                        {r.contract_no}
+                        {r.court_case_no && (
+                          <span className="ms-1 text-purple-600 cursor-pointer underline text-xs" onClick={() => setShowCaseReceipts(r.court_case_no)}>({r.court_case_no})</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 font-medium text-blue-600">{((r.received_amount || 0) - ((r as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4 text-xs text-slate-500">{r.created_by || '-'}</td>
                       <td className="py-3 px-4">
@@ -531,7 +536,7 @@ export default function ReceiptsPage() {
                 <SearchableSelect
                   options={customers.map(c => ({ value: c.id, label: `${c.customer_no} - ${c.name}` }))}
                   value={form.customer_id}
-                  onChange={(v) => { setForm({ ...form, customer_id: v, contract_id: '', court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}
+                  onChange={(v) => { setForm({ ...form, customer_id: v, contract_id: '', court_case_no: '', installment_no: null }); setSelectedInstallments([]); setInstallmentAmounts({}); }}
                   placeholder={t('selectCustomer') || 'Select Customer'}
                 />
               </div>
@@ -540,7 +545,7 @@ export default function ReceiptsPage() {
                 <SearchableSelect
                   options={filteredContracts.map(c => ({ value: c.id, label: `${c.contract_no} - ${c.customer_name}` }))}
                   value={form.contract_id}
-                  onChange={(v) => { setForm({ ...form, contract_id: v, court_case_no: '', installment_no: null }); setSelectedInstallments([]); }}
+                  onChange={(v) => { setForm({ ...form, contract_id: v, court_case_no: '', installment_no: null }); setSelectedInstallments([]); setInstallmentAmounts({}); }}
                   placeholder={t('selectContract') || 'Select Contract'}
                 />
               </div>
@@ -563,7 +568,8 @@ export default function ReceiptsPage() {
                       else {
                         const idx = Number(val);
                         const inst = selectedContract?.installment_schedule?.[idx];
-                        setForm({ ...form, installment_no: idx, received_amount: inst?.amount || form.received_amount });
+                        const remaining = (inst?.amount || 0) - (inst?.paid_amount || 0);
+                        setForm({ ...form, installment_no: idx, received_amount: remaining || inst?.amount || form.received_amount });
                       }
                     }}
                   >
