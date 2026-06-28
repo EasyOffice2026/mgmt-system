@@ -69,8 +69,18 @@ export default function SalesPage() {
 
   async function reverseInstallmentPayment(contract: Contract, instIdx: number) {
     if (!window.confirm(t('confirmReversePayment') || 'Are you sure you want to reverse this payment? The receipt will be deleted and installment set to pending.')) return;
-    const inst = contract.installment_schedule?.[instIdx];
+
+    // Fetch fresh contract data from DB to avoid stale state overwrites
+    const { data: freshContract } = await supabase.from('contracts')
+      .select('sale_price, installment_schedule, status')
+      .eq('id', contract.id).single();
+    if (!freshContract) return;
+
+    const inst = freshContract.installment_schedule?.[instIdx];
     if (!inst) return;
+
+    // Validate installment is actually paid or partially_paid
+    if (inst.status !== 'paid' && inst.status !== 'partially_paid') return;
 
     // Find and delete the receipt voucher for this installment
     const { data: receipts } = await supabase.from('receipt_vouchers')
@@ -84,14 +94,14 @@ export default function SalesPage() {
       }
     }
 
-    // Reset installment status in schedule
-    const schedule = [...(contract.installment_schedule || [])];
+    // Reset installment status in schedule using fresh data
+    const schedule = [...(freshContract.installment_schedule || [])];
     schedule[instIdx] = { ...schedule[instIdx], status: 'pending', paid_amount: 0, paid_date: null };
 
     // Recalculate contract totals
     const totalPaid = schedule.reduce((sum: number, s: any) => sum + (s.status === 'paid' ? (s.amount || 0) : (s.paid_amount || 0)), 0);
-    const remaining = (contract.sale_price || 0) - totalPaid;
-    const newStatus = totalPaid >= (contract.sale_price || 0) ? 'finished' : contract.status === 'finished' ? 'ongoing' : contract.status;
+    const remaining = (freshContract.sale_price || 0) - totalPaid;
+    const newStatus = totalPaid >= (freshContract.sale_price || 0) ? 'finished' : freshContract.status === 'finished' ? 'ongoing' : freshContract.status;
 
     await supabase.from('contracts').update({
       installment_schedule: schedule,
@@ -102,7 +112,6 @@ export default function SalesPage() {
 
     // Refresh data
     loadData();
-    // Update the showSchedule dialog with fresh data
     const { data: fresh } = await supabase.from('contracts').select('*').eq('id', contract.id).single();
     if (fresh) setShowSchedule(fresh);
   }
