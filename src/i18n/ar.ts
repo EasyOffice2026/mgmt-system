@@ -229,6 +229,8 @@ export const ar = {
   noLegalCases: 'لا توجد قضايا قانونية لهذا العميل/العقد',
   createdBy: 'أنشئ بواسطة',
   updatedBy: 'تم التحديث بواسطة',
+  reversePayment: 'عكس الدفعة',
+  confirmReversePayment: 'هل أنت متأكد من عكس هذه الدفعة؟ سيتم حذف سند القبض وإعادة القسط إلى حالة معلق.',
   monthlySummary: 'الملخص الشهري',
   totalSales: 'إجمالي المبيعات',
   totalPurchases: 'إجمالي المشتريات',

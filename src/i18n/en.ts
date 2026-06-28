@@ -245,6 +245,8 @@ export const en = {
   noLegalCases: 'No legal cases found for this customer/contract',
   createdBy: 'Created By',
   updatedBy: 'Updated By',
+  reversePayment: 'Reverse Payment',
+  confirmReversePayment: 'Are you sure you want to reverse this payment? The receipt voucher will be deleted and the installment will be set back to pending.',
 
   // Accounting
   monthlySummary: 'Monthly Summary',
