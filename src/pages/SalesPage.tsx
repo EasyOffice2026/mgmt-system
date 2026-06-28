@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
@@ -47,8 +46,7 @@ const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function SalesPage() {
   const { t, lang } = useLang();
-  const { profile } = useAuth();
-  const canTogglePayment = profile?.role === 'accountant' || profile?.role === 'owner' || profile?.role === 'superadmin';
+  const canTogglePayment = true;
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
