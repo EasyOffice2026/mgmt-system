@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useLang } from '@/contexts/LangContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
@@ -23,6 +24,7 @@ interface ReceiptVoucher {
   payment_mode: string;
   installment_no: number | null;
   notes: string; attachments: string[]; created_at: string;
+  created_by?: string; updated_by?: string;
 }
 
 interface Customer { id: string; customer_no: string; name: string; }
@@ -50,6 +52,7 @@ const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function ReceiptsPage() {
   const { t } = useLang();
+  const { profile, user } = useAuth();
   const [receipts, setReceipts] = useState<ReceiptVoucher[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [allContracts, setAllContracts] = useState<FullContract[]>([]);
@@ -200,7 +203,7 @@ export default function ReceiptsPage() {
   }
 
   // Helper to try insert/update, progressively stripping optional columns if they don't exist in DB
-  const optionalCols = ['installment_no', 'discount_amount', 'net_amount'];
+  const optionalCols = ['installment_no', 'discount_amount', 'net_amount', 'created_by', 'updated_by'];
   async function tryUpsert(data: any, isEdit: boolean, editId?: string): Promise<boolean> {
     let payload = { ...data };
     for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
@@ -238,6 +241,7 @@ export default function ReceiptsPage() {
         const instRemaining = instTotal - instPaid;
         // Use custom amount if user specified one for this installment, otherwise use remaining
         const payAmount = installmentAmounts[instIdx] !== undefined ? installmentAmounts[instIdx] : instRemaining;
+        const currentUser = profile?.full_name || user?.email || 'unknown';
         const data: any = {
           receipt_date: form.receipt_date, receipt_type: form.receipt_type,
           customer_id: form.customer_id || null, customer_name: customer?.name || '',
@@ -246,6 +250,7 @@ export default function ReceiptsPage() {
           discount_amount: 0, net_amount: payAmount,
           payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
           installment_no: instIdx,
+          created_by: currentUser,
         };
         const ok = await tryUpsert(data, false);
         if (ok) await applyReceiptEffects({ ...form, installment_no: instIdx, received_amount: payAmount });
@@ -255,6 +260,7 @@ export default function ReceiptsPage() {
     }
 
     // Single installment or edit mode or court money
+    const currentUser = profile?.full_name || user?.email || 'unknown';
     const data: any = {
       receipt_date: form.receipt_date, receipt_type: form.receipt_type,
       customer_id: form.customer_id || null, customer_name: customer?.name || '',
@@ -266,10 +272,12 @@ export default function ReceiptsPage() {
       installment_no: form.installment_no,
     };
     if (editing) {
+      data.updated_by = currentUser;
       await reverseReceiptEffects(editing);
       const ok = await tryUpsert(data, true, editing.id);
       if (ok) await applyReceiptEffects(form);
     } else {
+      data.created_by = currentUser;
       const ok = await tryUpsert(data, false);
       if (ok) await applyReceiptEffects(form);
     }
@@ -316,8 +324,8 @@ export default function ReceiptsPage() {
     return legalCases.find(lc => lc.case_no === caseNo);
   }
 
-  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('receiptType'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('netAmount'), t('paymentMode')];
-  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.receipt_type, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, (r.received_amount || 0) - ((r as any).discount_amount || 0), r.payment_mode]);
+  const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('customerName'), t('receiptType'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('netAmount'), t('paymentMode'), t('createdBy')];
+  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.customer_name, r.receipt_type, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, (r.received_amount || 0) - ((r as any).discount_amount || 0), r.payment_mode, r.created_by || '']);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = { fileOpening: 'bg-blue-100 text-blue-700', installment: 'bg-green-100 text-green-700', courtMoney: 'bg-purple-100 text-purple-700' };
@@ -367,11 +375,11 @@ export default function ReceiptsPage() {
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptVoucherNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptDate')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customerName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receiptType')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('contractNo')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('installmentNo')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('courtCaseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('netAmount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('createdBy')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
                   </tr>
                 </thead>
@@ -380,15 +388,11 @@ export default function ReceiptsPage() {
                     <tr key={r.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600">{r.receipt_voucher_no}</td>
                       <td className="py-3 px-4">{r.receipt_date}</td>
+                      <td className="py-3 px-4">{r.customer_name}</td>
                       <td className="py-3 px-4"><Badge className={typeColor(r.receipt_type)} variant="secondary">{r.receipt_type}</Badge></td>
                       <td className="py-3 px-4">{r.contract_no}</td>
-                      <td className="py-3 px-4">{r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '-'}</td>
-                      <td className="py-3 px-4">
-                        {r.court_case_no && (
-                          <span className="text-purple-600 cursor-pointer underline" onClick={() => setShowCaseReceipts(r.court_case_no)}>{r.court_case_no}</span>
-                        )}
-                      </td>
                       <td className="py-3 px-4 font-medium text-blue-600">{((r.received_amount || 0) - ((r as any).discount_amount || 0)).toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4 text-xs text-slate-500">{r.created_by || '-'}</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" onClick={() => setShowForm(r)}><Printer className="h-4 w-4 text-blue-500" /></Button>
