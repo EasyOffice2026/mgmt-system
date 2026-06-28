@@ -111,6 +111,7 @@ export const en = {
   existingClient: 'Existing Client',
   clientType: 'Client Type',
   salePrice: 'Sale Price',
+  unitPrice: 'Unit Price',
   purchasePrice: 'Purchase Price',
   duration: 'Duration (Months)',
   startDate: 'Start Date',

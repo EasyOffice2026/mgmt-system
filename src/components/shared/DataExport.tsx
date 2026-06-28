@@ -11,14 +11,14 @@ interface DataExportProps {
 }
 
 export function DataExport({ title, headers, rows, filename }: DataExportProps) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   return (
     <div className="flex gap-2">
       <Button
         variant="outline"
         size="sm"
-        onClick={() => exportToPdf(title, headers, rows, filename)}
+        onClick={() => exportToPdf(title, headers, rows, filename, lang)}
       >
         <FileDown className="h-4 w-4 me-1" />
         {t('exportPdf')}
