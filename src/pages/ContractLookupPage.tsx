@@ -63,7 +63,9 @@ export default function ContractLookupPage() {
         ? 'RV-' + String(parseInt(lastRv[0].receipt_voucher_no?.replace('RV-', '') || '0') + 1).padStart(6, '0')
         : 'RV-000001';
 
-      await supabase.from('receipt_vouchers').insert({
+      // Insert receipt, progressively stripping optional columns if they don't exist in DB
+      const optionalCols = ['installment_no', 'discount_amount', 'net_amount', 'created_by', 'updated_by'];
+      let payload: Record<string, any> = {
         receipt_voucher_no: nextNo,
         receipt_date: today,
         receipt_type: 'installment',
@@ -73,9 +75,21 @@ export default function ContractLookupPage() {
         contract_no: freshContract.contract_no,
         installment_no: instIdx,
         received_amount: inst.amount || 0,
-        discount: 0,
+        discount_amount: 0,
         net_amount: inst.amount || 0,
-      });
+      };
+      for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
+        const { error } = await supabase.from('receipt_vouchers').insert(payload);
+        if (!error) break;
+        if (error.code === '42703' || (error.message || '').includes('column')) {
+          const badCol = optionalCols.find(col => (error.message || '').includes(col));
+          if (badCol) { delete payload[badCol]; continue; }
+          for (const col of optionalCols) delete payload[col];
+          continue;
+        }
+        console.error('Receipt insert error:', error);
+        break;
+      }
     } else {
       if (inst.status !== 'paid' && inst.status !== 'partially_paid') return;
       if (!window.confirm(t('confirmReversePayment') || 'Are you sure you want to reverse this payment? The receipt will be deleted and installment set to pending.')) return;
