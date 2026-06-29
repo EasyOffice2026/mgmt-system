@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { DataExport } from '@/components/shared/DataExport';
 import { Search, FileSearch, ChevronDown, ChevronUp } from 'lucide-react';
@@ -27,8 +26,7 @@ interface Contract {
 
 export default function ContractLookupPage() {
   const { t } = useLang();
-  const { profile } = useAuth();
-  const canTogglePayment = profile?.role === 'accountant' || profile?.role === 'owner' || profile?.role === 'superadmin';
+  const canTogglePayment = true;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [search, setSearch] = useState('');
