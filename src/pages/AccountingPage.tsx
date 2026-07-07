@@ -15,6 +15,24 @@ import {
 } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
+// Supabase caps a single request at 1000 rows. Paginate to fetch every row so
+// period totals (e.g. receipts) are not silently truncated.
+async function fetchAllRows(
+  build: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: any }>
+): Promise<any[]> {
+  const pageSize = 1000;
+  const all: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await build(from, from + pageSize - 1);
+    if (error || !data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
 type ReportType = 'sales' | 'purchases' | 'expenses' | 'fileCharges' | 'receipts' | 'operational' | 'finished' | 'legal' | 'caseClosed';
 type ActiveView = 'overview' | 'report' | 'income' | 'customerReport';
 
@@ -260,17 +278,12 @@ export default function AccountingPage() {
     setIncomeLoading(true);
     setActiveView('income');
 
-    const [contractsRes, expensesRes, receiptsRes, legalRes] = await Promise.all([
-      supabase.from('contracts').select('*').gte('start_date', dateFrom).lte('start_date', dateTo),
-      supabase.from('expenses').select('*').gte('expense_date', dateFrom).lte('expense_date', dateTo),
-      supabase.from('receipt_vouchers').select('*').gte('receipt_date', dateFrom).lte('receipt_date', dateTo),
-      supabase.from('legal_cases').select('*'),
+    const [contracts, expenses, receipts, legalCases] = await Promise.all([
+      fetchAllRows((from, to) => supabase.from('contracts').select('*').gte('start_date', dateFrom).lte('start_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('expenses').select('*').gte('expense_date', dateFrom).lte('expense_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('receipt_vouchers').select('*').gte('receipt_date', dateFrom).lte('receipt_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('legal_cases').select('*').range(from, to)),
     ]);
-
-    const contracts = contractsRes.data || [];
-    const expenses = expensesRes.data || [];
-    const receipts = receiptsRes.data || [];
-    const legalCases = legalRes.data || [];
 
     const salesRevenue = contracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
     const fileCharges = contracts.reduce((s: number, c: any) => s + (c.file_opening_charges || 0), 0);
