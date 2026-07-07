@@ -260,16 +260,14 @@ export default function AccountingPage() {
     setIncomeLoading(true);
     setActiveView('income');
 
-    const [contractsRes, allContractsRes, expensesRes, receiptsRes, legalRes] = await Promise.all([
+    const [contractsRes, expensesRes, receiptsRes, legalRes] = await Promise.all([
       supabase.from('contracts').select('*').gte('start_date', dateFrom).lte('start_date', dateTo),
-      supabase.from('contracts').select('items'),
       supabase.from('expenses').select('*').gte('expense_date', dateFrom).lte('expense_date', dateTo),
       supabase.from('receipt_vouchers').select('*').gte('receipt_date', dateFrom).lte('receipt_date', dateTo),
       supabase.from('legal_cases').select('*'),
     ]);
 
     const contracts = contractsRes.data || [];
-    const allContracts = allContractsRes.data || [];
     const expenses = expensesRes.data || [];
     const receipts = receiptsRes.data || [];
     const legalCases = legalRes.data || [];
@@ -277,12 +275,13 @@ export default function AccountingPage() {
     const salesRevenue = contracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
     const fileCharges = contracts.reduce((s: number, c: any) => s + (c.file_opening_charges || 0), 0);
     const receiptVouchers = receipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
-    const courtRecovery = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
+    const courtRecovery = receipts.filter((r: any) => r.receipt_type === 'courtMoney').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+    const courtRecoveryAllTime = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
     const totalRevenue = salesRevenue + fileCharges + courtRecovery;
 
     let purchaseCost = 0;
     let purchaseCount = 0;
-    for (const c of allContracts) {
+    for (const c of contracts) {
       const items = (c as any).items || [];
       for (const item of items) {
         purchaseCost += (item.purchase_price || 0) * (item.quantity || 1);
@@ -295,7 +294,7 @@ export default function AccountingPage() {
     const operatingIncome = grossProfit - operatingExpenses;
 
     const dueFromCustomers = contracts.reduce((s: number, c: any) => s + (c.remaining_amount || 0), 0);
-    const dueFromCourt = legalCases.reduce((s: number, lc: any) => s + (lc.case_amount || 0), 0) - courtRecovery;
+    const dueFromCourt = legalCases.reduce((s: number, lc: any) => s + (lc.case_amount || 0), 0) - courtRecoveryAllTime;
 
     const operationalCases = contracts.filter((c: any) => c.status === 'functional' || c.status === 'ongoing').length;
     const finishedCases = contracts.filter((c: any) => c.status === 'finished' || c.status === 'closed').length;
