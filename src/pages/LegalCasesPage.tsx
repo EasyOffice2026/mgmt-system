@@ -17,7 +17,7 @@ interface LegalCase {
   contract_id: string; contract_no: string; case_no: string; purchase_price: number;
   original_amount: number; remaining_from_customer: number; case_amount: number;
   rcvd_from_customer: number; rcvd_from_court: number; discount: number; balance_amount: number;
-  case_date: string; court_fees: number; attachments: string[]; created_at: string;
+  case_date: string; court_recovery_date: string; court_fees: number; attachments: string[]; created_at: string;
 }
 
 interface Contract {
@@ -28,7 +28,7 @@ interface Contract {
 const defaultForm = {
   customer_id: '', contract_id: '', case_no: '', purchase_price: 0,
   original_amount: 0, remaining_from_customer: 0, case_amount: 0,
-  rcvd_from_customer: 0, rcvd_from_court: 0, discount: 0, case_date: '', attachments: [] as string[],
+  rcvd_from_customer: 0, rcvd_from_court: 0, discount: 0, case_date: '', court_recovery_date: '', attachments: [] as string[],
 };
 
 export default function LegalCasesPage() {
@@ -89,7 +89,7 @@ export default function LegalCasesPage() {
       remaining_from_customer: form.remaining_from_customer || contract?.remaining_amount || 0,
       case_amount: form.case_amount, rcvd_from_customer: form.rcvd_from_customer,
       rcvd_from_court: form.rcvd_from_court, discount: form.discount || 0, balance_amount: calculateBalance(),
-      case_date: form.case_date, attachments: form.attachments,
+      case_date: form.case_date, court_recovery_date: form.court_recovery_date || null, attachments: form.attachments,
     };
     if (editing) {
       await supabase.from('legal_cases').update(data).eq('id', editing.id);
@@ -113,7 +113,7 @@ export default function LegalCasesPage() {
       purchase_price: c.purchase_price, original_amount: c.original_amount,
       remaining_from_customer: c.remaining_from_customer, case_amount: c.case_amount,
       rcvd_from_customer: rcvdCalc, rcvd_from_court: c.rcvd_from_court,
-      discount: c.discount || 0, case_date: c.case_date || '', attachments: c.attachments || [],
+      discount: c.discount || 0, case_date: c.case_date || '', court_recovery_date: c.court_recovery_date || '', attachments: c.attachments || [],
     });
     setShowDialog(true);
   }
@@ -375,6 +375,10 @@ export default function LegalCasesPage() {
               <div>
                 <Label>{t('rcvdFromCourt')}</Label>
                 <Input type="number" value={form.rcvd_from_court} onChange={e => setForm({ ...form, rcvd_from_court: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label>{t('courtRecoveryDate')}</Label>
+                <DatePicker value={form.court_recovery_date} onChange={(v) => setForm({ ...form, court_recovery_date: v })} placeholder={t("date")} className="w-full" />
               </div>
               <div>
                 <Label>{t('discount')}</Label>

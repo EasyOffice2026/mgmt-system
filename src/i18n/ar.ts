@@ -170,6 +170,7 @@ export const ar = {
   caseAmount: 'مبلغ القضية',
   rcvdFromCustomer: 'المستلم من العميل',
   rcvdFromCourt: 'المستلم من المحكمة',
+  courtRecoveryDate: 'تاريخ التحصيل من المحكمة',
   excessAmount: 'المبلغ الزائد',
   balanceAmount: 'المبلغ المتبقي',
   addLegalCase: 'إضافة قضية قانونية',

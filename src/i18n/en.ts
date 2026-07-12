@@ -182,6 +182,7 @@ export const en = {
   caseAmount: 'Case Amount',
   rcvdFromCustomer: 'Received from Customer',
   rcvdFromCourt: 'Received from Court',
+  courtRecoveryDate: 'Court Recovery Date',
   excessAmount: 'Excess Amount',
   balanceAmount: 'Balance Amount',
   addLegalCase: 'Add Legal Case',
