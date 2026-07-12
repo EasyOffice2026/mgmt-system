@@ -288,9 +288,7 @@ export default function AccountingPage() {
     const salesRevenue = contracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
     const fileCharges = contracts.reduce((s: number, c: any) => s + (c.file_opening_charges || 0), 0);
     const receiptVouchers = receipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
-    const courtRecovery = legalCases
-      .filter((lc: any) => lc.court_recovery_date && lc.court_recovery_date >= dateFrom && lc.court_recovery_date <= dateTo)
-      .reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
+    const courtRecovery = receipts.filter((r: any) => r.receipt_type === 'courtMoney').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
     const courtRecoveryAllTime = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
     const totalRevenue = salesRevenue + fileCharges + courtRecovery;
 
