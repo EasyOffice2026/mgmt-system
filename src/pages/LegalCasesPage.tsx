@@ -8,7 +8,7 @@ import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
-import { Plus, Search, Pencil, Trash2, Scale, DollarSign } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Scale } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Pagination } from '@/components/ui/pagination';
 
@@ -45,7 +45,6 @@ export default function LegalCasesPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [showPaymentDetail, setShowPaymentDetail] = useState<LegalCase | null>(null);
   const [caseReceipts, setCaseReceipts] = useState<any[]>([]);
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
@@ -64,15 +63,6 @@ export default function LegalCasesPage() {
     setLoading(false);
   }
 
-
-  async function openPaymentDetail(lc: LegalCase) {
-    setShowPaymentDetail(lc);
-    const { data } = await supabase.from('receipt_vouchers').select('*')
-      .eq('receipt_type', 'courtMoney')
-      .eq('court_case_no', lc.case_no)
-      .order('receipt_date', { ascending: true });
-    setCaseReceipts(data || []);
-  }
 
   function calculateBalance() {
     return Math.max(0, (form.case_amount || 0) - (form.rcvd_from_customer || 0) - (form.rcvd_from_court || 0) - (form.discount || 0));
@@ -105,7 +95,7 @@ export default function LegalCasesPage() {
     loadData();
   }
 
-  function openEdit(c: LegalCase) {
+  async function openEdit(c: LegalCase) {
     setEditing(c);
     const rcvdCalc = Math.max(0, (c.original_amount || 0) - (c.remaining_from_customer || 0));
     setForm({
@@ -115,6 +105,11 @@ export default function LegalCasesPage() {
       rcvd_from_customer: rcvdCalc, rcvd_from_court: c.rcvd_from_court,
       discount: c.discount || 0, case_date: c.case_date || '', attachments: c.attachments || [],
     });
+    const { data } = await supabase.from('receipt_vouchers').select('*')
+      .eq('receipt_type', 'courtMoney')
+      .eq('court_case_no', c.case_no)
+      .order('receipt_date', { ascending: true });
+    setCaseReceipts(data || []);
     setShowDialog(true);
   }
 
@@ -148,7 +143,7 @@ export default function LegalCasesPage() {
         </div>
         <div className="flex items-center gap-3">
           <DataExport title={t('legalCases')} headers={exportHeaders} rows={exportRows} filename="legal-cases" />
-          <Button onClick={() => { setEditing(null); setForm(defaultForm); setShowDialog(true); }} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+          <Button onClick={() => { setEditing(null); setForm(defaultForm); setCaseReceipts([]); setShowDialog(true); }} className="bg-gradient-to-r from-blue-600 to-indigo-600">
             <Plus className="h-4 w-4 me-1" /> {t('addLegalCase')}
           </Button>
         </div>
@@ -213,8 +208,7 @@ export default function LegalCasesPage() {
 
                         <td className="py-3 px-4">
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openPaymentDetail(c)} title={t('paymentDetails')}><DollarSign className="h-4 w-4 text-green-500" /></Button>
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(c)}><Pencil className="h-4 w-4 text-slate-500" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(c)} title={t('paymentDetails')}><Pencil className="h-4 w-4 text-slate-500" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                           </div>
                         </td>
@@ -236,91 +230,6 @@ export default function LegalCasesPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Payment Detail Dialog */}
-      <Dialog open={!!showPaymentDetail} onOpenChange={() => setShowPaymentDetail(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{showPaymentDetail?.customer_name} - {t('paymentDetails')}</DialogTitle>
-          </DialogHeader>
-          {showPaymentDetail && (() => {
-            const totalPaid = caseReceipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
-            const caseAmt = showPaymentDetail.case_amount || 0;
-            const balance = caseAmt - totalPaid;
-            return (
-              <div className="space-y-4">
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-slate-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-slate-500">{t('caseNo')}</p>
-                    <p className="font-semibold text-sm mt-1">{showPaymentDetail.case_no}</p>
-                  </div>
-                  <div className="bg-blue-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-blue-600">{t('caseAmount')}</p>
-                    <p className="font-semibold text-sm mt-1">{Math.round(caseAmt).toLocaleString()} {t('kd')}</p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-green-600">{t('totalPaidAmount')}</p>
-                    <p className="font-semibold text-sm mt-1 text-green-700">{Math.round(totalPaid).toLocaleString()} {t('kd')}</p>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-red-600">{t('balanceAmount')}</p>
-                    <p className="font-semibold text-sm mt-1 text-red-700">{Math.round(balance).toLocaleString()} {t('kd')}</p>
-                  </div>
-                </div>
-
-                {/* Progress */}
-                <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>{t('paid')}: {Math.round(totalPaid).toLocaleString()} / {Math.round(caseAmt).toLocaleString()} {t('kd')}</span>
-                    <span>{caseAmt > 0 ? Math.round(totalPaid / caseAmt * 100) : 0}%</span>
-                  </div>
-                  <div className="w-full bg-slate-200 rounded-full h-2.5">
-                    <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${caseAmt > 0 ? Math.min(100, totalPaid / caseAmt * 100) : 0}%` }} />
-                  </div>
-                </div>
-
-                {/* Receipts/Payments Table */}
-                <div>
-                  <h4 className="font-medium mb-2">{t('paymentHistory')}</h4>
-                  {caseReceipts.length === 0 ? (
-                    <p className="text-sm text-slate-400">{t('noData')}</p>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-slate-50">
-                          <th className="text-start py-2.5 px-3 font-medium text-slate-600">#</th>
-                          <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('receiptDate')}</th>
-                          <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('receiptType')}</th>
-                          <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('receivedAmount')}</th>
-                          <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('paymentMode')}</th>
-                          <th className="text-start py-2.5 px-3 font-medium text-slate-600">{t('runningBalance')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {caseReceipts.map((r: any, i: number) => {
-                          const runningPaid = caseReceipts.slice(0, i + 1).reduce((s: number, rr: any) => s + (rr.received_amount || 0), 0);
-                          const rb = caseAmt - runningPaid;
-                          return (
-                            <tr key={r.id} className="border-b border-slate-100">
-                              <td className="py-2.5 px-3">{i + 1}</td>
-                              <td className="py-2.5 px-3">{r.receipt_date}</td>
-                              <td className="py-2.5 px-3">{t(r.receipt_type as any) || r.receipt_type}</td>
-                              <td className="py-2.5 px-3 font-medium text-green-600">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
-                              <td className="py-2.5 px-3">{r.payment_mode}</td>
-                              <td className="py-2.5 px-3 font-medium">{Math.round(rb).toLocaleString()} {t('kd')}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -387,6 +296,50 @@ export default function LegalCasesPage() {
               <p className="text-2xl font-bold text-blue-700">{Math.round(calculateBalance()).toLocaleString()} {t('kd')}</p>
               <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCustomer')} - {t('rcvdFromCourt')} - {t('discount')}</p>
             </div>
+            {editing && (() => {
+              const receiptTotal = caseReceipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+              const priorRecovery = Math.max(0, (form.rcvd_from_court || 0) - receiptTotal);
+              return (
+                <div className="border rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-medium">{t('courtRecoveryReceipts')}</h4>
+                    <span className="text-sm"><span className="text-slate-500">{t('rcvdFromCourt')}: </span><span className="font-semibold text-green-700">{Math.round(form.rcvd_from_court || 0).toLocaleString()} {t('kd')}</span></span>
+                  </div>
+                  {caseReceipts.length === 0 && priorRecovery === 0 ? (
+                    <p className="text-sm text-slate-400">{t('noData')}</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-slate-50">
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receiptDate')}</th>
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receiptVoucherNo')}</th>
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receivedAmount')}</th>
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('paymentMode')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {priorRecovery > 0 && (
+                          <tr className="border-b border-slate-100 bg-amber-50">
+                            <td className="py-2 px-3">—</td>
+                            <td className="py-2 px-3">{t('priorRecovery')}</td>
+                            <td className="py-2 px-3 font-medium text-green-600">{Math.round(priorRecovery).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3">—</td>
+                          </tr>
+                        )}
+                        {caseReceipts.map((r: any) => (
+                          <tr key={r.id} className="border-b border-slate-100">
+                            <td className="py-2 px-3">{r.receipt_date}</td>
+                            <td className="py-2 px-3">{r.receipt_voucher_no}</td>
+                            <td className="py-2 px-3 font-medium text-green-600">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3">{r.payment_mode}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })()}
             <FileAttachment bucket="legal" folder={editing?.id || 'new'} files={form.attachments} onFilesChange={files => setForm({ ...form, attachments: files })} />
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button variant="outline" onClick={() => setShowDialog(false)}>{t('cancel')}</Button>

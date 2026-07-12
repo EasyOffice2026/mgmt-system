@@ -183,6 +183,8 @@ export const en = {
   rcvdFromCustomer: 'Received from Customer',
   rcvdFromCourt: 'Received from Court',
   rcvdFromCourtHint: 'Recorded automatically from Court Money receipt vouchers.',
+  courtRecoveryReceipts: 'Court Recovery Receipts',
+  priorRecovery: 'Prior recovery (bulk)',
   excessAmount: 'Excess Amount',
   balanceAmount: 'Balance Amount',
   addLegalCase: 'Add Legal Case',
