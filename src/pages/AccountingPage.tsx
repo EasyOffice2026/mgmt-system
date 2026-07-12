@@ -278,18 +278,26 @@ export default function AccountingPage() {
     setIncomeLoading(true);
     setActiveView('income');
 
-    const [contracts, expenses, receipts, legalCases] = await Promise.all([
+    const [contracts, expenses, receipts, legalCases, allCourtReceipts] = await Promise.all([
       fetchAllRows((from, to) => supabase.from('contracts').select('*').gte('start_date', dateFrom).lte('start_date', dateTo).range(from, to)),
       fetchAllRows((from, to) => supabase.from('expenses').select('*').gte('expense_date', dateFrom).lte('expense_date', dateTo).range(from, to)),
       fetchAllRows((from, to) => supabase.from('receipt_vouchers').select('*').gte('receipt_date', dateFrom).lte('receipt_date', dateTo).range(from, to)),
       fetchAllRows((from, to) => supabase.from('legal_cases').select('*').range(from, to)),
+      fetchAllRows((from, to) => supabase.from('receipt_vouchers').select('received_amount').eq('receipt_type', 'courtMoney').range(from, to)),
     ]);
 
     const salesRevenue = contracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
     const fileCharges = contracts.reduce((s: number, c: any) => s + (c.file_opening_charges || 0), 0);
     const receiptVouchers = receipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
-    const courtRecovery = receipts.filter((r: any) => r.receipt_type === 'courtMoney').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
     const courtRecoveryAllTime = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
+    // Court recovery: new recoveries come from Court Money receipt vouchers (period-scoped).
+    // The pre-existing bulk-uploaded recovery (Legal Cases "Received from Court" not backed by any
+    // receipt) is treated as a one-time historical figure dated up to the cutoff 2026-06-30.
+    const COURT_BULK_CUTOFF = '2026-06-30';
+    const allTimeCourtReceipts = allCourtReceipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+    const courtRecoveryBulk = Math.max(0, courtRecoveryAllTime - allTimeCourtReceipts);
+    const courtReceiptsPeriod = receipts.filter((r: any) => r.receipt_type === 'courtMoney').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+    const courtRecovery = courtReceiptsPeriod + (dateFrom <= COURT_BULK_CUTOFF ? courtRecoveryBulk : 0);
     const totalRevenue = salesRevenue + fileCharges + courtRecovery;
 
     let purchaseCost = 0;

@@ -377,6 +377,67 @@ export default function SalesPage() {
   };
   const getContractRemaining = (c: Contract) => (c.sale_price || 0) - getContractPaid(c);
 
+  const printContractForm = (c: Contract) => {
+    const kd = t('kd');
+    const rtl = lang === 'ar';
+    const dir = rtl ? 'rtl' : 'ltr';
+    const numAlign = rtl ? 'left' : 'right';
+    const esc = (v: any) => String(v ?? '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] || ch));
+    const items = c.items && c.items.length > 0
+      ? c.items
+      : [{ item_name: c.item_name, model_type: c.model_type, category: c.category, sale_price: c.sale_price, quantity: 1 }];
+    const itemRows = items.map((item: any, i: number) => {
+      const qty = item.quantity || 1;
+      const unit = item.sale_price || 0;
+      const total = qty * unit;
+      return `<tr><td>${i + 1}</td><td>${esc(item.item_name)}</td><td>${esc(item.model_type) || '-'}</td><td>${esc(item.category)}</td><td class="num">${qty}</td><td class="num">${unit.toLocaleString()} ${kd}</td><td class="num">${total.toLocaleString()} ${kd}</td></tr>`;
+    }).join('');
+    const lastDate = c.last_installment_date || (c.installment_schedule && c.installment_schedule.length > 0 ? c.installment_schedule[c.installment_schedule.length - 1]?.due_date : '') || '-';
+    const durationLabel = rtl ? 'مدة العقد' : t('duration');
+    const html = `<!DOCTYPE html><html dir="${dir}"><head><meta charset="utf-8"><title>${esc(c.contract_no)}</title><style>
+*{box-sizing:border-box}
+body{font-family:Arial,'Segoe UI',sans-serif;color:#222;padding:24px;font-size:13px}
+.header{text-align:right;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:16px}
+.header img{height:56px;width:auto}
+table{width:100%;border-collapse:collapse}
+.meta td{padding:4px 6px;vertical-align:top}
+.meta td.label{color:#666;font-weight:600;white-space:nowrap;width:110px}
+.section-title{font-size:14px;font-weight:bold;background:#f0f0f0;padding:6px 8px;margin:16px 0 6px;border-radius:3px}
+.data th,.data td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:${rtl ? 'right' : 'left'}}
+.data th{background:#f5f5f5;font-weight:600}
+.data .num{text-align:${numAlign}}
+.summary td{border:1px solid #eee;padding:6px 8px}
+.summary td.label{color:#666;font-weight:600;width:150px}
+.footer{margin-top:48px;display:flex;justify-content:space-between}
+.sig{width:45%;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:12px}
+@media print{body{padding:16px}}
+</style></head><body>
+<div class="header"><img src="data:image/png;base64,${approvLogoBase64}" alt="Approv"/></div>
+<table class="meta"><tbody>
+<tr><td class="label">${t('contractNo')}</td><td><b>${esc(c.contract_no)}</b></td><td class="label">${t('customerName')}</td><td><b>${esc(c.customer_name)}</b></td></tr>
+<tr><td class="label">${t('startDate')}</td><td>${esc(c.start_date)}</td><td class="label">${t('endDate')}</td><td>${esc(c.end_date || c.last_installment_date)}</td></tr>
+<tr><td class="label">${t('paymentMode')}</td><td>${esc(t(c.payment_mode as any) || c.payment_mode)}</td><td class="label">${t('status')}</td><td>${esc(t(c.status as any) || c.status)}</td></tr>
+</tbody></table>
+<div class="section-title">${t('items')}</div>
+<table class="data"><thead><tr><th>#</th><th>${t('itemName')}</th><th>${t('modelType')}</th><th>${t('category')}</th><th class="num">${t('quantity')}</th><th class="num">${t('unitPrice')}</th><th class="num">${t('totalSalePrice')}</th></tr></thead><tbody>${itemRows}</tbody></table>
+<div class="section-title">${t('installmentSummary')}</div>
+<table class="summary"><tbody>
+<tr><td class="label">${t('salePrice')}</td><td>${(c.sale_price || 0).toLocaleString()} ${kd}</td><td class="label">${t('fileOpeningCharges')}</td><td>${(c.file_opening_charges || 0).toLocaleString()} ${kd}</td></tr>
+<tr><td class="label">${t('paidAmount')}</td><td>${getContractPaid(c).toLocaleString()} ${kd}</td><td class="label">${t('remainingAmount')}</td><td>${getContractRemaining(c).toLocaleString()} ${kd}</td></tr>
+<tr><td class="label">${durationLabel}</td><td>${c.duration_months} ${t('months')}</td><td class="label">${t('installmentValue')}</td><td>${(c.installment_amount || 0).toFixed(3)} ${kd}</td></tr>
+<tr><td class="label">${t('firstInstallmentDate')}</td><td>${esc(c.first_installment_date)}</td><td class="label">${t('lastInstallmentDate')}</td><td>${esc(lastDate)}</td></tr>
+</tbody></table>
+<div class="footer"><div class="sig">${t('signature')} / ${t('customerName')}</div><div class="sig">${t('signature')} / ${t('appName')}</div></div>
+</body></html>`;
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+  };
+
   const exportHeaders = [t('contractNo'), t('customerName'), t('itemName'), t('salePrice'), t('paidAmount'), t('remainingAmount'), t('status')];
   const exportRows = filtered.map(c => [c.contract_no, c.customer_name, c.item_name, c.sale_price, getContractPaid(c), getContractRemaining(c), c.status]);
 
@@ -493,15 +554,15 @@ export default function SalesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>{t('contractForm')}</span>
-              <Button size="sm" variant="outline" onClick={() => { const el = document.getElementById('contract-print-form'); if (el) { const w = window.open('', '_blank'); if (w) { const d = lang === 'ar' ? 'rtl' : 'ltr'; const ta = lang === 'ar' ? 'right' : 'left'; w.document.write('<html><head><title>' + (showForm?.contract_no || '') + '</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:' + d + '}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #ddd;padding:8px;text-align:' + ta + ';font-size:13px}th{background:#f5f5f5;font-weight:600}.header{text-align:center;margin-bottom:20px}.header h1{font-size:20px;margin:5px 0}.header h2{font-size:16px;color:#555;margin:5px 0}.section{margin:15px 0}.section-title{font-size:14px;font-weight:bold;background:#f0f0f0;padding:8px;margin-bottom:5px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.info-item{font-size:13px}.info-label{color:#666;font-weight:600}.footer{margin-top:40px;display:flex;justify-content:space-between}.sig-block{text-align:center;width:200px}.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:5px;font-size:12px}@media print{body{padding:20px}}</style></head><body>' + el.innerHTML + '</body></html>'); w.document.close(); w.print(); } } }}>
+              <Button size="sm" variant="outline" onClick={() => { if (showForm) printContractForm(showForm); }}>
                 <Printer className="h-4 w-4 me-1" /> {t('print')}
               </Button>
             </DialogTitle>
           </DialogHeader>
           {showForm && (
             <div id="contract-print-form" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-              <div className="text-center border-b pb-4 mb-4">
-                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-24 w-auto mx-auto" />
+              <div className="text-right border-b pb-4 mb-4">
+                <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-14 w-auto" />
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div><span className="text-slate-500 font-medium">{t('contractNo')}:</span> <span className="font-bold">{showForm.contract_no}</span></div>
@@ -562,32 +623,6 @@ export default function SalesPage() {
                   <span><span className="text-slate-500">{t('lastInstallmentDate')}:</span> <span className="font-medium">{showForm.last_installment_date || (showForm.installment_schedule && showForm.installment_schedule.length > 0 ? showForm.installment_schedule[showForm.installment_schedule.length - 1]?.due_date : '-')}</span></span>
                 </div>
               </div>
-
-              {showForm.installment_schedule && showForm.installment_schedule.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="font-bold text-sm bg-slate-100 p-2 rounded mb-2">{t('installmentSchedule')}</h3>
-                  <table className="w-full text-sm border">
-                    <thead>
-                      <tr className="bg-slate-50">
-                        <th className="border p-2 text-start">#</th>
-                        <th className="border p-2 text-start">{t('dueDate')}</th>
-                        <th className="border p-2 text-end">{t('amount')}</th>
-                        <th className="border p-2 text-start">{t('status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {showForm.installment_schedule.map((inst: any, i: number) => (
-                        <tr key={i} className={inst.status === 'paid' ? 'bg-green-50' : inst.status === 'partially_paid' ? 'bg-amber-50' : ''}>
-                          <td className="border p-2">{inst.month || i + 1}</td>
-                          <td className="border p-2">{inst.due_date}</td>
-                          <td className="border p-2 text-end">{inst.amount?.toLocaleString()} {t('kd')}</td>
-                          <td className="border p-2">{inst.status === 'paid' ? t('paid') : inst.status === 'partially_paid' ? `${t('partiallyPaid')} (${(inst.paid_amount || 0).toLocaleString()})` : t('pending')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
 
               <div className="mt-8 flex justify-between text-sm">
                 <div className="text-center"><div className="border-t border-slate-400 mt-16 pt-2 w-48">{t('signature')} / {t('customerName')}</div></div>
