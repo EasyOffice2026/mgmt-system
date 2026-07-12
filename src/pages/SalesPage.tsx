@@ -397,7 +397,7 @@ export default function SalesPage() {
     const html = `<!DOCTYPE html><html dir="${dir}"><head><meta charset="utf-8"><title>${esc(c.contract_no)}</title><style>
 *{box-sizing:border-box}
 body{font-family:Arial,'Segoe UI',sans-serif;color:#222;padding:24px;font-size:13px}
-.header{direction:ltr;text-align:left;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:16px}
+.header{text-align:right;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:16px}
 .header img{height:56px;width:auto}
 table{width:100%;border-collapse:collapse}
 .meta td{padding:4px 6px;vertical-align:top}
@@ -561,7 +561,7 @@ table{width:100%;border-collapse:collapse}
           </DialogHeader>
           {showForm && (
             <div id="contract-print-form" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-              <div className="text-left border-b pb-4 mb-4">
+              <div className="text-right border-b pb-4 mb-4">
                 <img src={'data:image/png;base64,' + approvLogoBase64} alt="Approv" className="h-14 w-auto" />
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
