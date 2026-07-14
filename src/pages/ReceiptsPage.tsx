@@ -268,7 +268,7 @@ export default function ReceiptsPage() {
       contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
       court_case_no: form.court_case_no, received_amount: form.received_amount,
       discount_amount: form.discount_amount || 0,
-      net_amount: (selectedContract?.remaining_amount || 0) - (form.received_amount || 0) - (form.discount_amount || 0),
+      net_amount: (form.received_amount || 0) - (form.discount_amount || 0),
       payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
       installment_no: form.installment_no,
     };
@@ -806,7 +806,7 @@ export default function ReceiptsPage() {
                 <div className="md:col-span-2">
                   <div className="bg-blue-50 rounded-lg p-3 text-sm flex items-center justify-between">
                     <span className="text-blue-600 font-medium">{t('netAmount')}:</span>
-                    <span className="font-bold text-blue-700">{((selectedContract?.remaining_amount || 0) - (form.received_amount || 0) - (form.discount_amount || 0)).toLocaleString()} {t('kd')}</span>
+                    <span className="font-bold text-blue-700">{((form.received_amount || 0) - (form.discount_amount || 0)).toLocaleString()} {t('kd')}</span>
                   </div>
                 </div>
               )}
