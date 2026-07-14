@@ -34,7 +34,7 @@ async function fetchAllRows(
 }
 
 type ReportType = 'sales' | 'purchases' | 'expenses' | 'fileCharges' | 'receipts' | 'operational' | 'finished' | 'legal' | 'caseClosed';
-type ActiveView = 'overview' | 'report' | 'income' | 'customerReport';
+type ActiveView = 'overview' | 'report' | 'income' | 'customerReport' | 'incomeRecovery';
 
 interface CustomerOption { id: string; customer_no: string; name: string; }
 interface CustomerReportData {
@@ -91,6 +91,25 @@ interface IncomeStatement {
   closedValue: number;
 }
 
+interface IncomeRecovery {
+  salesRevenue: number;
+  salesCount: number;
+  fileCharges: number;
+  totalBilled: number;
+  installmentCash: number;
+  courtCash: number;
+  otherCash: number;
+  discounts: number;
+  netCash: number;
+  receiptsCount: number;
+  collectionRate: number;
+  dueFromCustomers: number;
+  badDebtInCourt: number;
+  recoveredFromCourt: number;
+  netBadDebt: number;
+  legalCasesCount: number;
+}
+
 const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
 export default function AccountingPage() {
@@ -109,6 +128,8 @@ export default function AccountingPage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [income, setIncome] = useState<IncomeStatement | null>(null);
   const [incomeLoading, setIncomeLoading] = useState(false);
+  const [recovery, setRecovery] = useState<IncomeRecovery | null>(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [allCustomers, setAllCustomers] = useState<CustomerOption[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerReportData, setCustomerReportData] = useState<CustomerReportData | null>(null);
@@ -346,6 +367,44 @@ export default function AccountingPage() {
     setIncomeLoading(false);
   }
 
+  async function loadIncomeRecovery() {
+    setRecoveryLoading(true);
+    setActiveView('incomeRecovery');
+
+    const [allContracts, periodReceipts, legalCases] = await Promise.all([
+      fetchAllRows((from, to) => supabase.from('contracts').select('sale_price, file_opening_charges, remaining_amount, status, start_date').range(from, to)),
+      fetchAllRows((from, to) => supabase.from('receipt_vouchers').select('received_amount, discount_amount, receipt_type').gte('receipt_date', dateFrom).lte('receipt_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('legal_cases').select('case_amount, rcvd_from_court').range(from, to)),
+    ]);
+
+    // §1 Sales income (accrual) — contracts whose start date falls in the period
+    const periodContracts = allContracts.filter((c: any) => c.start_date && c.start_date >= dateFrom && c.start_date <= dateTo);
+    const salesRevenue = periodContracts.reduce((s: number, c: any) => s + (c.sale_price || 0), 0);
+    const fileCharges = periodContracts.reduce((s: number, c: any) => s + (c.file_opening_charges || 0), 0);
+    const totalBilled = salesRevenue + fileCharges;
+
+    // §2 Cash collected (revenue recognized on receipt) — receipts in the period
+    const installmentCash = periodReceipts.filter((r: any) => r.receipt_type === 'installment').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+    const courtCash = periodReceipts.filter((r: any) => r.receipt_type === 'courtMoney').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+    const otherCash = periodReceipts.filter((r: any) => r.receipt_type === 'others').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+    const discounts = periodReceipts.reduce((s: number, r: any) => s + (r.discount_amount || 0), 0);
+    const netCash = installmentCash + courtCash + otherCash - discounts;
+    const collectionRate = totalBilled > 0 ? (netCash / totalBilled) * 100 : 0;
+
+    // §3 Receivables & bad debt (as-of snapshot, not period-scoped)
+    const dueFromCustomers = allContracts.filter((c: any) => c.status !== 'legal_case' && c.status !== 'case_closed').reduce((s: number, c: any) => s + (c.remaining_amount || 0), 0);
+    const badDebtInCourt = legalCases.reduce((s: number, lc: any) => s + (lc.case_amount || 0), 0);
+    const recoveredFromCourt = legalCases.reduce((s: number, lc: any) => s + (lc.rcvd_from_court || 0), 0);
+    const netBadDebt = badDebtInCourt - recoveredFromCourt;
+
+    setRecovery({
+      salesRevenue, salesCount: periodContracts.length, fileCharges, totalBilled,
+      installmentCash, courtCash, otherCash, discounts, netCash, receiptsCount: periodReceipts.length, collectionRate,
+      dueFromCustomers, badDebtInCourt, recoveredFromCourt, netBadDebt, legalCasesCount: legalCases.length,
+    });
+    setRecoveryLoading(false);
+  }
+
 
   const detailTotal = detailRows.reduce((s, r) => s + r.amount, 0);
   const detailAvg = detailRows.length > 0 ? detailTotal / detailRows.length : 0;
@@ -388,6 +447,11 @@ export default function AccountingPage() {
         {canViewIncome && (
           <Button variant={activeView === 'income' ? 'default' : 'outline'} size="sm" onClick={() => loadIncomeStatement()} className={activeView === 'income' ? 'bg-emerald-600 text-white' : ''}>
             <DollarSign className="h-4 w-4 me-1" /> {t('incomeStatement')}
+          </Button>
+        )}
+        {canViewIncome && (
+          <Button variant={activeView === 'incomeRecovery' ? 'default' : 'outline'} size="sm" onClick={() => loadIncomeRecovery()} className={activeView === 'incomeRecovery' ? 'bg-teal-600 text-white' : ''}>
+            <TrendingUp className="h-4 w-4 me-1" /> {t('incomeRecovery')}
           </Button>
         )}
         <Button variant={activeView === 'customerReport' ? 'default' : 'outline'} size="sm" onClick={() => setActiveView('customerReport')} className={activeView === 'customerReport' ? 'bg-purple-600 text-white' : ''}>
@@ -743,6 +807,156 @@ export default function AccountingPage() {
                       </tr>
                     </tbody>
                   </table>
+                </CardContent>
+              </Card>
+
+              <Button variant="outline" onClick={() => setActiveView('overview')} className="mt-2">
+                &larr; {t('backToReports')}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* ====================== INCOME & RECOVERY VIEW ====================== */}
+      {activeView === 'incomeRecovery' && canViewIncome && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-xl shadow-md p-4 border-l-4 border-l-teal-500">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">{t('incomeRecovery')}</h2>
+                <p className="text-xs text-slate-500">{t('period')}: {dateFrom} ~ {dateTo}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => loadIncomeRecovery()}>
+                <Calendar className="h-4 w-4 me-1" /> {t('filter')}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => window.print()}>
+                <Printer className="h-4 w-4 me-1" /> {t('print')}
+              </Button>
+            </div>
+          </div>
+
+          {recoveryLoading ? (
+            <div className="py-20 text-center text-slate-400">{t('loading')}</div>
+          ) : recovery ? (
+            <>
+              {/* §1 Sales Income (accrual) */}
+              <Card className="border-0 shadow-md">
+                <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-t-lg">
+                  <CardTitle className="text-base text-emerald-800 flex items-center gap-2">
+                    <ArrowUpRight className="h-5 w-5" /> {t('salesIncomeAccrual')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="border-b border-slate-100 hover:bg-green-50/50">
+                        <td className="py-3 px-6 font-medium">{t('contractSalesValue')}</td>
+                        <td className="py-3 px-6 text-slate-500">{recovery.salesCount} {t('contracts')}</td>
+                        <td className="py-3 px-6 text-end font-semibold text-green-600">{fmt(recovery.salesRevenue)} {t('kd')}</td>
+                      </tr>
+                      <tr className="border-b border-slate-100 hover:bg-green-50/50">
+                        <td className="py-3 px-6 font-medium">{t('fileOpeningCharges')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-green-600">{fmt(recovery.fileCharges)} {t('kd')}</td>
+                      </tr>
+                      <tr className="bg-emerald-50 font-bold border-t-2 border-emerald-200">
+                        <td className="py-3 px-6" colSpan={2}>{t('totalBilledIncome')}</td>
+                        <td className="py-3 px-6 text-end text-emerald-700">{fmt(recovery.totalBilled)} {t('kd')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+
+              {/* §2 Cash Collected (revenue recognized on receipt) */}
+              <Card className="border-0 shadow-md">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
+                  <CardTitle className="text-base text-blue-800 flex items-center gap-2">
+                    <Receipt className="h-5 w-5" /> {t('cashCollected')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="border-b border-slate-100 hover:bg-blue-50/50">
+                        <td className="py-3 px-6 font-medium">{t('installmentReceipts')}</td>
+                        <td className="py-3 px-6 text-slate-500">{recovery.receiptsCount} {t('receiptVouchers')}</td>
+                        <td className="py-3 px-6 text-end font-semibold text-blue-600">{fmt(recovery.installmentCash)} {t('kd')}</td>
+                      </tr>
+                      <tr className="border-b border-slate-100 hover:bg-blue-50/50">
+                        <td className="py-3 px-6 font-medium">{t('courtMoneyReceipts')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-blue-600">{fmt(recovery.courtCash)} {t('kd')}</td>
+                      </tr>
+                      <tr className="border-b border-slate-100 hover:bg-blue-50/50">
+                        <td className="py-3 px-6 font-medium">{t('otherReceipts')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-blue-600">{fmt(recovery.otherCash)} {t('kd')}</td>
+                      </tr>
+                      <tr className="border-b border-slate-100 hover:bg-red-50/50">
+                        <td className="py-3 px-6 font-medium">{t('discountsGiven')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-red-600">({fmt(recovery.discounts)}) {t('kd')}</td>
+                      </tr>
+                      <tr className="bg-blue-50 font-bold border-t-2 border-blue-200">
+                        <td className="py-3 px-6" colSpan={2}>{t('netCashReceived')}</td>
+                        <td className="py-3 px-6 text-end text-blue-700">{fmt(recovery.netCash)} {t('kd')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+
+              {/* §3 Receivables & Bad Debt (as-of snapshot) */}
+              <Card className="border-0 shadow-md">
+                <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-t-lg">
+                  <CardTitle className="text-base text-amber-800 flex items-center gap-2">
+                    <Briefcase className="h-5 w-5" /> {t('receivablesBadDebt')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="border-b border-slate-100 hover:bg-orange-50/50">
+                        <td className="py-3 px-6 font-medium">{t('dueFromCustomersCollectible')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-orange-600">{fmt(recovery.dueFromCustomers)} {t('kd')}</td>
+                      </tr>
+                      <tr className="border-b border-slate-100 hover:bg-red-50/50">
+                        <td className="py-3 px-6 font-medium">{t('badDebtInCourt')}</td>
+                        <td className="py-3 px-6 text-slate-500">{recovery.legalCasesCount} {t('legalCase')}</td>
+                        <td className="py-3 px-6 text-end font-semibold text-red-600">{fmt(recovery.badDebtInCourt)} {t('kd')}</td>
+                      </tr>
+                      <tr className="border-b border-slate-100 hover:bg-green-50/50">
+                        <td className="py-3 px-6 font-medium">{t('recoveredFromCourt')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-green-600">({fmt(recovery.recoveredFromCourt)}) {t('kd')}</td>
+                      </tr>
+                      <tr className="bg-amber-50 font-bold border-t-2 border-amber-200">
+                        <td className="py-3 px-6" colSpan={2}>{t('netBadDebtOutstanding')}</td>
+                        <td className="py-3 px-6 text-end text-amber-700">{fmt(recovery.netBadDebt)} {t('kd')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+
+              {/* Collection Rate */}
+              <Card className="border-0 shadow-md">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-500">{t('collectionRate')}</p>
+                    <p className="text-xs text-slate-400">{t('collectionRateDesc')}</p>
+                  </div>
+                  <p className={`text-2xl font-bold ${recovery.collectionRate >= 50 ? 'text-green-600' : 'text-amber-600'}`}>
+                    {recovery.collectionRate.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                  </p>
                 </CardContent>
               </Card>
 
