@@ -49,7 +49,7 @@ const defaultForm = {
   notes: '', attachments: [] as string[],
 };
 
-const receiptTypes = ['installment', 'courtMoney'];
+const receiptTypes = ['installment', 'courtMoney', 'others'];
 const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 export default function ReceiptsPage() {
@@ -832,7 +832,7 @@ export default function ReceiptsPage() {
                 <Label>{t('discount')}</Label>
                 <Input type="number" value={form.discount_amount} onChange={e => setForm({ ...form, discount_amount: Number(e.target.value) })} placeholder="0" />
               </div>
-              {form.contract_id && (
+              {(form.contract_id || form.receipt_type === 'others') && (
                 <div className="md:col-span-2">
                   <div className="bg-blue-50 rounded-lg p-3 text-sm flex items-center justify-between">
                     <span className="text-blue-600 font-medium">{t('netAmount')}:</span>

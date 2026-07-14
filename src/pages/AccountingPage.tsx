@@ -40,6 +40,7 @@ interface CustomerOption { id: string; customer_no: string; name: string; }
 interface CustomerReportData {
   saleAmount: number;
   receivedAmount: number;
+  discountGiven: number;
   legalAmountReceived: number;
   balanceToReceive: number;
   contracts: { contract_no: string; sale_price: number; paid_amount: number; remaining_amount: number; status: string; }[];
@@ -68,7 +69,9 @@ interface IncomeStatement {
   receiptVouchers: number;
   receiptsCount: number;
   courtRecovery: number;
+  otherIncome: number;
   totalRevenue: number;
+  discount: number;
   purchaseCost: number;
   purchaseCount: number;
   grossProfit: number;
@@ -123,17 +126,19 @@ export default function AccountingPage() {
     setSelectedCustomerId(customerId);
     setActiveView('customerReport');
 
-    const [contractsRes, legalRes, expensesRes, courtFeesRes] = await Promise.all([
+    const [contractsRes, legalRes, expensesRes, courtFeesRes, receiptsRes] = await Promise.all([
       supabase.from('contracts').select('contract_no, sale_price, paid_amount, remaining_amount, status, items').eq('customer_id', customerId),
       supabase.from('legal_cases').select('case_no, case_amount, rcvd_from_court').eq('customer_id', customerId),
       supabase.from('expenses').select('id, expense_voucher_no, expense_type, amount, description, expense_date').eq('customer_id', customerId),
       supabase.from('expenses').select('amount, case_no').eq('customer_id', customerId).in('expense_type', ['courtFees', 'lawyerFees']),
+      supabase.from('receipt_vouchers').select('discount_amount').eq('customer_id', customerId),
     ]);
 
     const contracts = contractsRes.data || [];
     const legalCases = legalRes.data || [];
     const expenses = expensesRes.data || [];
     const courtFeesData = courtFeesRes.data || [];
+    const discountGiven = (receiptsRes.data || []).reduce((s: number, r: any) => s + (r.discount_amount || 0), 0);
 
     const courtFeesByCaseNo: Record<string, number> = {};
     for (const cf of courtFeesData) {
@@ -168,7 +173,7 @@ export default function AccountingPage() {
     const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
     setCustomerReportData({
-      saleAmount, receivedAmount, legalAmountReceived, balanceToReceive,
+      saleAmount, receivedAmount, discountGiven, legalAmountReceived, balanceToReceive,
       contracts: contracts.map((c: any) => ({ contract_no: c.contract_no, sale_price: c.sale_price || 0, paid_amount: c.paid_amount || 0, remaining_amount: c.remaining_amount || 0, status: c.status || '' })),
       legalCases: legalCases.map((lc: any) => ({ case_no: lc.case_no, case_amount: lc.case_amount || 0, rcvd_from_court: lc.rcvd_from_court || 0, court_fees: courtFeesByCaseNo[lc.case_no] || 0 })),
       purchases: purchases.map((p: any) => ({ id: p.id, item_name: p.item_name || '', model_type: p.model_type || '', purchase_price: p.purchase_price || 0, quantity: purchaseQtyMap[p.id] || p.quantity || 1, supplier_name: p.supplier_name || '', purchase_date: p.purchase_date || '' })),
@@ -298,7 +303,9 @@ export default function AccountingPage() {
     const courtRecoveryBulk = Math.max(0, courtRecoveryAllTime - allTimeCourtReceipts);
     const courtReceiptsPeriod = receipts.filter((r: any) => r.receipt_type === 'courtMoney').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
     const courtRecovery = courtReceiptsPeriod + (dateFrom <= COURT_BULK_CUTOFF ? courtRecoveryBulk : 0);
-    const totalRevenue = salesRevenue + fileCharges + courtRecovery;
+    const otherIncome = receipts.filter((r: any) => r.receipt_type === 'others').reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+    const discount = receipts.reduce((s: number, r: any) => s + (r.discount_amount || 0), 0);
+    const totalRevenue = salesRevenue + fileCharges + courtRecovery + otherIncome;
 
     let purchaseCost = 0;
     let purchaseCount = 0;
@@ -312,7 +319,7 @@ export default function AccountingPage() {
     const grossProfit = totalRevenue - purchaseCost;
 
     const operatingExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
-    const operatingIncome = grossProfit - operatingExpenses;
+    const operatingIncome = grossProfit - operatingExpenses - discount;
 
     const dueFromCustomers = contracts.reduce((s: number, c: any) => s + (c.remaining_amount || 0), 0);
     const dueFromCourt = legalCases.reduce((s: number, lc: any) => s + (lc.case_amount || 0), 0) - courtRecoveryAllTime;
@@ -329,7 +336,7 @@ export default function AccountingPage() {
 
     setIncome({
       salesRevenue, salesCount: contracts.length, fileCharges, fileChargesCount: contracts.filter((c: any) => (c.file_opening_charges || 0) > 0).length,
-      receiptVouchers, receiptsCount: receipts.length, courtRecovery, totalRevenue,
+      receiptVouchers, receiptsCount: receipts.length, courtRecovery, otherIncome, totalRevenue, discount,
       purchaseCost, purchaseCount, grossProfit,
       operatingExpenses, expenseCount: expenses.length, operatingIncome,
       dueFromCustomers, dueFromCourt, netIncome: operatingIncome,
@@ -600,6 +607,11 @@ export default function AccountingPage() {
                         <td className="py-3 px-6 text-slate-500"></td>
                         <td className="py-3 px-6 text-end font-semibold text-green-600">{fmt(income.courtRecovery)} {t('kd')}</td>
                       </tr>
+                      <tr className="border-b border-slate-100 hover:bg-green-50/50">
+                        <td className="py-3 px-6 font-medium">{t('otherIncome')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-green-600">{fmt(income.otherIncome)} {t('kd')}</td>
+                      </tr>
                       <tr className="bg-emerald-50 font-bold border-t-2 border-emerald-200">
                         <td className="py-3 px-6" colSpan={2}>{t('totalRevenue')}</td>
                         <td className="py-3 px-6 text-end text-emerald-700">{fmt(income.totalRevenue)} {t('kd')}</td>
@@ -647,6 +659,11 @@ export default function AccountingPage() {
                         <td className="py-3 px-6 font-medium">{t('totalExpenses')}</td>
                         <td className="py-3 px-6 text-slate-500">{income.expenseCount} items</td>
                         <td className="py-3 px-6 text-end font-semibold text-red-600">({fmt(income.operatingExpenses)}) {t('kd')}</td>
+                      </tr>
+                      <tr className="border-b border-slate-100 hover:bg-red-50/50">
+                        <td className="py-3 px-6 font-medium">{t('discountsGiven')}</td>
+                        <td className="py-3 px-6 text-slate-500"></td>
+                        <td className="py-3 px-6 text-end font-semibold text-red-600">({fmt(income.discount)}) {t('kd')}</td>
                       </tr>
                       <tr className={`font-bold border-t-2 ${income.netIncome >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                         <td className="py-3 px-6" colSpan={2}>{income.netIncome >= 0 ? t('netIncome') : t('netLoss')}</td>
@@ -806,6 +823,18 @@ export default function AccountingPage() {
                   <CardContent className="p-5 text-center">
                     <p className="text-xs text-slate-500 font-medium">{t('receivedAmount2')}</p>
                     <p className="text-2xl font-bold text-green-600 mt-1">{fmt(customerReportData.receivedAmount)} {t('kd')}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-0 shadow-md">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs text-slate-500 font-medium">{t('discountsGiven')}</p>
+                    <p className="text-2xl font-bold text-red-600 mt-1">{fmt(customerReportData.discountGiven)} {t('kd')}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-0 shadow-md">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs text-slate-500 font-medium">{t('actualReceived')}</p>
+                    <p className="text-2xl font-bold text-emerald-700 mt-1">{fmt(customerReportData.receivedAmount - customerReportData.discountGiven)} {t('kd')}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-0 shadow-md">
