@@ -385,6 +385,7 @@ export const ar = {
   // Receipt Vouchers - Discount
   discount: 'خصم',
   netAmount: 'المبلغ الصافي',
+  actualReceived: 'المستلم الفعلي (بعد الخصم)',
 
   // Customer - Client Check
   clientCheck: 'تصنيف العميل',

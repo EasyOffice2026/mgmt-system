@@ -24,6 +24,7 @@ interface ReceiptVoucher {
   court_case_no: string; received_amount: number; discount_amount: number; net_amount: number;
   payment_mode: string;
   installment_no: number | null;
+  installment_breakdown?: { no: number; amount: number }[];
   notes: string; attachments: string[]; created_at: string;
   created_by?: string; updated_by?: string;
 }
@@ -120,19 +121,36 @@ export default function ReceiptsPage() {
         .filter((inst: any) => inst.status !== 'paid')
     : [];
 
+  // Gross total of the currently selected installments (custom amount or remaining)
+  const selectedGross = selectedInstallments.reduce((sum, idx) => {
+    const inst = selectedContract?.installment_schedule?.[idx];
+    const instRemaining = (inst?.amount || 0) - (inst?.paid_amount || 0);
+    return sum + (installmentAmounts[idx] !== undefined ? installmentAmounts[idx] : instRemaining);
+  }, 0);
+  const isBulk = form.receipt_type === 'installment' && !editing && selectedInstallments.length > 0;
+  // Actual money received (net of discount) and total discount given on this contract
+  const contractInstallmentReceipts = receipts.filter(r => r.contract_id === form.contract_id && r.receipt_type === 'installment');
+  const contractDiscount = contractInstallmentReceipts.reduce((s, r) => s + ((r as any).discount_amount || 0), 0);
+  const contractNetReceived = contractInstallmentReceipts.reduce((s, r) => s + (r.net_amount ?? ((r.received_amount || 0) - ((r as any).discount_amount || 0))), 0);
+
   // Apply effects of a receipt on contracts/legal cases
-  async function applyReceiptEffects(formData: typeof form) {
+  async function applyReceiptEffects(formData: any) {
     if (formData.contract_id && formData.receipt_type === 'installment') {
       const { data: contractData } = await supabase.from('contracts')
         .select('paid_amount, sale_price, installment_schedule, status')
         .eq('id', formData.contract_id).single();
       if (contractData) {
         const schedule = [...(contractData.installment_schedule || [])];
-        if (formData.installment_no !== null && formData.installment_no !== undefined) {
-          const instIdx = formData.installment_no;
+        const applyItems: { no: number; amount: number }[] = (formData.installment_breakdown && formData.installment_breakdown.length)
+          ? formData.installment_breakdown
+          : (formData.installment_no !== null && formData.installment_no !== undefined
+              ? [{ no: formData.installment_no, amount: formData.received_amount || 0 }]
+              : []);
+        for (const it of applyItems) {
+          const instIdx = it.no;
           if (schedule[instIdx] && schedule[instIdx].status !== 'paid') {
             const prevPaid = schedule[instIdx].paid_amount || 0;
-            const newPaid = prevPaid + (formData.received_amount || 0);
+            const newPaid = prevPaid + (it.amount || 0);
             const instTotal = schedule[instIdx].amount || 0;
             const newStatus = newPaid >= instTotal ? 'paid' : newPaid > 0 ? 'partially_paid' : 'pending';
             schedule[instIdx] = {
@@ -170,11 +188,16 @@ export default function ReceiptsPage() {
         .eq('id', receipt.contract_id).single();
       if (contractData) {
         const schedule = [...(contractData.installment_schedule || [])];
-        if (receipt.installment_no !== null && receipt.installment_no !== undefined) {
-          const instIdx = receipt.installment_no;
+        const revItems: { no: number; amount: number }[] = (receipt.installment_breakdown && receipt.installment_breakdown.length)
+          ? receipt.installment_breakdown
+          : (receipt.installment_no !== null && receipt.installment_no !== undefined
+              ? [{ no: receipt.installment_no, amount: receipt.received_amount || 0 }]
+              : []);
+        for (const it of revItems) {
+          const instIdx = it.no;
           if (schedule[instIdx]) {
             const prevPaid = schedule[instIdx].paid_amount || 0;
-            const newPaid = Math.max(0, prevPaid - (receipt.received_amount || 0));
+            const newPaid = Math.max(0, prevPaid - (it.amount || 0));
             const newStatus = newPaid <= 0 ? 'pending' : newPaid >= (schedule[instIdx].amount || 0) ? 'paid' : 'partially_paid';
             schedule[instIdx] = {
               ...schedule[instIdx],
@@ -204,7 +227,7 @@ export default function ReceiptsPage() {
   }
 
   // Helper to try insert/update, progressively stripping optional columns if they don't exist in DB
-  const optionalCols = ['installment_no', 'discount_amount', 'net_amount', 'created_by', 'updated_by'];
+  const optionalCols = ['installment_no', 'installment_breakdown', 'discount_amount', 'net_amount', 'created_by', 'updated_by'];
   async function tryUpsert(data: any, isEdit: boolean, editId?: string): Promise<boolean> {
     let payload = { ...data };
     for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
@@ -233,29 +256,30 @@ export default function ReceiptsPage() {
     const customer = customers.find(c => c.id === form.customer_id);
     const contract = allContracts.find(c => c.id === form.contract_id);
 
-    // Multi-installment: create one receipt per selected installment
+    // Multi-installment bulk payment: create ONE receipt voucher covering all selected installments
     if (form.receipt_type === 'installment' && !editing && selectedInstallments.length > 0) {
-      for (const instIdx of selectedInstallments) {
+      const currentUser = profile?.full_name || user?.email || 'unknown';
+      const breakdown = selectedInstallments.map(instIdx => {
         const inst = selectedContract?.installment_schedule?.[instIdx];
-        const instTotal = inst?.amount || 0;
-        const instPaid = inst?.paid_amount || 0;
-        const instRemaining = instTotal - instPaid;
-        // Use custom amount if user specified one for this installment, otherwise use remaining
-        const payAmount = installmentAmounts[instIdx] !== undefined ? installmentAmounts[instIdx] : instRemaining;
-        const currentUser = profile?.full_name || user?.email || 'unknown';
-        const data: any = {
-          receipt_date: form.receipt_date, receipt_type: form.receipt_type,
-          customer_id: form.customer_id || null, customer_name: customer?.name || '',
-          contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
-          court_case_no: '', received_amount: payAmount,
-          discount_amount: 0, net_amount: payAmount,
-          payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
-          installment_no: instIdx,
-          created_by: currentUser,
-        };
-        const ok = await tryUpsert(data, false);
-        if (ok) await applyReceiptEffects({ ...form, installment_no: instIdx, received_amount: payAmount });
-      }
+        const instRemaining = (inst?.amount || 0) - (inst?.paid_amount || 0);
+        const amt = installmentAmounts[instIdx] !== undefined ? installmentAmounts[instIdx] : instRemaining;
+        return { no: instIdx, amount: amt };
+      });
+      const gross = breakdown.reduce((s, b) => s + (b.amount || 0), 0);
+      const discount = form.discount_amount || 0;
+      const data: any = {
+        receipt_date: form.receipt_date, receipt_type: form.receipt_type,
+        customer_id: form.customer_id || null, customer_name: customer?.name || '',
+        contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
+        court_case_no: '', received_amount: gross,
+        discount_amount: discount, net_amount: gross - discount,
+        payment_mode: form.payment_mode, notes: form.notes, attachments: form.attachments,
+        installment_no: breakdown.length === 1 ? breakdown[0].no : null,
+        installment_breakdown: breakdown,
+        created_by: currentUser,
+      };
+      const ok = await tryUpsert(data, false);
+      if (ok) await applyReceiptEffects({ ...form, installment_no: data.installment_no, received_amount: gross, installment_breakdown: breakdown });
       setShowDialog(false); setForm(defaultForm); setSelectedInstallments([]); setInstallmentAmounts({}); setEditing(null); loadData();
       return;
     }
@@ -720,6 +744,12 @@ export default function ReceiptsPage() {
                   <div><span className="text-slate-500 text-xs">{t('paidAmount')}</span><p className="font-medium text-green-600">{selectedContract.paid_amount?.toLocaleString()} {t('kd')}</p></div>
                   <div><span className="text-slate-500 text-xs">{t('remainingAmount')}</span><p className="font-medium text-red-600">{selectedContract.remaining_amount?.toLocaleString()} {t('kd')}</p></div>
                 </div>
+                {(contractDiscount > 0 || contractNetReceived > 0) && (
+                  <div className="grid grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200">
+                    <div><span className="text-slate-500 text-xs">{t('discount')}</span><p className="font-medium text-red-600">{contractDiscount.toLocaleString()} {t('kd')}</p></div>
+                    <div><span className="text-slate-500 text-xs">{t('actualReceived')}</span><p className="font-medium text-green-700">{contractNetReceived.toLocaleString()} {t('kd')}</p></div>
+                  </div>
+                )}
                 <div className="mt-2"><div className="w-full bg-slate-200 rounded-full h-1.5"><div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${(selectedContract.paid_amount || 0) / Math.max(1, selectedContract.sale_price) * 100}%` }} /></div></div>
               </div>
             )}
@@ -796,7 +826,7 @@ export default function ReceiptsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>{t('receivedAmount')} *</Label>
-                <Input type="number" value={form.received_amount} onChange={e => setForm({ ...form, received_amount: Number(e.target.value) })} />
+                <Input type="number" value={isBulk ? selectedGross : form.received_amount} readOnly={isBulk} className={isBulk ? 'bg-slate-100' : ''} onChange={e => setForm({ ...form, received_amount: Number(e.target.value) })} />
               </div>
               <div>
                 <Label>{t('discount')}</Label>
@@ -806,7 +836,7 @@ export default function ReceiptsPage() {
                 <div className="md:col-span-2">
                   <div className="bg-blue-50 rounded-lg p-3 text-sm flex items-center justify-between">
                     <span className="text-blue-600 font-medium">{t('netAmount')}:</span>
-                    <span className="font-bold text-blue-700">{((form.received_amount || 0) - (form.discount_amount || 0)).toLocaleString()} {t('kd')}</span>
+                    <span className="font-bold text-blue-700">{((isBulk ? selectedGross : (form.received_amount || 0)) - (form.discount_amount || 0)).toLocaleString()} {t('kd')}</span>
                   </div>
                 </div>
               )}

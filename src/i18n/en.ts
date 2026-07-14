@@ -411,6 +411,7 @@ export const en = {
   // Receipt Vouchers - Discount
   discount: 'Discount',
   netAmount: 'Net Amount',
+  actualReceived: 'Actual Received (net of discount)',
 
   // Customer - Client Check
   clientCheck: 'Client Check',
