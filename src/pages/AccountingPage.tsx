@@ -56,6 +56,8 @@ interface DetailRow {
   date: string;
   description: string;
   amount: number;
+  received?: number;
+  discount?: number;
   category?: string;
   status?: string;
   customer?: string;
@@ -248,10 +250,14 @@ export default function AccountingPage() {
       }));
     } else if (type === 'receipts') {
       const res = await supabase.from('receipt_vouchers').select('*').gte('receipt_date', dateFrom).lte('receipt_date', dateTo);
-      rows = (res.data || []).map((r: any) => ({
-        id: r.id, date: r.receipt_date || '', description: `${r.receipt_voucher_no || ''} - ${r.receipt_type || ''}`,
-        amount: r.received_amount || 0, category: r.receipt_type || '', customer: r.customer_name || '',
-      }));
+      rows = (res.data || []).map((r: any) => {
+        const received = r.received_amount || 0;
+        const discount = r.discount_amount || 0;
+        return {
+          id: r.id, date: r.receipt_date || '', description: `${r.receipt_voucher_no || ''} - ${r.receipt_type || ''}`,
+          amount: received - discount, received, discount, category: r.receipt_type || '', customer: r.customer_name || '',
+        };
+      });
     } else if (type === 'operational') {
       const res = await supabase.from('contracts').select('*').gte('start_date', dateFrom).lte('start_date', dateTo);
       rows = (res.data || []).filter((c: any) => c.status === 'functional' || c.status === 'ongoing').map((c: any) => ({
@@ -410,8 +416,20 @@ export default function AccountingPage() {
   const detailAvg = detailRows.length > 0 ? detailTotal / detailRows.length : 0;
   const currentReportDef = reportTypes.find(r => r.key === selectedReport);
 
-  const reportExportHeaders = [t('date'), t('description'), t('amount'), t('customer'), t('category'), t('status')];
-  const reportExportRows = detailRows.map(r => [r.date, r.description, r.amount, r.customer || '', r.category || '', r.status || '']);
+  const showCustomerCol = detailRows.some(r => r.customer);
+  const showCategoryCol = detailRows.some(r => r.category);
+  const showBreakdownCol = detailRows.some(r => r.received !== undefined);
+  const showStatusCol = detailRows.some(r => r.status);
+  const footerColSpan = 3 + (showCustomerCol ? 1 : 0) + (showCategoryCol ? 1 : 0) + (showBreakdownCol ? 2 : 0);
+  const detailReceivedTotal = detailRows.reduce((s, r) => s + (r.received || 0), 0);
+  const detailDiscountTotal = detailRows.reduce((s, r) => s + (r.discount || 0), 0);
+
+  const reportExportHeaders = showBreakdownCol
+    ? [t('date'), t('description'), t('customer'), t('category'), t('received'), t('discount'), t('netAmount'), t('status')]
+    : [t('date'), t('description'), t('amount'), t('customer'), t('category'), t('status')];
+  const reportExportRows = detailRows.map(r => showBreakdownCol
+    ? [r.date, r.description, r.customer || '', r.category || '', r.received || 0, r.discount || 0, r.amount, r.status || '']
+    : [r.date, r.description, r.amount, r.customer || '', r.category || '', r.status || '']);
 
   const DateRangePicker = () => (
     <div className="flex items-center gap-2 flex-wrap">
@@ -557,10 +575,12 @@ export default function AccountingPage() {
                           <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
                           <th className="text-start py-3 px-4 font-medium text-slate-600">{t('date')}</th>
                           <th className="text-start py-3 px-4 font-medium text-slate-600">{t('description')}</th>
-                          {detailRows.some(r => r.customer) && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customer')}</th>}
-                          {detailRows.some(r => r.category) && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('category')}</th>}
-                          <th className="text-start py-3 px-4 font-medium text-slate-600">{t('amount')} ({t('kd')})</th>
-                          {detailRows.some(r => r.status) && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>}
+                          {showCustomerCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customer')}</th>}
+                          {showCategoryCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('category')}</th>}
+                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('received')} ({t('kd')})</th>}
+                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('discount')} ({t('kd')})</th>}
+                          <th className="text-start py-3 px-4 font-medium text-slate-600">{showBreakdownCol ? t('netAmount') : t('amount')} ({t('kd')})</th>
+                          {showStatusCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -569,10 +589,12 @@ export default function AccountingPage() {
                             <td className="py-3 px-4 text-slate-400">{i + 1}</td>
                             <td className="py-3 px-4">{row.date}</td>
                             <td className="py-3 px-4 font-medium">{row.description}</td>
-                            {detailRows.some(r => r.customer) && <td className="py-3 px-4">{row.customer || '-'}</td>}
-                            {detailRows.some(r => r.category) && <td className="py-3 px-4">{row.category || '-'}</td>}
+                            {showCustomerCol && <td className="py-3 px-4">{row.customer || '-'}</td>}
+                            {showCategoryCol && <td className="py-3 px-4">{row.category || '-'}</td>}
+                            {showBreakdownCol && <td className="py-3 px-4 text-slate-700">{fmt(row.received || 0)}</td>}
+                            {showBreakdownCol && <td className="py-3 px-4 text-red-600">{(row.discount || 0) > 0 ? `(${fmt(row.discount || 0)})` : fmt(0)}</td>}
                             <td className="py-3 px-4 font-semibold text-blue-600">{fmt(row.amount)}</td>
-                            {detailRows.some(r => r.status) && (
+                            {showStatusCol && (
                               <td className="py-3 px-4">
                                 {row.status && (
                                   <Badge className={
@@ -589,20 +611,22 @@ export default function AccountingPage() {
                           </tr>
                         ))}
                         {detailRows.length === 0 && (
-                          <tr><td colSpan={7} className="py-10 text-center text-slate-400">{t('noData')}</td></tr>
+                          <tr><td colSpan={footerColSpan + 1 + (showStatusCol ? 1 : 0)} className="py-10 text-center text-slate-400">{t('noData')}</td></tr>
                         )}
                       </tbody>
                       {detailRows.length > 0 && (
                         <tfoot>
                           <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
-                            <td colSpan={detailRows.some(r => r.customer) && detailRows.some(r => r.category) ? 5 : detailRows.some(r => r.customer) || detailRows.some(r => r.category) ? 4 : 3} className="py-3 px-4 text-end">{t('total')}:</td>
+                            <td colSpan={footerColSpan - (showBreakdownCol ? 2 : 0)} className="py-3 px-4 text-end">{t('total')}:</td>
+                            {showBreakdownCol && <td className="py-3 px-4 text-slate-700">{fmt(detailReceivedTotal)}</td>}
+                            {showBreakdownCol && <td className="py-3 px-4 text-red-600">{detailDiscountTotal > 0 ? `(${fmt(detailDiscountTotal)})` : fmt(0)}</td>}
                             <td className="py-3 px-4 text-blue-600">{fmt(detailTotal)} {t('kd')}</td>
-                            {detailRows.some(r => r.status) && <td />}
+                            {showStatusCol && <td />}
                           </tr>
                           <tr className="bg-slate-50">
-                            <td colSpan={detailRows.some(r => r.customer) && detailRows.some(r => r.category) ? 5 : detailRows.some(r => r.customer) || detailRows.some(r => r.category) ? 4 : 3} className="py-3 px-4 text-end text-slate-500">{t('average')}:</td>
+                            <td colSpan={footerColSpan} className="py-3 px-4 text-end text-slate-500">{t('average')}:</td>
                             <td className="py-3 px-4 text-amber-600 font-medium">{fmt(detailAvg)} {t('kd')}</td>
-                            {detailRows.some(r => r.status) && <td />}
+                            {showStatusCol && <td />}
                           </tr>
                         </tfoot>
                       )}
