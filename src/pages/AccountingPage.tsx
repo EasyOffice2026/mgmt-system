@@ -34,7 +34,15 @@ async function fetchAllRows(
 }
 
 type ReportType = 'sales' | 'purchases' | 'expenses' | 'fileCharges' | 'receipts' | 'operational' | 'finished' | 'legal' | 'caseClosed';
-type ActiveView = 'overview' | 'report' | 'income' | 'customerReport' | 'incomeRecovery';
+type ActiveView = 'overview' | 'report' | 'income' | 'customerReport' | 'incomeRecovery' | 'paymentMode';
+
+interface PaymentModeRow {
+  mode: string;
+  receipts: number;
+  fileCharges: number;
+  expenses: number;
+  balance: number;
+}
 
 interface CustomerOption { id: string; customer_no: string; name: string; }
 interface CustomerReportData {
@@ -139,6 +147,8 @@ export default function AccountingPage() {
   const [customerReportLoading, setCustomerReportLoading] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [pmRows, setPmRows] = useState<PaymentModeRow[]>([]);
+  const [pmLoading, setPmLoading] = useState(false);
 
   useEffect(() => {
     supabase.from('customers').select('id, customer_no, name').order('name').then(({ data }) => setAllCustomers(data || []));
@@ -306,6 +316,51 @@ export default function AccountingPage() {
 
     setDetailRows(rows);
     setReportLoading(false);
+  }
+
+  // Known Arabic payment-mode names → canonical i18n key, so the same real-world
+  // mode entered in different languages (e.g. 'link' vs 'رابط') collapses into one row.
+  function canonicalMode(raw: any): string {
+    const m = (raw ?? '').toString().trim();
+    if (!m) return 'cash';
+    const arMap: Record<string, string> = {
+      'رابط': 'link', 'ومض': 'wamd', 'وامض': 'wamd', 'شيكات': 'checks',
+      'نقد': 'cash', 'نقداً': 'cash', 'تحويل بنكي': 'bank_transfer',
+    };
+    return arMap[m] || m.toLowerCase();
+  }
+
+  async function loadPaymentModeReport() {
+    setPmLoading(true);
+    setActiveView('paymentMode');
+
+    const [receipts, expenses, contracts] = await Promise.all([
+      fetchAllRows((from, to) => supabase.from('receipt_vouchers').select('payment_mode, received_amount, discount_amount').gte('receipt_date', dateFrom).lte('receipt_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('expenses').select('payment_mode, amount').gte('expense_date', dateFrom).lte('expense_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('contracts').select('payment_mode, file_opening_charges').gte('start_date', dateFrom).lte('start_date', dateTo).range(from, to)),
+    ]);
+
+    const map: Record<string, PaymentModeRow> = {};
+    const ensure = (mode: string): PaymentModeRow => {
+      if (!map[mode]) map[mode] = { mode, receipts: 0, fileCharges: 0, expenses: 0, balance: 0 };
+      return map[mode];
+    };
+
+    receipts.forEach((r: any) => {
+      const net = (r.received_amount || 0) - (r.discount_amount || 0);
+      ensure(canonicalMode(r.payment_mode)).receipts += net;
+    });
+    contracts.forEach((c: any) => {
+      if ((c.file_opening_charges || 0) > 0) ensure(canonicalMode(c.payment_mode)).fileCharges += c.file_opening_charges || 0;
+    });
+    expenses.forEach((e: any) => {
+      ensure(canonicalMode(e.payment_mode)).expenses += e.amount || 0;
+    });
+
+    const rows = Object.values(map).map(r => ({ ...r, balance: r.receipts + r.fileCharges - r.expenses }));
+    rows.sort((a, b) => b.balance - a.balance);
+    setPmRows(rows);
+    setPmLoading(false);
   }
 
   async function loadIncomeStatement() {
@@ -476,6 +531,11 @@ export default function AccountingPage() {
         {canViewIncome && (
           <Button variant={activeView === 'incomeRecovery' ? 'default' : 'outline'} size="sm" onClick={() => loadIncomeRecovery()} className={activeView === 'incomeRecovery' ? 'bg-teal-600 text-white' : ''}>
             <TrendingUp className="h-4 w-4 me-1" /> {t('incomeRecovery')}
+          </Button>
+        )}
+        {canViewIncome && (
+          <Button variant={activeView === 'paymentMode' ? 'default' : 'outline'} size="sm" onClick={() => loadPaymentModeReport()} className={activeView === 'paymentMode' ? 'bg-indigo-600 text-white' : ''}>
+            <DollarSign className="h-4 w-4 me-1" /> {t('paymentModeReport')}
           </Button>
         )}
         <Button variant={activeView === 'customerReport' ? 'default' : 'outline'} size="sm" onClick={() => setActiveView('customerReport')} className={activeView === 'customerReport' ? 'bg-purple-600 text-white' : ''}>
@@ -1007,6 +1067,78 @@ export default function AccountingPage() {
               </Button>
             </>
           ) : null}
+        </div>
+      )}
+
+      {/* ====================== PAYMENT MODE REPORT VIEW ====================== */}
+      {activeView === 'paymentMode' && canViewIncome && (
+        <div className="space-y-4">
+          {pmLoading ? (
+            <div className="py-20 text-center text-slate-400">{t('loading')}</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">{t('paymentModeReport')}</h2>
+                  <p className="text-sm text-slate-500">{dateFrom} → {dateTo}</p>
+                </div>
+                <DataExport
+                  title={t('paymentModeReport')}
+                  headers={[t('paymentMode'), t('receiptVouchers'), t('fileOpeningCharges'), t('totalExpenses'), t('balance')]}
+                  rows={pmRows.map(r => [t(r.mode as any) || r.mode, r.receipts, r.fileCharges, r.expenses, r.balance])}
+                  filename="payment-mode-report"
+                />
+              </div>
+
+              <Card className="border-0 shadow-md">
+                <CardContent className="p-0">
+                  {pmRows.length === 0 ? (
+                    <div className="py-20 text-center text-slate-400">
+                      <DollarSign className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('paymentMode')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('receiptVouchers')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('fileOpeningCharges')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('totalExpenses')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('balance')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pmRows.map(r => (
+                            <tr key={r.mode} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
+                              <td className="py-3 px-4 font-medium">{t(r.mode as any) || r.mode}</td>
+                              <td className="py-3 px-4 text-end text-green-600">+{Math.round(r.receipts).toLocaleString()} {t('kd')}</td>
+                              <td className="py-3 px-4 text-end text-teal-600">+{Math.round(r.fileCharges).toLocaleString()} {t('kd')}</td>
+                              <td className="py-3 px-4 text-end text-red-600">-{Math.round(r.expenses).toLocaleString()} {t('kd')}</td>
+                              <td className="py-3 px-4 text-end font-bold text-slate-900">{Math.round(r.balance).toLocaleString()} {t('kd')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
+                            <td className="py-3 px-4">{t('total')}</td>
+                            <td className="py-3 px-4 text-end text-green-700">+{Math.round(pmRows.reduce((s, r) => s + r.receipts, 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-3 px-4 text-end text-teal-700">+{Math.round(pmRows.reduce((s, r) => s + r.fileCharges, 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-3 px-4 text-end text-red-700">-{Math.round(pmRows.reduce((s, r) => s + r.expenses, 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-3 px-4 text-end text-slate-900">{Math.round(pmRows.reduce((s, r) => s + r.balance, 0)).toLocaleString()} {t('kd')}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Button variant="outline" onClick={() => setActiveView('overview')} className="mt-2">
+                &larr; {t('backToReports')}
+              </Button>
+            </>
+          )}
         </div>
       )}
 

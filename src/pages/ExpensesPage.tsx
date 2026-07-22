@@ -150,7 +150,7 @@ export default function ExpensesPage() {
   const totalExpenses = filtered.reduce((sum, e) => sum + (e.amount || 0), 0);
 
   const exportHeaders = [t('expenseVoucherNo'), t('expenseDate'), t('expenseType'), t('amount'), t('paymentMode'), t('description'), t('customerName'), t('contractNo'), t('caseNo')];
-  const exportRows = filtered.map(e => [e.expense_voucher_no, e.expense_date, e.expense_type, e.amount, t(e.payment_mode as any) || e.payment_mode, e.description, e.customer_name, e.contract_no, e.case_no]);
+  const exportRows = filtered.map(e => [e.expense_voucher_no, e.expense_date, t(e.expense_type as any) || e.expense_type, e.amount, t(e.payment_mode as any) || e.payment_mode, e.description, e.customer_name, e.contract_no, e.case_no]);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -218,7 +218,7 @@ export default function ExpensesPage() {
                     <tr key={e.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600">{e.expense_voucher_no}</td>
                       <td className="py-3 px-4">{e.expense_date}</td>
-                      <td className="py-3 px-4"><Badge className={typeColor(e.expense_type)} variant="secondary">{e.expense_type}</Badge></td>
+                      <td className="py-3 px-4"><Badge className={typeColor(e.expense_type)} variant="secondary">{t(e.expense_type as any) || e.expense_type}</Badge></td>
                       <td className="py-3 px-4 font-medium">{e.amount?.toLocaleString()} {t('kd')}</td>
                       <td className="py-3 px-4">{t(e.payment_mode as any) || e.payment_mode}</td>
                       <td className="py-3 px-4">{e.customer_name}</td>
@@ -273,7 +273,7 @@ export default function ExpensesPage() {
                 <tbody>
                   <tr><td className="border p-3 bg-slate-50 font-medium w-1/3">{t('expenseVoucherNo')}</td><td className="border p-3 font-bold">{showForm.expense_voucher_no}</td></tr>
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseDate')}</td><td className="border p-3">{showForm.expense_date}</td></tr>
-                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseType')}</td><td className="border p-3"><Badge className={typeColor(showForm.expense_type)} variant="secondary">{showForm.expense_type}</Badge></td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseType')}</td><td className="border p-3"><Badge className={typeColor(showForm.expense_type)} variant="secondary">{t(showForm.expense_type as any) || showForm.expense_type}</Badge></td></tr>
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('amount')}</td><td className="border p-3 font-bold text-lg">{showForm.amount?.toLocaleString()} {t('kd')}</td></tr>
                   {showForm.payment_mode && <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{t(showForm.payment_mode as any) || showForm.payment_mode}</td></tr>}
                   {showForm.customer_name && <tr><td className="border p-3 bg-slate-50 font-medium">{t('customerName')}</td><td className="border p-3">{showForm.customer_name}</td></tr>}
@@ -307,7 +307,7 @@ export default function ExpensesPage() {
                 <Label>{t('expenseType')} *</Label>
                 <div className="flex gap-2">
                   <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.expense_type} onChange={e => setForm({ ...form, expense_type: e.target.value })}>
-                    {expenseTypes.map(et => <option key={et} value={et}>{et}</option>)}
+                    {expenseTypes.map(et => <option key={et} value={et}>{t(et as any) || et}</option>)}
                   </select>
                   <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setShowNewType(true)}><Plus className="h-3 w-3" /></Button>
                 </div>
