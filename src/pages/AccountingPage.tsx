@@ -127,6 +127,7 @@ export default function AccountingPage() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth);
   const [dateTo, setDateTo] = useState(todayStr);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
+  const [receiptTypeFilter, setReceiptTypeFilter] = useState<'all' | 'installment' | 'courtMoney' | 'others'>('all');
   const [reportLoading, setReportLoading] = useState(false);
   const [income, setIncome] = useState<IncomeStatement | null>(null);
   const [incomeLoading, setIncomeLoading] = useState(false);
@@ -220,6 +221,7 @@ export default function AccountingPage() {
 
   async function loadReport(type: ReportType) {
     setReportLoading(true);
+    if (type !== selectedReport) setReceiptTypeFilter('all');
     setSelectedReport(type);
     setActiveView('report');
     let rows: DetailRow[] = [];
@@ -412,22 +414,26 @@ export default function AccountingPage() {
   }
 
 
-  const detailTotal = detailRows.reduce((s, r) => s + r.amount, 0);
-  const detailAvg = detailRows.length > 0 ? detailTotal / detailRows.length : 0;
+  const visibleRows = selectedReport === 'receipts' && receiptTypeFilter !== 'all'
+    ? detailRows.filter(r => r.category === receiptTypeFilter)
+    : detailRows;
+
+  const detailTotal = visibleRows.reduce((s, r) => s + r.amount, 0);
+  const detailAvg = visibleRows.length > 0 ? detailTotal / visibleRows.length : 0;
   const currentReportDef = reportTypes.find(r => r.key === selectedReport);
 
-  const showCustomerCol = detailRows.some(r => r.customer);
-  const showCategoryCol = detailRows.some(r => r.category);
-  const showBreakdownCol = detailRows.some(r => r.received !== undefined);
-  const showStatusCol = detailRows.some(r => r.status);
+  const showCustomerCol = visibleRows.some(r => r.customer);
+  const showCategoryCol = visibleRows.some(r => r.category);
+  const showBreakdownCol = visibleRows.some(r => r.received !== undefined);
+  const showStatusCol = visibleRows.some(r => r.status);
   const footerColSpan = 3 + (showCustomerCol ? 1 : 0) + (showCategoryCol ? 1 : 0) + (showBreakdownCol ? 2 : 0);
-  const detailReceivedTotal = detailRows.reduce((s, r) => s + (r.received || 0), 0);
-  const detailDiscountTotal = detailRows.reduce((s, r) => s + (r.discount || 0), 0);
+  const detailReceivedTotal = visibleRows.reduce((s, r) => s + (r.received || 0), 0);
+  const detailDiscountTotal = visibleRows.reduce((s, r) => s + (r.discount || 0), 0);
 
   const reportExportHeaders = showBreakdownCol
     ? [t('date'), t('description'), t('customer'), t('category'), t('received'), t('discount'), t('netAmount'), t('status')]
     : [t('date'), t('description'), t('amount'), t('customer'), t('category'), t('status')];
-  const reportExportRows = detailRows.map(r => showBreakdownCol
+  const reportExportRows = visibleRows.map(r => showBreakdownCol
     ? [r.date, r.description, r.customer || '', r.category || '', r.received || 0, r.discount || 0, r.amount, r.status || '']
     : [r.date, r.description, r.amount, r.customer || '', r.category || '', r.status || '']);
 
@@ -520,6 +526,18 @@ export default function AccountingPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {selectedReport === 'receipts' && (
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  value={receiptTypeFilter}
+                  onChange={e => setReceiptTypeFilter(e.target.value as typeof receiptTypeFilter)}
+                >
+                  <option value="all">{t('all')}</option>
+                  <option value="installment">{t('installment')}</option>
+                  <option value="courtMoney">{t('courtMoney')}</option>
+                  <option value="others">{t('others')}</option>
+                </select>
+              )}
               <Button variant="outline" size="sm" onClick={() => loadReport(selectedReport)}>
                 <Calendar className="h-4 w-4 me-1" /> {t('filter')}
               </Button>
@@ -561,7 +579,7 @@ export default function AccountingPage() {
                 <Card className="border-0 shadow-md">
                   <CardContent className="p-5 text-center">
                     <p className="text-xs text-slate-500 font-medium">{t('count')}</p>
-                    <p className="text-2xl font-bold text-green-600 mt-1">{detailRows.length}</p>
+                    <p className="text-2xl font-bold text-green-600 mt-1">{visibleRows.length}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -584,7 +602,7 @@ export default function AccountingPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {detailRows.map((row, i) => (
+                        {visibleRows.map((row, i) => (
                           <tr key={row.id || i} className="border-b border-slate-100 hover:bg-blue-50/50">
                             <td className="py-3 px-4 text-slate-400">{i + 1}</td>
                             <td className="py-3 px-4">{row.date}</td>
@@ -610,11 +628,11 @@ export default function AccountingPage() {
                             )}
                           </tr>
                         ))}
-                        {detailRows.length === 0 && (
+                        {visibleRows.length === 0 && (
                           <tr><td colSpan={footerColSpan + 1 + (showStatusCol ? 1 : 0)} className="py-10 text-center text-slate-400">{t('noData')}</td></tr>
                         )}
                       </tbody>
-                      {detailRows.length > 0 && (
+                      {visibleRows.length > 0 && (
                         <tfoot>
                           <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
                             <td colSpan={footerColSpan - (showBreakdownCol ? 2 : 0)} className="py-3 px-4 text-end">{t('total')}:</td>
