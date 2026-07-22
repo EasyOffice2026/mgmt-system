@@ -183,7 +183,7 @@ export const ar = {
   totalCases: 'إجمالي القضايا',
   totalClaimedAmount: 'إجمالي المبالغ المطالب بها',
   totalActualAmount: 'إجمالي المبالغ الفعلية',
-  amountRecovered: 'المبلغ المسترد',
+  amountRecovered: 'المبلغ المستلم',
   outstanding: 'المعلق',
   caseDate: 'تاريخ القضية',
   courtFeesFromExpenses: 'رسوم المحكمة',
