@@ -11,7 +11,8 @@ import { DataExport } from '@/components/shared/DataExport';
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign,
   ShoppingCart, Receipt, FileText, BarChart3, ArrowUpRight, ArrowDownRight,
-  Briefcase, Gavel, Lock, Calendar, ChevronRight, Printer, Users
+  Briefcase, Gavel, Lock, Calendar, ChevronRight, Printer, Users,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -70,6 +71,8 @@ interface DetailRow {
   status?: string;
   customer?: string;
 }
+
+type SortKey = 'date' | 'description' | 'customer' | 'category' | 'received' | 'discount' | 'amount' | 'status';
 
 interface IncomeStatement {
   salesRevenue: number;
@@ -136,6 +139,8 @@ export default function AccountingPage() {
   const [dateTo, setDateTo] = useState(todayStr);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
   const [receiptTypeFilter, setReceiptTypeFilter] = useState<'all' | 'installment' | 'courtMoney' | 'others'>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [reportLoading, setReportLoading] = useState(false);
   const [income, setIncome] = useState<IncomeStatement | null>(null);
   const [incomeLoading, setIncomeLoading] = useState(false);
@@ -470,9 +475,25 @@ export default function AccountingPage() {
   }
 
 
-  const visibleRows = selectedReport === 'receipts' && receiptTypeFilter !== 'all'
+  const filteredRows = selectedReport === 'receipts' && receiptTypeFilter !== 'all'
     ? detailRows.filter(r => r.category === receiptTypeFilter)
     : detailRows;
+  const numericSortKeys: SortKey[] = ['received', 'discount', 'amount'];
+  const visibleRows = [...filteredRows].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (numericSortKeys.includes(sortKey)) {
+      return ((Number(a[sortKey]) || 0) - (Number(b[sortKey]) || 0)) * dir;
+    }
+    return String(a[sortKey] ?? '').localeCompare(String(b[sortKey] ?? '')) * dir;
+  });
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+  const SortIcon = ({ col }: { col: SortKey }) =>
+    sortKey === col
+      ? (sortDir === 'asc' ? <ArrowUp className="inline h-3 w-3 ms-1" /> : <ArrowDown className="inline h-3 w-3 ms-1" />)
+      : <ArrowUpDown className="inline h-3 w-3 ms-1 opacity-30" />;
 
   const detailTotal = visibleRows.reduce((s, r) => s + r.amount, 0);
   const detailAvg = visibleRows.length > 0 ? detailTotal / visibleRows.length : 0;
@@ -652,14 +673,14 @@ export default function AccountingPage() {
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
                           <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
-                          <th className="text-start py-3 px-4 font-medium text-slate-600">{t('date')}</th>
-                          <th className="text-start py-3 px-4 font-medium text-slate-600">{t('description')}</th>
-                          {showCustomerCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customer')}</th>}
-                          {showCategoryCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('category')}</th>}
-                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('received')} ({t('kd')})</th>}
-                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('discount')} ({t('kd')})</th>}
-                          <th className="text-start py-3 px-4 font-medium text-slate-600">{showBreakdownCol ? t('netAmount') : t('amount')} ({t('kd')})</th>
-                          {showStatusCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>}
+                          <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('date')}>{t('date')}<SortIcon col="date" /></th>
+                          <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('description')}>{t('description')}<SortIcon col="description" /></th>
+                          {showCustomerCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('customer')}>{t('customer')}<SortIcon col="customer" /></th>}
+                          {showCategoryCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('category')}>{t('category')}<SortIcon col="category" /></th>}
+                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('received')}>{t('received')} ({t('kd')})<SortIcon col="received" /></th>}
+                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('discount')}>{t('discount')} ({t('kd')})<SortIcon col="discount" /></th>}
+                          <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('amount')}>{showBreakdownCol ? t('netAmount') : t('amount')} ({t('kd')})<SortIcon col="amount" /></th>
+                          {showStatusCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('status')}>{t('status')}<SortIcon col="status" /></th>}
                         </tr>
                       </thead>
                       <tbody>
