@@ -19,7 +19,7 @@ import { Pagination } from '@/components/ui/pagination';
 interface Expense {
   id: string; expense_voucher_no: string; expense_date: string; expense_type: string;
   amount: number; description: string; case_no: string; customer_id: string;
-  customer_name: string; contract_id: string; contract_no: string; attachments: string[]; created_at: string;
+  customer_name: string; contract_id: string; contract_no: string; payment_mode: string; attachments: string[]; created_at: string;
 }
 
 interface Customer { id: string; customer_no: string; name: string; }
@@ -27,11 +27,12 @@ interface Contract { id: string; contract_no: string; customer_name: string; cus
 interface LegalCase { id: string; case_no: string; customer_id: string; customer_name: string; }
 
 const defaultExpenseTypes = ['rent', 'salaries', 'courtFees', 'lawyerFees', 'utilities', 'office', 'transport', 'other'];
+const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
 
 const defaultForm = {
   expense_date: format(new Date(), 'yyyy-MM-dd'),
   expense_type: 'rent', amount: 0, description: '',
-  case_no: '', customer_id: '', contract_id: '', attachments: [] as string[],
+  case_no: '', customer_id: '', contract_id: '', payment_mode: 'cash', attachments: [] as string[],
 };
 
 export default function ExpensesPage() {
@@ -53,8 +54,16 @@ export default function ExpensesPage() {
   const [newExpenseType, setNewExpenseType] = useState('');
   const [showNewType, setShowNewType] = useState(false);
   const [showForm, setShowForm] = useState<Expense | null>(null);
+  const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
 
-  useEffect(() => { loadData(); }, [fromDate, toDate]);
+  useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
+
+  async function loadPaymentModes() {
+    const { data } = await supabase.from('payment_modes').select('name').order('name');
+    if (data && data.length > 0) {
+      setPaymentModes(data.map((d: any) => d.name));
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -104,6 +113,7 @@ export default function ExpensesPage() {
       amount: form.amount, description: form.description, case_no: form.case_no,
       customer_id: form.customer_id || null, customer_name: customer?.name || '',
       contract_id: form.contract_id || null, contract_no: contract?.contract_no || '',
+      payment_mode: form.payment_mode,
       attachments: form.attachments,
     };
     if (editing) {
@@ -125,7 +135,7 @@ export default function ExpensesPage() {
     setForm({
       expense_date: e.expense_date, expense_type: e.expense_type, amount: e.amount,
       description: e.description, case_no: e.case_no, customer_id: e.customer_id || '',
-      contract_id: e.contract_id || '', attachments: e.attachments || [],
+      contract_id: e.contract_id || '', payment_mode: e.payment_mode || 'cash', attachments: e.attachments || [],
     });
     setShowDialog(true);
   }
@@ -139,8 +149,8 @@ export default function ExpensesPage() {
 
   const totalExpenses = filtered.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-  const exportHeaders = [t('expenseVoucherNo'), t('expenseDate'), t('expenseType'), t('amount'), t('description'), t('customerName'), t('contractNo'), t('caseNo')];
-  const exportRows = filtered.map(e => [e.expense_voucher_no, e.expense_date, e.expense_type, e.amount, e.description, e.customer_name, e.contract_no, e.case_no]);
+  const exportHeaders = [t('expenseVoucherNo'), t('expenseDate'), t('expenseType'), t('amount'), t('paymentMode'), t('description'), t('customerName'), t('contractNo'), t('caseNo')];
+  const exportRows = filtered.map(e => [e.expense_voucher_no, e.expense_date, t(e.expense_type as any) || e.expense_type, e.amount, t(e.payment_mode as any) || e.payment_mode, e.description, e.customer_name, e.contract_no, e.case_no]);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -197,6 +207,7 @@ export default function ExpensesPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('expenseDate')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('expenseType')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('amount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('paymentMode')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customerName')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
@@ -207,8 +218,9 @@ export default function ExpensesPage() {
                     <tr key={e.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-blue-600">{e.expense_voucher_no}</td>
                       <td className="py-3 px-4">{e.expense_date}</td>
-                      <td className="py-3 px-4"><Badge className={typeColor(e.expense_type)} variant="secondary">{e.expense_type}</Badge></td>
+                      <td className="py-3 px-4"><Badge className={typeColor(e.expense_type)} variant="secondary">{t(e.expense_type as any) || e.expense_type}</Badge></td>
                       <td className="py-3 px-4 font-medium">{e.amount?.toLocaleString()} {t('kd')}</td>
+                      <td className="py-3 px-4">{t(e.payment_mode as any) || e.payment_mode}</td>
                       <td className="py-3 px-4">{e.customer_name}</td>
                       <td className="py-3 px-4">{e.case_no}</td>
                       <td className="py-3 px-4">
@@ -261,8 +273,9 @@ export default function ExpensesPage() {
                 <tbody>
                   <tr><td className="border p-3 bg-slate-50 font-medium w-1/3">{t('expenseVoucherNo')}</td><td className="border p-3 font-bold">{showForm.expense_voucher_no}</td></tr>
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseDate')}</td><td className="border p-3">{showForm.expense_date}</td></tr>
-                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseType')}</td><td className="border p-3"><Badge className={typeColor(showForm.expense_type)} variant="secondary">{showForm.expense_type}</Badge></td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseType')}</td><td className="border p-3"><Badge className={typeColor(showForm.expense_type)} variant="secondary">{t(showForm.expense_type as any) || showForm.expense_type}</Badge></td></tr>
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('amount')}</td><td className="border p-3 font-bold text-lg">{showForm.amount?.toLocaleString()} {t('kd')}</td></tr>
+                  {showForm.payment_mode && <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{t(showForm.payment_mode as any) || showForm.payment_mode}</td></tr>}
                   {showForm.customer_name && <tr><td className="border p-3 bg-slate-50 font-medium">{t('customerName')}</td><td className="border p-3">{showForm.customer_name}</td></tr>}
                   {showForm.contract_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('contractNo')}</td><td className="border p-3">{showForm.contract_no}</td></tr>}
                   {showForm.case_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('caseNo')}</td><td className="border p-3">{showForm.case_no}</td></tr>}
@@ -294,7 +307,7 @@ export default function ExpensesPage() {
                 <Label>{t('expenseType')} *</Label>
                 <div className="flex gap-2">
                   <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.expense_type} onChange={e => setForm({ ...form, expense_type: e.target.value })}>
-                    {expenseTypes.map(et => <option key={et} value={et}>{et}</option>)}
+                    {expenseTypes.map(et => <option key={et} value={et}>{t(et as any) || et}</option>)}
                   </select>
                   <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setShowNewType(true)}><Plus className="h-3 w-3" /></Button>
                 </div>
@@ -308,6 +321,12 @@ export default function ExpensesPage() {
               <div>
                 <Label>{t('amount')} *</Label>
                 <Input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label>{t('paymentMode')}</Label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
+                  {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
+                </select>
               </div>
               <div>
                 <Label>{t('relatedCustomer')}</Label>

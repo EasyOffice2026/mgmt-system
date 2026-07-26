@@ -11,7 +11,8 @@ import { DataExport } from '@/components/shared/DataExport';
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign,
   ShoppingCart, Receipt, FileText, BarChart3, ArrowUpRight, ArrowDownRight,
-  Briefcase, Gavel, Lock, Calendar, ChevronRight, Printer, Users
+  Briefcase, Gavel, Lock, Calendar, ChevronRight, Printer, Users,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -34,7 +35,15 @@ async function fetchAllRows(
 }
 
 type ReportType = 'sales' | 'purchases' | 'expenses' | 'fileCharges' | 'receipts' | 'operational' | 'finished' | 'legal' | 'caseClosed';
-type ActiveView = 'overview' | 'report' | 'income' | 'customerReport' | 'incomeRecovery';
+type ActiveView = 'overview' | 'report' | 'income' | 'customerReport' | 'incomeRecovery' | 'paymentMode';
+
+interface PaymentModeRow {
+  mode: string;
+  receipts: number;
+  fileCharges: number;
+  expenses: number;
+  balance: number;
+}
 
 interface CustomerOption { id: string; customer_no: string; name: string; }
 interface CustomerReportData {
@@ -62,6 +71,8 @@ interface DetailRow {
   status?: string;
   customer?: string;
 }
+
+type SortKey = 'date' | 'description' | 'customer' | 'category' | 'received' | 'discount' | 'amount' | 'status';
 
 interface IncomeStatement {
   salesRevenue: number;
@@ -127,6 +138,9 @@ export default function AccountingPage() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth);
   const [dateTo, setDateTo] = useState(todayStr);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
+  const [receiptTypeFilter, setReceiptTypeFilter] = useState<'all' | 'installment' | 'courtMoney' | 'others'>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [reportLoading, setReportLoading] = useState(false);
   const [income, setIncome] = useState<IncomeStatement | null>(null);
   const [incomeLoading, setIncomeLoading] = useState(false);
@@ -138,6 +152,8 @@ export default function AccountingPage() {
   const [customerReportLoading, setCustomerReportLoading] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [pmRows, setPmRows] = useState<PaymentModeRow[]>([]);
+  const [pmLoading, setPmLoading] = useState(false);
 
   useEffect(() => {
     supabase.from('customers').select('id, customer_no, name').order('name').then(({ data }) => setAllCustomers(data || []));
@@ -220,6 +236,7 @@ export default function AccountingPage() {
 
   async function loadReport(type: ReportType) {
     setReportLoading(true);
+    if (type !== selectedReport) setReceiptTypeFilter('all');
     setSelectedReport(type);
     setActiveView('report');
     let rows: DetailRow[] = [];
@@ -302,8 +319,54 @@ export default function AccountingPage() {
       });
     }
 
+    rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     setDetailRows(rows);
     setReportLoading(false);
+  }
+
+  // Known Arabic payment-mode names → canonical i18n key, so the same real-world
+  // mode entered in different languages (e.g. 'link' vs 'رابط') collapses into one row.
+  function canonicalMode(raw: any): string {
+    const m = (raw ?? '').toString().trim();
+    if (!m) return 'cash';
+    const arMap: Record<string, string> = {
+      'رابط': 'link', 'ومض': 'wamd', 'وامض': 'wamd', 'شيكات': 'checks',
+      'نقد': 'cash', 'نقداً': 'cash', 'تحويل بنكي': 'bank_transfer',
+    };
+    return arMap[m] || m.toLowerCase();
+  }
+
+  async function loadPaymentModeReport() {
+    setPmLoading(true);
+    setActiveView('paymentMode');
+
+    const [receipts, expenses, contracts] = await Promise.all([
+      fetchAllRows((from, to) => supabase.from('receipt_vouchers').select('payment_mode, received_amount, discount_amount').gte('receipt_date', dateFrom).lte('receipt_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('expenses').select('payment_mode, amount').gte('expense_date', dateFrom).lte('expense_date', dateTo).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('contracts').select('payment_mode, file_opening_charges').gte('start_date', dateFrom).lte('start_date', dateTo).range(from, to)),
+    ]);
+
+    const map: Record<string, PaymentModeRow> = {};
+    const ensure = (mode: string): PaymentModeRow => {
+      if (!map[mode]) map[mode] = { mode, receipts: 0, fileCharges: 0, expenses: 0, balance: 0 };
+      return map[mode];
+    };
+
+    receipts.forEach((r: any) => {
+      const net = (r.received_amount || 0) - (r.discount_amount || 0);
+      ensure(canonicalMode(r.payment_mode)).receipts += net;
+    });
+    contracts.forEach((c: any) => {
+      if ((c.file_opening_charges || 0) > 0) ensure(canonicalMode(c.payment_mode)).fileCharges += c.file_opening_charges || 0;
+    });
+    expenses.forEach((e: any) => {
+      ensure(canonicalMode(e.payment_mode)).expenses += e.amount || 0;
+    });
+
+    const rows = Object.values(map).map(r => ({ ...r, balance: r.receipts + r.fileCharges - r.expenses }));
+    rows.sort((a, b) => b.balance - a.balance);
+    setPmRows(rows);
+    setPmLoading(false);
   }
 
   async function loadIncomeStatement() {
@@ -412,22 +475,42 @@ export default function AccountingPage() {
   }
 
 
-  const detailTotal = detailRows.reduce((s, r) => s + r.amount, 0);
-  const detailAvg = detailRows.length > 0 ? detailTotal / detailRows.length : 0;
+  const filteredRows = selectedReport === 'receipts' && receiptTypeFilter !== 'all'
+    ? detailRows.filter(r => r.category === receiptTypeFilter)
+    : detailRows;
+  const numericSortKeys: SortKey[] = ['received', 'discount', 'amount'];
+  const visibleRows = [...filteredRows].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (numericSortKeys.includes(sortKey)) {
+      return ((Number(a[sortKey]) || 0) - (Number(b[sortKey]) || 0)) * dir;
+    }
+    return String(a[sortKey] ?? '').localeCompare(String(b[sortKey] ?? '')) * dir;
+  });
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+  const SortIcon = ({ col }: { col: SortKey }) =>
+    sortKey === col
+      ? (sortDir === 'asc' ? <ArrowUp className="inline h-3 w-3 ms-1" /> : <ArrowDown className="inline h-3 w-3 ms-1" />)
+      : <ArrowUpDown className="inline h-3 w-3 ms-1 opacity-30" />;
+
+  const detailTotal = visibleRows.reduce((s, r) => s + r.amount, 0);
+  const detailAvg = visibleRows.length > 0 ? detailTotal / visibleRows.length : 0;
   const currentReportDef = reportTypes.find(r => r.key === selectedReport);
 
-  const showCustomerCol = detailRows.some(r => r.customer);
-  const showCategoryCol = detailRows.some(r => r.category);
-  const showBreakdownCol = detailRows.some(r => r.received !== undefined);
-  const showStatusCol = detailRows.some(r => r.status);
+  const showCustomerCol = visibleRows.some(r => r.customer);
+  const showCategoryCol = visibleRows.some(r => r.category);
+  const showBreakdownCol = visibleRows.some(r => r.received !== undefined);
+  const showStatusCol = visibleRows.some(r => r.status);
   const footerColSpan = 3 + (showCustomerCol ? 1 : 0) + (showCategoryCol ? 1 : 0) + (showBreakdownCol ? 2 : 0);
-  const detailReceivedTotal = detailRows.reduce((s, r) => s + (r.received || 0), 0);
-  const detailDiscountTotal = detailRows.reduce((s, r) => s + (r.discount || 0), 0);
+  const detailReceivedTotal = visibleRows.reduce((s, r) => s + (r.received || 0), 0);
+  const detailDiscountTotal = visibleRows.reduce((s, r) => s + (r.discount || 0), 0);
 
   const reportExportHeaders = showBreakdownCol
     ? [t('date'), t('description'), t('customer'), t('category'), t('received'), t('discount'), t('netAmount'), t('status')]
     : [t('date'), t('description'), t('amount'), t('customer'), t('category'), t('status')];
-  const reportExportRows = detailRows.map(r => showBreakdownCol
+  const reportExportRows = visibleRows.map(r => showBreakdownCol
     ? [r.date, r.description, r.customer || '', r.category || '', r.received || 0, r.discount || 0, r.amount, r.status || '']
     : [r.date, r.description, r.amount, r.customer || '', r.category || '', r.status || '']);
 
@@ -470,6 +553,11 @@ export default function AccountingPage() {
         {canViewIncome && (
           <Button variant={activeView === 'incomeRecovery' ? 'default' : 'outline'} size="sm" onClick={() => loadIncomeRecovery()} className={activeView === 'incomeRecovery' ? 'bg-teal-600 text-white' : ''}>
             <TrendingUp className="h-4 w-4 me-1" /> {t('incomeRecovery')}
+          </Button>
+        )}
+        {canViewIncome && (
+          <Button variant={activeView === 'paymentMode' ? 'default' : 'outline'} size="sm" onClick={() => loadPaymentModeReport()} className={activeView === 'paymentMode' ? 'bg-indigo-600 text-white' : ''}>
+            <DollarSign className="h-4 w-4 me-1" /> {t('paymentModeReport')}
           </Button>
         )}
         <Button variant={activeView === 'customerReport' ? 'default' : 'outline'} size="sm" onClick={() => setActiveView('customerReport')} className={activeView === 'customerReport' ? 'bg-purple-600 text-white' : ''}>
@@ -520,6 +608,18 @@ export default function AccountingPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {selectedReport === 'receipts' && (
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  value={receiptTypeFilter}
+                  onChange={e => setReceiptTypeFilter(e.target.value as typeof receiptTypeFilter)}
+                >
+                  <option value="all">{t('all')}</option>
+                  <option value="installment">{t('installment')}</option>
+                  <option value="courtMoney">{t('courtMoney')}</option>
+                  <option value="others">{t('others')}</option>
+                </select>
+              )}
               <Button variant="outline" size="sm" onClick={() => loadReport(selectedReport)}>
                 <Calendar className="h-4 w-4 me-1" /> {t('filter')}
               </Button>
@@ -561,7 +661,7 @@ export default function AccountingPage() {
                 <Card className="border-0 shadow-md">
                   <CardContent className="p-5 text-center">
                     <p className="text-xs text-slate-500 font-medium">{t('count')}</p>
-                    <p className="text-2xl font-bold text-green-600 mt-1">{detailRows.length}</p>
+                    <p className="text-2xl font-bold text-green-600 mt-1">{visibleRows.length}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -573,18 +673,18 @@ export default function AccountingPage() {
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
                           <th className="text-start py-3 px-4 font-medium text-slate-600">#</th>
-                          <th className="text-start py-3 px-4 font-medium text-slate-600">{t('date')}</th>
-                          <th className="text-start py-3 px-4 font-medium text-slate-600">{t('description')}</th>
-                          {showCustomerCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('customer')}</th>}
-                          {showCategoryCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('category')}</th>}
-                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('received')} ({t('kd')})</th>}
-                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('discount')} ({t('kd')})</th>}
-                          <th className="text-start py-3 px-4 font-medium text-slate-600">{showBreakdownCol ? t('netAmount') : t('amount')} ({t('kd')})</th>
-                          {showStatusCol && <th className="text-start py-3 px-4 font-medium text-slate-600">{t('status')}</th>}
+                          <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('date')}>{t('date')}<SortIcon col="date" /></th>
+                          <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('description')}>{t('description')}<SortIcon col="description" /></th>
+                          {showCustomerCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('customer')}>{t('customer')}<SortIcon col="customer" /></th>}
+                          {showCategoryCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('category')}>{t('category')}<SortIcon col="category" /></th>}
+                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('received')}>{t('received')} ({t('kd')})<SortIcon col="received" /></th>}
+                          {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('discount')}>{t('discount')} ({t('kd')})<SortIcon col="discount" /></th>}
+                          <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('amount')}>{showBreakdownCol ? t('netAmount') : t('amount')} ({t('kd')})<SortIcon col="amount" /></th>
+                          {showStatusCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('status')}>{t('status')}<SortIcon col="status" /></th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {detailRows.map((row, i) => (
+                        {visibleRows.map((row, i) => (
                           <tr key={row.id || i} className="border-b border-slate-100 hover:bg-blue-50/50">
                             <td className="py-3 px-4 text-slate-400">{i + 1}</td>
                             <td className="py-3 px-4">{row.date}</td>
@@ -610,11 +710,11 @@ export default function AccountingPage() {
                             )}
                           </tr>
                         ))}
-                        {detailRows.length === 0 && (
+                        {visibleRows.length === 0 && (
                           <tr><td colSpan={footerColSpan + 1 + (showStatusCol ? 1 : 0)} className="py-10 text-center text-slate-400">{t('noData')}</td></tr>
                         )}
                       </tbody>
-                      {detailRows.length > 0 && (
+                      {visibleRows.length > 0 && (
                         <tfoot>
                           <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
                             <td colSpan={footerColSpan - (showBreakdownCol ? 2 : 0)} className="py-3 px-4 text-end">{t('total')}:</td>
@@ -989,6 +1089,78 @@ export default function AccountingPage() {
               </Button>
             </>
           ) : null}
+        </div>
+      )}
+
+      {/* ====================== PAYMENT MODE REPORT VIEW ====================== */}
+      {activeView === 'paymentMode' && canViewIncome && (
+        <div className="space-y-4">
+          {pmLoading ? (
+            <div className="py-20 text-center text-slate-400">{t('loading')}</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">{t('paymentModeReport')}</h2>
+                  <p className="text-sm text-slate-500">{dateFrom} → {dateTo}</p>
+                </div>
+                <DataExport
+                  title={t('paymentModeReport')}
+                  headers={[t('paymentMode'), t('receiptVouchers'), t('fileOpeningCharges'), t('totalExpenses'), t('balance')]}
+                  rows={pmRows.map(r => [t(r.mode as any) || r.mode, r.receipts, r.fileCharges, r.expenses, r.balance])}
+                  filename="payment-mode-report"
+                />
+              </div>
+
+              <Card className="border-0 shadow-md">
+                <CardContent className="p-0">
+                  {pmRows.length === 0 ? (
+                    <div className="py-20 text-center text-slate-400">
+                      <DollarSign className="h-12 w-12 mx-auto mb-3" /><p className="text-lg font-medium">{t('noData')}</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="text-start py-3 px-4 font-medium text-slate-600">{t('paymentMode')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('receiptVouchers')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('fileOpeningCharges')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('totalExpenses')}</th>
+                            <th className="text-end py-3 px-4 font-medium text-slate-600">{t('balance')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pmRows.map(r => (
+                            <tr key={r.mode} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
+                              <td className="py-3 px-4 font-medium">{t(r.mode as any) || r.mode}</td>
+                              <td className="py-3 px-4 text-end text-green-600">+{Math.round(r.receipts).toLocaleString()} {t('kd')}</td>
+                              <td className="py-3 px-4 text-end text-teal-600">+{Math.round(r.fileCharges).toLocaleString()} {t('kd')}</td>
+                              <td className="py-3 px-4 text-end text-red-600">-{Math.round(r.expenses).toLocaleString()} {t('kd')}</td>
+                              <td className="py-3 px-4 text-end font-bold text-slate-900">{Math.round(r.balance).toLocaleString()} {t('kd')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
+                            <td className="py-3 px-4">{t('total')}</td>
+                            <td className="py-3 px-4 text-end text-green-700">+{Math.round(pmRows.reduce((s, r) => s + r.receipts, 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-3 px-4 text-end text-teal-700">+{Math.round(pmRows.reduce((s, r) => s + r.fileCharges, 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-3 px-4 text-end text-red-700">-{Math.round(pmRows.reduce((s, r) => s + r.expenses, 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-3 px-4 text-end text-slate-900">{Math.round(pmRows.reduce((s, r) => s + r.balance, 0)).toLocaleString()} {t('kd')}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Button variant="outline" onClick={() => setActiveView('overview')} className="mt-2">
+                &larr; {t('backToReports')}
+              </Button>
+            </>
+          )}
         </div>
       )}
 

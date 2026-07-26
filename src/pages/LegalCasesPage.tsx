@@ -127,8 +127,9 @@ export default function LegalCasesPage() {
   const totalClaimed = filtered.reduce((s, c) => s + (c.case_amount || 0), 0);
   const totalActual = filtered.reduce((s, c) => s + (c.original_amount || 0), 0);
   const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0), 0);
+  const totalOutstanding = filtered.reduce((s, c) => s + ((c.case_amount || 0) - (c.rcvd_from_customer || 0) - (c.rcvd_from_court || 0) - (c.discount || 0)), 0);
 
-  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('receivedAmount'), t('outstanding')];
+  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('amountRecovered'), t('outstanding')];
   const exportRows = filtered.map(c => {
     const rcvd = c.rcvd_from_court || 0;
     return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, (c.case_amount || 0) - (c.rcvd_from_customer || 0) - rcvd - (c.discount || 0)];
@@ -150,11 +151,12 @@ export default function LegalCasesPage() {
       </div>
 
       {/* KPI Dashboard */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalCases')}</p><p className="text-xl font-bold text-blue-600">{totalCases}</p></CardContent></Card>
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalClaimedAmount')}</p><p className="text-xl font-bold text-amber-600">{Math.round(totalClaimed).toLocaleString()} {t('kd')}</p></CardContent></Card>
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('actualAmount')}</p><p className="text-xl font-bold text-slate-700">{Math.round(totalActual).toLocaleString()} {t('kd')}</p></CardContent></Card>
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('amountRecovered')}</p><p className="text-xl font-bold text-green-600">{Math.round(totalRecovered).toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('outstanding')}</p><p className="text-xl font-bold text-red-600">{Math.round(totalOutstanding).toLocaleString()} {t('kd')}</p></CardContent></Card>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -187,7 +189,7 @@ export default function LegalCasesPage() {
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('caseNo')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actualAmount')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('claimedAmount')}</th>
-                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('receivedAmount')}</th>
+                    <th className="text-start py-3 px-4 font-medium text-slate-600">{t('amountRecovered')}</th>
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('outstanding')}</th>
 
                     <th className="text-start py-3 px-4 font-medium text-slate-600">{t('actions')}</th>
