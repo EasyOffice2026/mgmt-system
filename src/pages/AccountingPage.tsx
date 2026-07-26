@@ -314,6 +314,7 @@ export default function AccountingPage() {
       });
     }
 
+    rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     setDetailRows(rows);
     setReportLoading(false);
   }
