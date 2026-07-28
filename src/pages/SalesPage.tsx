@@ -97,10 +97,13 @@ export default function SalesPage() {
       const today = format(new Date(), 'yyyy-MM-dd');
       schedule[instIdx] = { ...schedule[instIdx], status: 'paid', paid_amount: inst.amount || 0, paid_date: today };
 
-      // Guard: skip if a receipt already exists for this installment (prevents duplicates)
+      // Reject if a receipt already exists for this installment (prevents duplicates)
       const { data: existingRv } = await supabase.from('receipt_vouchers')
-        .select('id').eq('contract_id', freshContract.id).eq('installment_no', instIdx).limit(1);
-      if (existingRv && existingRv.length > 0) return;
+        .select('receipt_voucher_no').eq('contract_id', freshContract.id).eq('installment_no', instIdx).limit(1);
+      if (existingRv && existingRv.length > 0) {
+        alert((t('receiptAlreadySaved') || 'A receipt for this installment is already saved.') + ` (${existingRv[0].receipt_voucher_no})`);
+        return;
+      }
 
       // Create receipt voucher
       const { data: lastRv } = await supabase.from('receipt_vouchers')

@@ -343,6 +343,7 @@ export const en = {
   installmentAmount: 'Installment Amount',
   totalInstallments: 'Total Installments',
   receiptExceedsInstallments: 'This receipt exceeds the contract\'s total installments.',
+  receiptAlreadySaved: 'A receipt for this installment is already saved.',
   alreadyReceived: 'Already received',
   thisReceipt: 'This receipt',
   maxYouCanAdd: 'Maximum you can add',

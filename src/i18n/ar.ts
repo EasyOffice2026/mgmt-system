@@ -317,6 +317,7 @@ export const ar = {
   installmentAmount: 'مبلغ القسط',
   totalInstallments: 'إجمالي الأقساط',
   receiptExceedsInstallments: 'هذا السند يتجاوز إجمالي أقساط العقد.',
+  receiptAlreadySaved: 'يوجد سند مسجل لهذا القسط بالفعل.',
   alreadyReceived: 'المستلم سابقاً',
   thisReceipt: 'هذا السند',
   maxYouCanAdd: 'الحد الأقصى الذي يمكن إضافته',
