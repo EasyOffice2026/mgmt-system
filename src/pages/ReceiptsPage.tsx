@@ -256,6 +256,29 @@ export default function ReceiptsPage() {
     const customer = customers.find(c => c.id === form.customer_id);
     const contract = allContracts.find(c => c.id === form.contract_id);
 
+    // Block receipts that would exceed the contract's total installments
+    if (form.receipt_type === 'installment' && form.contract_id && contract) {
+      const schedule = contract.installment_schedule || [];
+      const totalInstallments = schedule.length
+        ? schedule.reduce((s: number, x: any) => s + (x.amount || 0), 0)
+        : (contract.sale_price || 0);
+      const alreadyReceived = receipts
+        .filter(r => r.contract_id === form.contract_id && r.receipt_type === 'installment' && (!editing || r.id !== editing.id))
+        .reduce((s, r) => s + (r.received_amount || 0), 0);
+      const newReceived = isBulk ? selectedGross : (form.received_amount || 0);
+      if (alreadyReceived + newReceived > totalInstallments + 0.01) {
+        const maxAllowed = Math.max(0, Math.round((totalInstallments - alreadyReceived) * 1000) / 1000);
+        alert(
+          (t('receiptExceedsInstallments') || 'This receipt exceeds the contract\'s total installments.') +
+          `\n\n${t('totalInstallments') || 'Total installments'}: ${totalInstallments}` +
+          `\n${t('alreadyReceived') || 'Already received'}: ${alreadyReceived}` +
+          `\n${t('thisReceipt') || 'This receipt'}: ${newReceived}` +
+          `\n${t('maxYouCanAdd') || 'Maximum you can add'}: ${maxAllowed}`
+        );
+        return;
+      }
+    }
+
     // Multi-installment bulk payment: create ONE receipt voucher covering all selected installments
     if (form.receipt_type === 'installment' && !editing && selectedInstallments.length > 0) {
       const currentUser = profile?.full_name || user?.email || 'unknown';
