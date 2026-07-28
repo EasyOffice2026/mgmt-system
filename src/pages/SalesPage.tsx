@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,10 +63,23 @@ export default function SalesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
   const [showForm, setShowForm] = useState<Contract | null>(null);
+  const processingInst = useRef<Set<string>>(new Set());
 
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
 
   async function toggleInstallmentPayment(contract: Contract, instIdx: number, markPaid: boolean) {
+    // Guard against rapid double-clicks creating duplicate receipts
+    const lockKey = `${contract.id}-${instIdx}`;
+    if (processingInst.current.has(lockKey)) return;
+    processingInst.current.add(lockKey);
+    try {
+      await doToggleInstallmentPayment(contract, instIdx, markPaid);
+    } finally {
+      processingInst.current.delete(lockKey);
+    }
+  }
+
+  async function doToggleInstallmentPayment(contract: Contract, instIdx: number, markPaid: boolean) {
     // Fetch fresh contract data from DB to avoid stale state overwrites
     const { data: freshContract } = await supabase.from('contracts')
       .select('id, sale_price, installment_schedule, status, contract_no, customer_id, customer_name')
@@ -83,6 +96,11 @@ export default function SalesPage() {
       if (inst.status === 'paid') return; // already paid
       const today = format(new Date(), 'yyyy-MM-dd');
       schedule[instIdx] = { ...schedule[instIdx], status: 'paid', paid_amount: inst.amount || 0, paid_date: today };
+
+      // Guard: skip if a receipt already exists for this installment (prevents duplicates)
+      const { data: existingRv } = await supabase.from('receipt_vouchers')
+        .select('id').eq('contract_id', freshContract.id).eq('installment_no', instIdx).limit(1);
+      if (existingRv && existingRv.length > 0) return;
 
       // Create receipt voucher
       const { data: lastRv } = await supabase.from('receipt_vouchers')
