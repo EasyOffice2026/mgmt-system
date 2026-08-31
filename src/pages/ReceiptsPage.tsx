@@ -79,7 +79,8 @@ export default function ReceiptsPage() {
   async function loadPaymentModes() {
     const { data } = await supabase.from('payment_modes').select('name').order('name');
     if (data && data.length > 0) {
-      setPaymentModes(data.map((d: any) => d.name));
+      const dbModes = data.map((d: any) => d.name);
+      setPaymentModes([...new Set([...defaultPaymentModes, ...dbModes])]);
     }
   }
 
@@ -348,6 +349,9 @@ export default function ReceiptsPage() {
   function getCaseInfo(caseNo: string) {
     return legalCases.find(lc => lc.case_no === caseNo);
   }
+
+  // Always render the value that will actually be saved, even if it is not a configured mode
+  const modeOptions = paymentModes.includes(form.payment_mode) ? paymentModes : [form.payment_mode, ...paymentModes];
 
   const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('customerName'), t('receiptType'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('netAmount'), t('paymentMode'), t('createdBy')];
   const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.customer_name, r.receipt_type, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, (r.received_amount || 0) - ((r as any).discount_amount || 0), r.payment_mode, r.created_by || '']);
@@ -843,7 +847,7 @@ export default function ReceiptsPage() {
               <div>
                 <Label>{t('paymentMode')}</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
-                  {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
+                  {modeOptions.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
                 </select>
               </div>
             </div>

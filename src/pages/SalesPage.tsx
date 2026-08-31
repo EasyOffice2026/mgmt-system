@@ -69,7 +69,7 @@ export default function SalesPage() {
   async function toggleInstallmentPayment(contract: Contract, instIdx: number, markPaid: boolean) {
     // Fetch fresh contract data from DB to avoid stale state overwrites
     const { data: freshContract } = await supabase.from('contracts')
-      .select('id, sale_price, installment_schedule, status, contract_no, customer_id, customer_name')
+      .select('id, sale_price, installment_schedule, status, contract_no, customer_id, customer_name, payment_mode')
       .eq('id', contract.id).single();
     if (!freshContract) return;
 
@@ -105,6 +105,7 @@ export default function SalesPage() {
         received_amount: inst.amount || 0,
         discount_amount: 0,
         net_amount: inst.amount || 0,
+        payment_mode: freshContract.payment_mode || 'cash',
       };
       for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
         const { error } = await supabase.from('receipt_vouchers').insert(payload);

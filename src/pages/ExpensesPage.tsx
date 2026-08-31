@@ -61,7 +61,8 @@ export default function ExpensesPage() {
   async function loadPaymentModes() {
     const { data } = await supabase.from('payment_modes').select('name').order('name');
     if (data && data.length > 0) {
-      setPaymentModes(data.map((d: any) => d.name));
+      const dbModes = data.map((d: any) => d.name);
+      setPaymentModes([...new Set([...defaultPaymentModes, ...dbModes])]);
     }
   }
 

@@ -329,11 +329,20 @@ export default function AccountingPage() {
   function canonicalMode(raw: any): string {
     const m = (raw ?? '').toString().trim();
     if (!m) return 'cash';
+    // Normalise Arabic spelling variants (separators, diacritics, ya/kaf/alef forms)
+    // so 'تحويل_بنكى' and 'تحويل بنكي' collapse into the same mode.
+    const norm = m
+      .replace(/[_\-\s]+/g, ' ')
+      .replace(/[\u064B-\u0652\u0670]/g, '')
+      .replace(/[ىی]/g, 'ي')
+      .replace(/ک/g, 'ك')
+      .replace(/[أإآ]/g, 'ا')
+      .trim();
     const arMap: Record<string, string> = {
       'رابط': 'link', 'ومض': 'wamd', 'وامض': 'wamd', 'شيكات': 'checks',
-      'نقد': 'cash', 'نقداً': 'cash', 'تحويل بنكي': 'bank_transfer',
+      'نقد': 'cash', 'نقدا': 'cash', 'تحويل بنكي': 'bank_transfer',
     };
-    return arMap[m] || m.toLowerCase();
+    return arMap[norm] || norm.toLowerCase();
   }
 
   async function loadPaymentModeReport() {
