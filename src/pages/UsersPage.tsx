@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { canonicalPaymentMode, paymentModeLabel } from '@/lib/payment-modes';
 import { Plus, Search, Pencil, Key, UserCheck, UserX, Settings, Trash2, CreditCard, Tag, Truck, Mail, Send } from 'lucide-react';
 
 interface UserProfile {
@@ -99,9 +100,10 @@ export default function UsersPage() {
   }
 
   async function addPaymentMode() {
-    const modeName = newPaymentMode.trim().toLowerCase().replace(/\s+/g, '_');
-    if (!modeName) return;
-    if (paymentModes.includes(modeName)) { alert('Payment mode already exists!'); return; }
+    const raw = newPaymentMode.trim();
+    if (!raw) return;
+    const modeName = canonicalPaymentMode(raw);
+    if (paymentModes.some(m => canonicalPaymentMode(m) === modeName)) { alert('Payment mode already exists!'); return; }
     const { error } = await supabase.from('payment_modes').insert({ name: modeName });
     if (error) {
       console.error('Add payment mode error:', error);
@@ -365,7 +367,7 @@ export default function UsersPage() {
               {paymentModes.map(mode => (
                 <div key={mode} className="flex items-center gap-1 bg-slate-100 rounded-lg px-3 py-2 text-sm">
                   <CreditCard className="h-3 w-3 text-slate-500" />
-                  <span>{t(mode as any) || mode}</span>
+                  <span>{paymentModeLabel(mode, t)}</span>
                   <button onClick={() => deletePaymentMode(mode)} className="ms-1 text-red-400 hover:text-red-600">
                     <Trash2 className="h-3 w-3" />
                   </button>

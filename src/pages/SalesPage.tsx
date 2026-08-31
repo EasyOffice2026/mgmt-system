@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
+import { canonicalPaymentMode, defaultPaymentModes, fetchPaymentModes, paymentModeLabel, paymentModeOptions } from '@/lib/payment-modes';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, ShoppingCart, X, Clock, Printer } from 'lucide-react';
@@ -42,7 +43,7 @@ const defaultForm = {
   payment_mode: 'cash', status: 'ongoing', attachments: [] as string[],
 };
 
-const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
+
 
 export default function SalesPage() {
   const { t, lang } = useLang();
@@ -105,7 +106,7 @@ export default function SalesPage() {
         received_amount: inst.amount || 0,
         discount_amount: 0,
         net_amount: inst.amount || 0,
-        payment_mode: freshContract.payment_mode || 'cash',
+        payment_mode: canonicalPaymentMode(freshContract.payment_mode),
       };
       for (let attempt = 0; attempt <= optionalCols.length; attempt++) {
         const { error } = await supabase.from('receipt_vouchers').insert(payload);
@@ -157,12 +158,7 @@ export default function SalesPage() {
   }
 
   async function loadPaymentModes() {
-    const { data } = await supabase.from('payment_modes').select('name').order('name');
-    if (data && data.length > 0) {
-      const dbModes = data.map((d: any) => d.name);
-      const merged = [...new Set([...defaultPaymentModes, ...dbModes])];
-      setPaymentModes(merged);
-    }
+    setPaymentModes(await fetchPaymentModes());
   }
 
 
@@ -303,7 +299,7 @@ export default function SalesPage() {
       last_installment_date: lastDate, end_date: lastDate,
       installment_amount: Math.round(instAmount * 1000) / 1000,
       paid_amount: 0, remaining_amount: totalSalePrice,
-      payment_mode: form.payment_mode, status: form.status,
+      payment_mode: canonicalPaymentMode(form.payment_mode), status: form.status,
       installment_schedule: schedule, attachments: form.attachments,
     };
     if (editing) {
@@ -417,7 +413,7 @@ table{width:100%;border-collapse:collapse}
 <table class="meta"><tbody>
 <tr><td class="label">${t('contractNo')}</td><td><b>${esc(c.contract_no)}</b></td><td class="label">${t('customerName')}</td><td><b>${esc(c.customer_name)}</b></td></tr>
 <tr><td class="label">${t('startDate')}</td><td>${esc(c.start_date)}</td><td class="label">${t('endDate')}</td><td>${esc(c.end_date || c.last_installment_date)}</td></tr>
-<tr><td class="label">${t('paymentMode')}</td><td>${esc(t(c.payment_mode as any) || c.payment_mode)}</td><td class="label">${t('status')}</td><td>${esc(t(c.status as any) || c.status)}</td></tr>
+<tr><td class="label">${t('paymentMode')}</td><td>${esc(paymentModeLabel(c.payment_mode, t))}</td><td class="label">${t('status')}</td><td>${esc(t(c.status as any) || c.status)}</td></tr>
 </tbody></table>
 <div class="section-title">${t('items')}</div>
 <table class="data"><thead><tr><th>#</th><th>${t('itemName')}</th><th>${t('modelType')}</th><th>${t('category')}</th><th class="num">${t('quantity')}</th><th class="num">${t('unitPrice')}</th><th class="num">${t('totalSalePrice')}</th></tr></thead><tbody>${itemRows}</tbody></table>
@@ -570,7 +566,7 @@ table{width:100%;border-collapse:collapse}
                 <div><span className="text-slate-500 font-medium">{t('startDate')}:</span> <span>{showForm.start_date}</span></div>
                 <div><span className="text-slate-500 font-medium">{t('customerName')}:</span> <span className="font-bold">{showForm.customer_name}</span></div>
                 <div><span className="text-slate-500 font-medium">{t('endDate')}:</span> <span>{showForm.end_date || showForm.last_installment_date}</span></div>
-                <div><span className="text-slate-500 font-medium">{t('paymentMode')}:</span> <span>{t(showForm.payment_mode as any) || showForm.payment_mode}</span></div>
+                <div><span className="text-slate-500 font-medium">{t('paymentMode')}:</span> <span>{paymentModeLabel(showForm.payment_mode, t)}</span></div>
                 <div><span className="text-slate-500 font-medium">{t('status')}:</span> <span>{t(showForm.status as any) || showForm.status}</span></div>
               </div>
 
@@ -838,7 +834,7 @@ table{width:100%;border-collapse:collapse}
               <div>
                 <Label>{t('paymentMode')}</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
-                  {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
+                  {paymentModeOptions(paymentModes, form.payment_mode).map(m => <option key={m} value={m}>{paymentModeLabel(m, t)}</option>)}
                 </select>
               </div>
               <div>

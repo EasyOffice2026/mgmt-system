@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
+import { paymentModeLabel } from '@/lib/payment-modes';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Scale } from 'lucide-react';
@@ -364,7 +365,7 @@ export default function LegalCasesPage() {
                             <td className="py-2 px-3">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
                             <td className="py-2 px-3 text-amber-600">{Math.round(r.discount_amount || 0).toLocaleString()} {t('kd')}</td>
                             <td className="py-2 px-3 font-medium text-green-600">{Math.round((r.received_amount || 0) - (r.discount_amount || 0)).toLocaleString()} {t('kd')}</td>
-                            <td className="py-2 px-3">{t(r.payment_mode as any) || r.payment_mode}</td>
+                            <td className="py-2 px-3">{paymentModeLabel(r.payment_mode, t)}</td>
                           </tr>
                         ))}
                       </tbody>

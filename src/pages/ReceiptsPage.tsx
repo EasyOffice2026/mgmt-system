@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useLang } from '@/contexts/LangContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { defaultPaymentModes, fetchPaymentModes, paymentModeLabel, paymentModeOptions } from '@/lib/payment-modes';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, FileText, Printer } from 'lucide-react';
@@ -50,7 +51,7 @@ const defaultForm = {
 };
 
 const receiptTypes = ['installment', 'courtMoney', 'others'];
-const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
+
 
 export default function ReceiptsPage() {
   const { t, lang } = useLang();
@@ -77,11 +78,7 @@ export default function ReceiptsPage() {
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
 
   async function loadPaymentModes() {
-    const { data } = await supabase.from('payment_modes').select('name').order('name');
-    if (data && data.length > 0) {
-      const dbModes = data.map((d: any) => d.name);
-      setPaymentModes([...new Set([...defaultPaymentModes, ...dbModes])]);
-    }
+    setPaymentModes(await fetchPaymentModes());
   }
 
   async function loadData() {
@@ -355,10 +352,10 @@ export default function ReceiptsPage() {
   }
 
   // Always render the value that will actually be saved, even if it is not a configured mode
-  const modeOptions = paymentModes.includes(form.payment_mode) ? paymentModes : [form.payment_mode, ...paymentModes];
+  const modeOptions = paymentModeOptions(paymentModes, form.payment_mode);
 
   const exportHeaders = [t('receiptVoucherNo'), t('receiptDate'), t('customerName'), t('receiptType'), t('contractNo'), t('installmentNo'), t('courtCaseNo'), t('netAmount'), t('paymentMode'), t('createdBy')];
-  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.customer_name, r.receipt_type, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, (r.received_amount || 0) - ((r as any).discount_amount || 0), r.payment_mode, r.created_by || '']);
+  const exportRows = filtered.map(r => [r.receipt_voucher_no, r.receipt_date, r.customer_name, r.receipt_type, r.contract_no, r.installment_no !== null && r.installment_no !== undefined ? `#${r.installment_no + 1}` : '', r.court_case_no, (r.received_amount || 0) - ((r as any).discount_amount || 0), paymentModeLabel(r.payment_mode, t), r.created_by || '']);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = { fileOpening: 'bg-blue-100 text-blue-700', installment: 'bg-green-100 text-green-700', courtMoney: 'bg-purple-100 text-purple-700' };
@@ -489,7 +486,7 @@ export default function ReceiptsPage() {
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('receivedAmount')}</td><td className="border p-3 font-bold text-lg text-green-700">{showForm.received_amount?.toLocaleString()} {t('kd')}</td></tr>
                   {(showForm as any).discount_amount > 0 && <tr><td className="border p-3 bg-slate-50 font-medium">{t('discount')}</td><td className="border p-3 text-red-600">{(showForm as any).discount_amount?.toLocaleString()} {t('kd')}</td></tr>}
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('netAmount')}</td><td className="border p-3 font-bold text-lg">{(showForm.net_amount ?? ((showForm.received_amount || 0) - ((showForm as any).discount_amount || 0))).toLocaleString()} {t('kd')}</td></tr>
-                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{t(showForm.payment_mode as any) || showForm.payment_mode}</td></tr>
+                  <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{paymentModeLabel(showForm.payment_mode, t)}</td></tr>
                   {showForm.notes && <tr><td className="border p-3 bg-slate-50 font-medium">{t('notes')}</td><td className="border p-3">{showForm.notes}</td></tr>}
                 </tbody>
               </table>

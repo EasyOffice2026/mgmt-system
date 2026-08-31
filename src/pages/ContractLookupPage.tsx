@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
+import { paymentModeLabel } from '@/lib/payment-modes';
 import { DataExport } from '@/components/shared/DataExport';
 import { Search, FileSearch, ChevronDown, ChevronUp } from 'lucide-react';
 import { isBefore, format } from 'date-fns';
@@ -333,7 +334,7 @@ export default function ContractLookupPage() {
               </div>
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-xs text-slate-500">{t('paymentMode')}</p>
-                <p className="font-semibold mt-1">{selectedContract.payment_mode}</p>
+                <p className="font-semibold mt-1">{paymentModeLabel(selectedContract.payment_mode, t)}</p>
               </div>
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-xs text-slate-500">{t('installmentAmount')}</p>

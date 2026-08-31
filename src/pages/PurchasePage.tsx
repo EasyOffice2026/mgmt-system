@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
+import { fetchPaymentModes, paymentModeLabel, paymentModeOptions } from '@/lib/payment-modes';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Package } from 'lucide-react';
@@ -21,7 +22,7 @@ interface Purchase {
 }
 
 const defaultCategories = ['Mobile', 'Car', 'Furniture', 'Electronics', 'Jewelry', 'Other'];
-const paymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
+
 
 const defaultForm = {
   purchase_date: format(new Date(), 'yyyy-MM-dd'),
@@ -48,8 +49,10 @@ export default function PurchasePage() {
   const [newSupplier, setNewSupplier] = useState('');
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [showNewSupplier, setShowNewSupplier] = useState(false);
+  const [paymentModes, setPaymentModes] = useState<string[]>([]);
 
   useEffect(() => { loadPurchases(); loadSuppliers(); }, [fromDate, toDate]);
+  useEffect(() => { fetchPaymentModes().then(setPaymentModes); }, []);
 
   async function loadPurchases() {
     setLoading(true);
@@ -134,7 +137,7 @@ export default function PurchasePage() {
   const totalPurchaseAmount = filtered.reduce((s, p) => s + (p.purchase_price || 0) * (p.quantity || 1), 0);
 
   const exportHeaders = [t('purchaseDate'), t('supplierName'), t('invoiceNo'), t('category'), t('itemName'), t('modelType'), t('purchasePrice'), t('quantity'), t('totalAmount'), t('paymentMode')];
-  const exportRows = filtered.map(p => [p.purchase_date, p.supplier_name, p.invoice_no, p.category, p.item_name, p.model_type, p.purchase_price, p.quantity || 1, (p.purchase_price || 0) * (p.quantity || 1), p.payment_mode]);
+  const exportRows = filtered.map(p => [p.purchase_date, p.supplier_name, p.invoice_no, p.category, p.item_name, p.model_type, p.purchase_price, p.quantity || 1, (p.purchase_price || 0) * (p.quantity || 1), paymentModeLabel(p.payment_mode, t)]);
 
   return (
     <div className="space-y-6">
@@ -312,7 +315,7 @@ export default function PurchasePage() {
               <div>
                 <Label>{t('paymentMode')}</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
-                  {paymentModes.map(m => <option key={m} value={m}>{m}</option>)}
+                  {paymentModeOptions(paymentModes, form.payment_mode).map(m => <option key={m} value={m}>{paymentModeLabel(m, t)}</option>)}
                 </select>
               </div>
             </div>

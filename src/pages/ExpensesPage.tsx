@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
+import { defaultPaymentModes, fetchPaymentModes, paymentModeLabel, paymentModeOptions } from '@/lib/payment-modes';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Receipt, Printer } from 'lucide-react';
@@ -27,7 +28,7 @@ interface Contract { id: string; contract_no: string; customer_name: string; cus
 interface LegalCase { id: string; case_no: string; customer_id: string; customer_name: string; }
 
 const defaultExpenseTypes = ['rent', 'salaries', 'courtFees', 'lawyerFees', 'utilities', 'office', 'transport', 'other'];
-const defaultPaymentModes = ['cash', 'bank_transfer', 'link', 'wamd'];
+
 
 const defaultForm = {
   expense_date: format(new Date(), 'yyyy-MM-dd'),
@@ -59,11 +60,7 @@ export default function ExpensesPage() {
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
 
   async function loadPaymentModes() {
-    const { data } = await supabase.from('payment_modes').select('name').order('name');
-    if (data && data.length > 0) {
-      const dbModes = data.map((d: any) => d.name);
-      setPaymentModes([...new Set([...defaultPaymentModes, ...dbModes])]);
-    }
+    setPaymentModes(await fetchPaymentModes());
   }
 
   async function loadData() {
@@ -151,7 +148,7 @@ export default function ExpensesPage() {
   const totalExpenses = filtered.reduce((sum, e) => sum + (e.amount || 0), 0);
 
   const exportHeaders = [t('expenseVoucherNo'), t('expenseDate'), t('expenseType'), t('amount'), t('paymentMode'), t('description'), t('customerName'), t('contractNo'), t('caseNo')];
-  const exportRows = filtered.map(e => [e.expense_voucher_no, e.expense_date, t(e.expense_type as any) || e.expense_type, e.amount, t(e.payment_mode as any) || e.payment_mode, e.description, e.customer_name, e.contract_no, e.case_no]);
+  const exportRows = filtered.map(e => [e.expense_voucher_no, e.expense_date, t(e.expense_type as any) || e.expense_type, e.amount, paymentModeLabel(e.payment_mode, t), e.description, e.customer_name, e.contract_no, e.case_no]);
 
   const typeColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -221,7 +218,7 @@ export default function ExpensesPage() {
                       <td className="py-3 px-4">{e.expense_date}</td>
                       <td className="py-3 px-4"><Badge className={typeColor(e.expense_type)} variant="secondary">{t(e.expense_type as any) || e.expense_type}</Badge></td>
                       <td className="py-3 px-4 font-medium">{e.amount?.toLocaleString()} {t('kd')}</td>
-                      <td className="py-3 px-4">{t(e.payment_mode as any) || e.payment_mode}</td>
+                      <td className="py-3 px-4">{paymentModeLabel(e.payment_mode, t)}</td>
                       <td className="py-3 px-4">{e.customer_name}</td>
                       <td className="py-3 px-4">{e.case_no}</td>
                       <td className="py-3 px-4">
@@ -276,7 +273,7 @@ export default function ExpensesPage() {
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseDate')}</td><td className="border p-3">{showForm.expense_date}</td></tr>
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('expenseType')}</td><td className="border p-3"><Badge className={typeColor(showForm.expense_type)} variant="secondary">{t(showForm.expense_type as any) || showForm.expense_type}</Badge></td></tr>
                   <tr><td className="border p-3 bg-slate-50 font-medium">{t('amount')}</td><td className="border p-3 font-bold text-lg">{showForm.amount?.toLocaleString()} {t('kd')}</td></tr>
-                  {showForm.payment_mode && <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{t(showForm.payment_mode as any) || showForm.payment_mode}</td></tr>}
+                  {showForm.payment_mode && <tr><td className="border p-3 bg-slate-50 font-medium">{t('paymentMode')}</td><td className="border p-3">{paymentModeLabel(showForm.payment_mode, t)}</td></tr>}
                   {showForm.customer_name && <tr><td className="border p-3 bg-slate-50 font-medium">{t('customerName')}</td><td className="border p-3">{showForm.customer_name}</td></tr>}
                   {showForm.contract_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('contractNo')}</td><td className="border p-3">{showForm.contract_no}</td></tr>}
                   {showForm.case_no && <tr><td className="border p-3 bg-slate-50 font-medium">{t('caseNo')}</td><td className="border p-3">{showForm.case_no}</td></tr>}
@@ -326,7 +323,7 @@ export default function ExpensesPage() {
               <div>
                 <Label>{t('paymentMode')}</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.payment_mode} onChange={e => setForm({ ...form, payment_mode: e.target.value })}>
-                  {paymentModes.map(m => <option key={m} value={m}>{t(m as any) || m}</option>)}
+                  {paymentModeOptions(paymentModes, form.payment_mode).map(m => <option key={m} value={m}>{paymentModeLabel(m, t)}</option>)}
                 </select>
               </div>
               <div>

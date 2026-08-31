@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLang } from '@/contexts/LangContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { canonicalPaymentMode, paymentModeLabel } from '@/lib/payment-modes';
 import { DataExport } from '@/components/shared/DataExport';
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign,
@@ -324,30 +325,6 @@ export default function AccountingPage() {
     setReportLoading(false);
   }
 
-  // Known Arabic payment-mode names → canonical i18n key, so the same real-world
-  // mode entered in different languages (e.g. 'link' vs 'رابط') collapses into one row.
-  function canonicalMode(raw: any): string {
-    const m = (raw ?? '').toString().trim();
-    if (!m) return 'cash';
-    // Normalise Arabic spelling variants (separators, diacritics, ya/kaf/alef forms)
-    // so 'تحويل_بنكى' and 'تحويل بنكي' collapse into the same mode. Latin keys such as
-    // 'bank_transfer' keep their underscores.
-    const isArabic = /[\u0600-\u06FF]/.test(m);
-    const norm = isArabic
-      ? m.replace(/[_\-\s]+/g, ' ')
-          .replace(/[\u064B-\u0652\u0670]/g, '')
-          .replace(/[ىی]/g, 'ي')
-          .replace(/ک/g, 'ك')
-          .replace(/[أإآ]/g, 'ا')
-          .trim()
-      : m;
-    const arMap: Record<string, string> = {
-      'رابط': 'link', 'ومض': 'wamd', 'وامض': 'wamd', 'شيكات': 'checks',
-      'نقد': 'cash', 'نقدا': 'cash', 'تحويل بنكي': 'bank_transfer',
-    };
-    return arMap[norm] || norm.toLowerCase();
-  }
-
   async function loadPaymentModeReport() {
     setPmLoading(true);
     setActiveView('paymentMode');
@@ -366,13 +343,13 @@ export default function AccountingPage() {
 
     receipts.forEach((r: any) => {
       const net = (r.received_amount || 0) - (r.discount_amount || 0);
-      ensure(canonicalMode(r.payment_mode)).receipts += net;
+      ensure(canonicalPaymentMode(r.payment_mode)).receipts += net;
     });
     contracts.forEach((c: any) => {
-      if ((c.file_opening_charges || 0) > 0) ensure(canonicalMode(c.payment_mode)).fileCharges += c.file_opening_charges || 0;
+      if ((c.file_opening_charges || 0) > 0) ensure(canonicalPaymentMode(c.payment_mode)).fileCharges += c.file_opening_charges || 0;
     });
     expenses.forEach((e: any) => {
-      ensure(canonicalMode(e.payment_mode)).expenses += e.amount || 0;
+      ensure(canonicalPaymentMode(e.payment_mode)).expenses += e.amount || 0;
     });
 
     const rows = Object.values(map).map(r => ({ ...r, balance: r.receipts + r.fileCharges - r.expenses }));
@@ -1119,7 +1096,7 @@ export default function AccountingPage() {
                 <DataExport
                   title={t('paymentModeReport')}
                   headers={[t('paymentMode'), t('receiptVouchers'), t('fileOpeningCharges'), t('totalExpenses'), t('balance')]}
-                  rows={pmRows.map(r => [t(r.mode as any) || r.mode, r.receipts, r.fileCharges, r.expenses, r.balance])}
+                  rows={pmRows.map(r => [paymentModeLabel(r.mode, t), r.receipts, r.fileCharges, r.expenses, r.balance])}
                   filename="payment-mode-report"
                 />
               </div>
@@ -1145,7 +1122,7 @@ export default function AccountingPage() {
                         <tbody>
                           {pmRows.map(r => (
                             <tr key={r.mode} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
-                              <td className="py-3 px-4 font-medium">{t(r.mode as any) || r.mode}</td>
+                              <td className="py-3 px-4 font-medium">{paymentModeLabel(r.mode, t)}</td>
                               <td className="py-3 px-4 text-end text-green-600">+{Math.round(r.receipts).toLocaleString()} {t('kd')}</td>
                               <td className="py-3 px-4 text-end text-teal-600">+{Math.round(r.fileCharges).toLocaleString()} {t('kd')}</td>
                               <td className="py-3 px-4 text-end text-red-600">-{Math.round(r.expenses).toLocaleString()} {t('kd')}</td>
