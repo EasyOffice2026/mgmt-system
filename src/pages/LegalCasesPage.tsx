@@ -324,7 +324,7 @@ export default function LegalCasesPage() {
               <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCustomer')} - {t('rcvdFromCourt')} - {t('discount')}</p>
             </div>
             {editing && (() => {
-              const receiptTotal = caseReceipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+              const receiptTotal = caseReceipts.reduce((s: number, r: any) => s + (r.received_amount || 0) - (r.discount_amount || 0), 0);
               const priorRecovery = Math.max(0, (form.rcvd_from_court || 0) - receiptTotal);
               return (
                 <div className="border rounded-lg p-4">
@@ -341,6 +341,8 @@ export default function LegalCasesPage() {
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receiptDate')}</th>
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receiptVoucherNo')}</th>
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receivedAmount')}</th>
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('discount')}</th>
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('netAmount')}</th>
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('paymentMode')}</th>
                         </tr>
                       </thead>
@@ -351,14 +353,18 @@ export default function LegalCasesPage() {
                             <td className="py-2 px-3">{t('priorRecovery')}</td>
                             <td className="py-2 px-3 font-medium text-green-600">{Math.round(priorRecovery).toLocaleString()} {t('kd')}</td>
                             <td className="py-2 px-3">—</td>
+                            <td className="py-2 px-3 font-medium text-green-600">{Math.round(priorRecovery).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3">—</td>
                           </tr>
                         )}
                         {caseReceipts.map((r: any) => (
                           <tr key={r.id} className="border-b border-slate-100">
                             <td className="py-2 px-3">{r.receipt_date}</td>
                             <td className="py-2 px-3">{r.receipt_voucher_no}</td>
-                            <td className="py-2 px-3 font-medium text-green-600">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
-                            <td className="py-2 px-3">{r.payment_mode}</td>
+                            <td className="py-2 px-3">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3 text-amber-600">{Math.round(r.discount_amount || 0).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3 font-medium text-green-600">{Math.round((r.received_amount || 0) - (r.discount_amount || 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3">{t(r.payment_mode as any) || r.payment_mode}</td>
                           </tr>
                         ))}
                       </tbody>

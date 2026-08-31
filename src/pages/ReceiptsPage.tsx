@@ -171,12 +171,14 @@ export default function ReceiptsPage() {
     if (formData.court_case_no && formData.receipt_type === 'courtMoney') {
       // Fetch fresh legal case data from DB to avoid stale state issues
       const { data: freshLc } = await supabase.from('legal_cases')
-        .select('id, rcvd_from_court, claimed_amount, case_amount')
+        .select('id, rcvd_from_court, rcvd_from_customer, discount, claimed_amount, case_amount')
         .eq('case_no', formData.court_case_no).single();
       if (freshLc) {
-        const newRcvd = (freshLc.rcvd_from_court || 0) + formData.received_amount;
-        const newBalance = (freshLc.claimed_amount || freshLc.case_amount || 0) - newRcvd;
-        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', freshLc.id);
+        // Court recovery is the net cash received; the waived part is a case discount, not recovery.
+        const newRcvd = (freshLc.rcvd_from_court || 0) + (formData.received_amount || 0) - (formData.discount_amount || 0);
+        const newDiscount = (freshLc.discount || 0) + (formData.discount_amount || 0);
+        const newBalance = (freshLc.claimed_amount || freshLc.case_amount || 0) - newRcvd - (freshLc.rcvd_from_customer || 0) - newDiscount;
+        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, discount: newDiscount, balance_amount: newBalance }).eq('id', freshLc.id);
       }
     }
   }
@@ -217,12 +219,14 @@ export default function ReceiptsPage() {
     if (receipt.court_case_no && receipt.receipt_type === 'courtMoney') {
       // Fetch fresh legal case data from DB to avoid stale state issues
       const { data: freshLc } = await supabase.from('legal_cases')
-        .select('id, rcvd_from_court, claimed_amount, case_amount')
+        .select('id, rcvd_from_court, rcvd_from_customer, discount, claimed_amount, case_amount')
         .eq('case_no', receipt.court_case_no).single();
       if (freshLc) {
-        const newRcvd = Math.max(0, (freshLc.rcvd_from_court || 0) - receipt.received_amount);
-        const newBalance = (freshLc.claimed_amount || freshLc.case_amount || 0) - newRcvd;
-        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, balance_amount: newBalance }).eq('id', freshLc.id);
+        const receiptDiscount = (receipt as any).discount_amount || 0;
+        const newRcvd = Math.max(0, (freshLc.rcvd_from_court || 0) - ((receipt.received_amount || 0) - receiptDiscount));
+        const newDiscount = Math.max(0, (freshLc.discount || 0) - receiptDiscount);
+        const newBalance = (freshLc.claimed_amount || freshLc.case_amount || 0) - newRcvd - (freshLc.rcvd_from_customer || 0) - newDiscount;
+        await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, discount: newDiscount, balance_amount: newBalance }).eq('id', freshLc.id);
       }
     }
   }
