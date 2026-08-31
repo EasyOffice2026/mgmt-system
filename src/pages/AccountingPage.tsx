@@ -330,14 +330,17 @@ export default function AccountingPage() {
     const m = (raw ?? '').toString().trim();
     if (!m) return 'cash';
     // Normalise Arabic spelling variants (separators, diacritics, ya/kaf/alef forms)
-    // so 'تحويل_بنكى' and 'تحويل بنكي' collapse into the same mode.
-    const norm = m
-      .replace(/[_\-\s]+/g, ' ')
-      .replace(/[\u064B-\u0652\u0670]/g, '')
-      .replace(/[ىی]/g, 'ي')
-      .replace(/ک/g, 'ك')
-      .replace(/[أإآ]/g, 'ا')
-      .trim();
+    // so 'تحويل_بنكى' and 'تحويل بنكي' collapse into the same mode. Latin keys such as
+    // 'bank_transfer' keep their underscores.
+    const isArabic = /[\u0600-\u06FF]/.test(m);
+    const norm = isArabic
+      ? m.replace(/[_\-\s]+/g, ' ')
+          .replace(/[\u064B-\u0652\u0670]/g, '')
+          .replace(/[ىی]/g, 'ي')
+          .replace(/ک/g, 'ك')
+          .replace(/[أإآ]/g, 'ا')
+          .trim()
+      : m;
     const arMap: Record<string, string> = {
       'رابط': 'link', 'ومض': 'wamd', 'وامض': 'wamd', 'شيكات': 'checks',
       'نقد': 'cash', 'نقدا': 'cash', 'تحويل بنكي': 'bank_transfer',
