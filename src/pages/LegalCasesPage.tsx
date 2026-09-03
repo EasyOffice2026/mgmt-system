@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useLang } from '@/contexts/LangContext';
 import { supabase } from '@/lib/supabase';
+import { paymentModeLabel } from '@/lib/payment-modes';
 import { FileAttachment } from '@/components/shared/FileAttachment';
 import { DataExport } from '@/components/shared/DataExport';
 import { Plus, Search, Pencil, Trash2, Scale } from 'lucide-react';
@@ -46,6 +47,8 @@ export default function LegalCasesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [caseReceipts, setCaseReceipts] = useState<any[]>([]);
+  const [caseStatusFilter, setCaseStatusFilter] = useState<'all' | 'active' | 'closed'>('all');
+  const [contractStatuses, setContractStatuses] = useState<Record<string, string>>({});
 
   useEffect(() => { loadData(); }, [fromDate, toDate]);
 
@@ -54,12 +57,16 @@ export default function LegalCasesPage() {
     let casesQuery = supabase.from('legal_cases').select('*').order('created_at', { ascending: false });
     if (fromDate) casesQuery = casesQuery.gte('created_at', fromDate);
     if (toDate) casesQuery = casesQuery.lte('created_at', toDate + 'T23:59:59');
-    const [casesRes, contractsRes] = await Promise.all([
+    const [casesRes, contractsRes, statusRes] = await Promise.all([
       casesQuery,
       supabase.from('contracts').select('*').in('status', ['legal_case', 'case_closed']),
+      supabase.from('contracts').select('id, status'),
     ]);
     setCases(casesRes.data || []);
     setContracts(contractsRes.data || []);
+    const statusMap: Record<string, string> = {};
+    (statusRes.data || []).forEach((c: { id: string; status: string }) => { statusMap[c.id] = c.status; });
+    setContractStatuses(statusMap);
     setLoading(false);
   }
 
@@ -116,23 +123,31 @@ export default function LegalCasesPage() {
   // Contracts that already have a legal case (exclude from Add dropdown, allow in Edit)
   const usedContractIds = new Set(cases.map(c => c.contract_id));
 
-  const filtered = cases.filter(c =>
-    c.legal_case_no?.toLowerCase().includes(search.toLowerCase()) ||
-    c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.case_no?.toLowerCase().includes(search.toLowerCase())
-  );
+  const isClosedCase = (c: LegalCase) => contractStatuses[c.contract_id] === 'case_closed';
+
+  const filtered = cases.filter(c => {
+    if (caseStatusFilter === 'closed' && !isClosedCase(c)) return false;
+    if (caseStatusFilter === 'active' && isClosedCase(c)) return false;
+    return (
+      c.legal_case_no?.toLowerCase().includes(search.toLowerCase()) ||
+      c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.case_no?.toLowerCase().includes(search.toLowerCase())
+    );
+  });
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalCases = filtered.length;
   const totalClaimed = filtered.reduce((s, c) => s + (c.case_amount || 0), 0);
   const totalActual = filtered.reduce((s, c) => s + (c.original_amount || 0), 0);
   const totalRecovered = filtered.reduce((s, c) => s + (c.rcvd_from_court || 0), 0);
+  const totalFromCustomer = filtered.reduce((s, c) => s + (c.rcvd_from_customer || 0), 0);
+  const totalDiscount = filtered.reduce((s, c) => s + (c.discount || 0), 0);
   const totalOutstanding = filtered.reduce((s, c) => s + ((c.case_amount || 0) - (c.rcvd_from_customer || 0) - (c.rcvd_from_court || 0) - (c.discount || 0)), 0);
 
-  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('amountRecovered'), t('outstanding')];
+  const exportHeaders = [t('customerName'), t('caseNo'), t('actualAmount'), t('claimedAmount'), t('rcvdFromCourt'), t('rcvdFromCustomer'), t('discount'), t('outstanding')];
   const exportRows = filtered.map(c => {
     const rcvd = c.rcvd_from_court || 0;
-    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, (c.case_amount || 0) - (c.rcvd_from_customer || 0) - rcvd - (c.discount || 0)];
+    return [c.customer_name, c.case_no, c.original_amount, c.case_amount, rcvd, c.rcvd_from_customer || 0, c.discount || 0, (c.case_amount || 0) - (c.rcvd_from_customer || 0) - rcvd - (c.discount || 0)];
   });
 
   return (
@@ -151,11 +166,13 @@ export default function LegalCasesPage() {
       </div>
 
       {/* KPI Dashboard */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalCases')}</p><p className="text-xl font-bold text-blue-600">{totalCases}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalClaimedAmount')}</p><p className="text-xl font-bold text-amber-600">{Math.round(totalClaimed).toLocaleString()} {t('kd')}</p></CardContent></Card>
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('actualAmount')}</p><p className="text-xl font-bold text-slate-700">{Math.round(totalActual).toLocaleString()} {t('kd')}</p></CardContent></Card>
-        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('amountRecovered')}</p><p className="text-xl font-bold text-green-600">{Math.round(totalRecovered).toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('totalClaimedAmount')}</p><p className="text-xl font-bold text-amber-600">{Math.round(totalClaimed).toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('rcvdFromCourt')}</p><p className="text-xl font-bold text-green-600">{Math.round(totalRecovered).toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('rcvdFromCustomer')}</p><p className="text-xl font-bold text-green-600">{Math.round(totalFromCustomer).toLocaleString()} {t('kd')}</p></CardContent></Card>
+        <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('discount')}</p><p className="text-xl font-bold text-slate-700">{Math.round(totalDiscount).toLocaleString()} {t('kd')}</p></CardContent></Card>
         <Card className="border-0 shadow-md"><CardContent className="p-4"><p className="text-xs text-slate-500">{t('outstanding')}</p><p className="text-xl font-bold text-red-600">{Math.round(totalOutstanding).toLocaleString()} {t('kd')}</p></CardContent></Card>
       </div>
 
@@ -165,6 +182,15 @@ export default function LegalCasesPage() {
           <Input placeholder={t('search')} value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} className="ps-9" />
         </div>
         <div className="flex items-center gap-2">
+          <select
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            value={caseStatusFilter}
+            onChange={e => { setCaseStatusFilter(e.target.value as typeof caseStatusFilter); setCurrentPage(1); }}
+          >
+            <option value="all">{t('all')}</option>
+            <option value="active">{t('legalCase')}</option>
+            <option value="closed">{t('caseClosed')}</option>
+          </select>
           <DatePicker value={fromDate} onChange={setFromDate} placeholder={t("from")} />
           <span className="text-slate-400">-</span>
           <DatePicker value={toDate} onChange={setToDate} placeholder={t("to")} />
@@ -299,7 +325,7 @@ export default function LegalCasesPage() {
               <p className="text-xs text-blue-600 mt-1">{t('caseAmount')} - {t('rcvdFromCustomer')} - {t('rcvdFromCourt')} - {t('discount')}</p>
             </div>
             {editing && (() => {
-              const receiptTotal = caseReceipts.reduce((s: number, r: any) => s + (r.received_amount || 0), 0);
+              const receiptTotal = caseReceipts.reduce((s: number, r: any) => s + (r.received_amount || 0) - (r.discount_amount || 0), 0);
               const priorRecovery = Math.max(0, (form.rcvd_from_court || 0) - receiptTotal);
               return (
                 <div className="border rounded-lg p-4">
@@ -316,6 +342,8 @@ export default function LegalCasesPage() {
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receiptDate')}</th>
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receiptVoucherNo')}</th>
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('receivedAmount')}</th>
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('discount')}</th>
+                          <th className="text-start py-2 px-3 font-medium text-slate-600">{t('netAmount')}</th>
                           <th className="text-start py-2 px-3 font-medium text-slate-600">{t('paymentMode')}</th>
                         </tr>
                       </thead>
@@ -326,14 +354,18 @@ export default function LegalCasesPage() {
                             <td className="py-2 px-3">{t('priorRecovery')}</td>
                             <td className="py-2 px-3 font-medium text-green-600">{Math.round(priorRecovery).toLocaleString()} {t('kd')}</td>
                             <td className="py-2 px-3">—</td>
+                            <td className="py-2 px-3 font-medium text-green-600">{Math.round(priorRecovery).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3">—</td>
                           </tr>
                         )}
                         {caseReceipts.map((r: any) => (
                           <tr key={r.id} className="border-b border-slate-100">
                             <td className="py-2 px-3">{r.receipt_date}</td>
                             <td className="py-2 px-3">{r.receipt_voucher_no}</td>
-                            <td className="py-2 px-3 font-medium text-green-600">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
-                            <td className="py-2 px-3">{r.payment_mode}</td>
+                            <td className="py-2 px-3">{Math.round(r.received_amount || 0).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3 text-amber-600">{Math.round(r.discount_amount || 0).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3 font-medium text-green-600">{Math.round((r.received_amount || 0) - (r.discount_amount || 0)).toLocaleString()} {t('kd')}</td>
+                            <td className="py-2 px-3">{paymentModeLabel(r.payment_mode, t)}</td>
                           </tr>
                         ))}
                       </tbody>
