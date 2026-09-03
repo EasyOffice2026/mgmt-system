@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +74,7 @@ export default function ReceiptsPage() {
   const [pageSize, setPageSize] = useState(10);
   const [showForm, setShowForm] = useState<ReceiptVoucher | null>(null);
   const [paymentModes, setPaymentModes] = useState<string[]>(defaultPaymentModes);
+  const savingRef = useRef(false);
 
   useEffect(() => { loadData(); loadPaymentModes(); }, [fromDate, toDate]);
 
@@ -255,8 +256,57 @@ export default function ReceiptsPage() {
   }
 
   async function handleSave() {
+    // Prevent rapid double-submit from saving the same receipt twice
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      await doHandleSave();
+    } finally {
+      savingRef.current = false;
+    }
+  }
+
+  async function doHandleSave() {
     const customer = customers.find(c => c.id === form.customer_id);
     const contract = allContracts.find(c => c.id === form.contract_id);
+
+    // Reject a duplicate: installment(s) already have a saved receipt
+    if (form.receipt_type === 'installment' && !editing && form.contract_id) {
+      const targets = (selectedInstallments.length > 0)
+        ? selectedInstallments
+        : (form.installment_no !== null && form.installment_no !== undefined ? [form.installment_no] : []);
+      for (const instIdx of targets) {
+        const dup = receipts.find(r => r.contract_id === form.contract_id && r.receipt_type === 'installment'
+          && (r.installment_no === instIdx || (r.installment_breakdown || []).some((b: any) => b.no === instIdx)));
+        if (dup) {
+          alert((t('receiptAlreadySaved') || 'A receipt for this installment is already saved.') + ` (${dup.receipt_voucher_no})`);
+          return;
+        }
+      }
+    }
+
+    // Block receipts that would exceed the contract's total installments
+    if (form.receipt_type === 'installment' && form.contract_id && contract) {
+      const schedule = contract.installment_schedule || [];
+      const totalInstallments = schedule.length
+        ? schedule.reduce((s: number, x: any) => s + (x.amount || 0), 0)
+        : (contract.sale_price || 0);
+      const alreadyReceived = receipts
+        .filter(r => r.contract_id === form.contract_id && r.receipt_type === 'installment' && (!editing || r.id !== editing.id))
+        .reduce((s, r) => s + (r.received_amount || 0), 0);
+      const newReceived = isBulk ? selectedGross : (form.received_amount || 0);
+      if (alreadyReceived + newReceived > totalInstallments + 0.01) {
+        const maxAllowed = Math.max(0, Math.round((totalInstallments - alreadyReceived) * 1000) / 1000);
+        alert(
+          (t('receiptExceedsInstallments') || 'This receipt exceeds the contract\'s total installments.') +
+          `\n\n${t('totalInstallments') || 'Total installments'}: ${totalInstallments}` +
+          `\n${t('alreadyReceived') || 'Already received'}: ${alreadyReceived}` +
+          `\n${t('thisReceipt') || 'This receipt'}: ${newReceived}` +
+          `\n${t('maxYouCanAdd') || 'Maximum you can add'}: ${maxAllowed}`
+        );
+        return;
+      }
+    }
 
     // Multi-installment bulk payment: create ONE receipt voucher covering all selected installments
     if (form.receipt_type === 'installment' && !editing && selectedInstallments.length > 0) {
