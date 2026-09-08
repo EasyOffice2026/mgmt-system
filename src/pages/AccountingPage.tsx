@@ -141,7 +141,10 @@ export default function AccountingPage() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth);
   const [dateTo, setDateTo] = useState(todayStr);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
-  const [receiptTypeFilter, setReceiptTypeFilter] = useState<'all' | 'installment' | 'courtMoney' | 'others'>('all');
+  const receiptTypeOptions = ['installment', 'courtMoney', 'others'] as const;
+  const [receiptTypeFilter, setReceiptTypeFilter] = useState<string[]>([...receiptTypeOptions]);
+  const toggleReceiptType = (type: string) =>
+    setReceiptTypeFilter(prev => (prev.includes(type) ? prev.filter(x => x !== type) : [...prev, type]));
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [reportLoading, setReportLoading] = useState(false);
@@ -239,7 +242,7 @@ export default function AccountingPage() {
 
   async function loadReport(type: ReportType) {
     setReportLoading(true);
-    if (type !== selectedReport) setReceiptTypeFilter('all');
+    if (type !== selectedReport) setReceiptTypeFilter([...receiptTypeOptions]);
     setSelectedReport(type);
     setActiveView('report');
     let rows: DetailRow[] = [];
@@ -470,8 +473,8 @@ export default function AccountingPage() {
   }
 
 
-  const filteredRows = selectedReport === 'receipts' && receiptTypeFilter !== 'all'
-    ? detailRows.filter(r => r.category === receiptTypeFilter)
+  const filteredRows = selectedReport === 'receipts'
+    ? detailRows.filter(r => receiptTypeFilter.includes((receiptTypeOptions as readonly string[]).includes(r.category || '') ? (r.category as string) : 'others'))
     : detailRows;
   const numericSortKeys: SortKey[] = ['received', 'discount', 'quantity', 'unitPrice', 'amount'];
   const visibleRows = [...filteredRows].sort((a, b) => {
@@ -610,16 +613,22 @@ export default function AccountingPage() {
             </div>
             <div className="flex items-center gap-2">
               {selectedReport === 'receipts' && (
-                <select
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                  value={receiptTypeFilter}
-                  onChange={e => setReceiptTypeFilter(e.target.value as typeof receiptTypeFilter)}
-                >
-                  <option value="all">{t('all')}</option>
-                  <option value="installment">{t('installment')}</option>
-                  <option value="courtMoney">{t('courtMoney')}</option>
-                  <option value="others">{t('others')}</option>
-                </select>
+                <div className="flex items-center gap-3 h-9 rounded-md border border-input bg-background px-3 text-sm">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" className="h-4 w-4 accent-slate-700"
+                      checked={receiptTypeFilter.length === receiptTypeOptions.length}
+                      onChange={e => setReceiptTypeFilter(e.target.checked ? [...receiptTypeOptions] : [])} />
+                    {t('all')}
+                  </label>
+                  {receiptTypeOptions.map(type => (
+                    <label key={type} className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input type="checkbox" className="h-4 w-4 accent-slate-700"
+                        checked={receiptTypeFilter.includes(type)}
+                        onChange={() => toggleReceiptType(type)} />
+                      {t(type)}
+                    </label>
+                  ))}
+                </div>
               )}
               <Button variant="outline" size="sm" onClick={() => loadReport(selectedReport)}>
                 <Calendar className="h-4 w-4 me-1" /> {t('filter')}
