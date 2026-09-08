@@ -68,12 +68,14 @@ interface DetailRow {
   amount: number;
   received?: number;
   discount?: number;
+  quantity?: number;
+  unitPrice?: number;
   category?: string;
   status?: string;
   customer?: string;
 }
 
-type SortKey = 'date' | 'description' | 'customer' | 'category' | 'received' | 'discount' | 'amount' | 'status';
+type SortKey = 'date' | 'description' | 'customer' | 'category' | 'received' | 'discount' | 'quantity' | 'unitPrice' | 'amount' | 'status';
 
 interface IncomeStatement {
   salesRevenue: number;
@@ -139,7 +141,10 @@ export default function AccountingPage() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth);
   const [dateTo, setDateTo] = useState(todayStr);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
-  const [receiptTypeFilter, setReceiptTypeFilter] = useState<'all' | 'installment' | 'courtMoney' | 'others'>('all');
+  const receiptTypeOptions = ['installment', 'courtMoney', 'others'] as const;
+  const [receiptTypeFilter, setReceiptTypeFilter] = useState<string[]>([...receiptTypeOptions]);
+  const toggleReceiptType = (type: string) =>
+    setReceiptTypeFilter(prev => (prev.includes(type) ? prev.filter(x => x !== type) : [...prev, type]));
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [reportLoading, setReportLoading] = useState(false);
@@ -237,7 +242,7 @@ export default function AccountingPage() {
 
   async function loadReport(type: ReportType) {
     setReportLoading(true);
-    if (type !== selectedReport) setReceiptTypeFilter('all');
+    if (type !== selectedReport) setReceiptTypeFilter([...receiptTypeOptions]);
     setSelectedReport(type);
     setActiveView('report');
     let rows: DetailRow[] = [];
@@ -250,10 +255,14 @@ export default function AccountingPage() {
       }));
     } else if (type === 'purchases') {
       const res = await supabase.from('purchases').select('*').gte('purchase_date', dateFrom).lte('purchase_date', dateTo);
-      rows = (res.data || []).map((p: any) => ({
-        id: p.id, date: p.purchase_date || '', description: `${p.invoice_no || ''} - ${p.item_name || ''}`,
-        amount: p.purchase_price || 0, category: p.supplier_name || '',
-      }));
+      rows = (res.data || []).map((p: any) => {
+        const quantity = p.quantity || 1;
+        const unitPrice = p.purchase_price || 0;
+        return {
+          id: p.id, date: p.purchase_date || '', description: `${p.invoice_no || ''} - ${p.item_name || ''}`,
+          amount: unitPrice * quantity, quantity, unitPrice, category: p.supplier_name || '',
+        };
+      });
     } else if (type === 'expenses') {
       const res = await supabase.from('expenses').select('*').gte('expense_date', dateFrom).lte('expense_date', dateTo);
       rows = (res.data || []).map((e: any) => ({
@@ -464,10 +473,10 @@ export default function AccountingPage() {
   }
 
 
-  const filteredRows = selectedReport === 'receipts' && receiptTypeFilter !== 'all'
-    ? detailRows.filter(r => r.category === receiptTypeFilter)
+  const filteredRows = selectedReport === 'receipts'
+    ? detailRows.filter(r => receiptTypeFilter.includes((receiptTypeOptions as readonly string[]).includes(r.category || '') ? (r.category as string) : 'others'))
     : detailRows;
-  const numericSortKeys: SortKey[] = ['received', 'discount', 'amount'];
+  const numericSortKeys: SortKey[] = ['received', 'discount', 'quantity', 'unitPrice', 'amount'];
   const visibleRows = [...filteredRows].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     if (numericSortKeys.includes(sortKey)) {
@@ -491,17 +500,23 @@ export default function AccountingPage() {
   const showCustomerCol = visibleRows.some(r => r.customer);
   const showCategoryCol = visibleRows.some(r => r.category);
   const showBreakdownCol = visibleRows.some(r => r.received !== undefined);
+  const showQtyCol = visibleRows.some(r => r.quantity !== undefined);
   const showStatusCol = visibleRows.some(r => r.status);
-  const footerColSpan = 3 + (showCustomerCol ? 1 : 0) + (showCategoryCol ? 1 : 0) + (showBreakdownCol ? 2 : 0);
+  const footerColSpan = 3 + (showCustomerCol ? 1 : 0) + (showCategoryCol ? 1 : 0) + (showBreakdownCol ? 2 : 0) + (showQtyCol ? 2 : 0);
   const detailReceivedTotal = visibleRows.reduce((s, r) => s + (r.received || 0), 0);
   const detailDiscountTotal = visibleRows.reduce((s, r) => s + (r.discount || 0), 0);
+  const detailQtyTotal = visibleRows.reduce((s, r) => s + (r.quantity || 0), 0);
 
   const reportExportHeaders = showBreakdownCol
     ? [t('date'), t('description'), t('customer'), t('category'), t('received'), t('discount'), t('netAmount'), t('status')]
-    : [t('date'), t('description'), t('amount'), t('customer'), t('category'), t('status')];
+    : showQtyCol
+      ? [t('date'), t('description'), t('category'), t('quantity'), t('unitPrice'), t('amount')]
+      : [t('date'), t('description'), t('amount'), t('customer'), t('category'), t('status')];
   const reportExportRows = visibleRows.map(r => showBreakdownCol
     ? [r.date, r.description, r.customer || '', r.category || '', r.received || 0, r.discount || 0, r.amount, r.status || '']
-    : [r.date, r.description, r.amount, r.customer || '', r.category || '', r.status || '']);
+    : showQtyCol
+      ? [r.date, r.description, r.category || '', r.quantity || 0, r.unitPrice || 0, r.amount]
+      : [r.date, r.description, r.amount, r.customer || '', r.category || '', r.status || '']);
 
   const DateRangePicker = () => (
     <div className="flex items-center gap-2 flex-wrap">
@@ -598,16 +613,22 @@ export default function AccountingPage() {
             </div>
             <div className="flex items-center gap-2">
               {selectedReport === 'receipts' && (
-                <select
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                  value={receiptTypeFilter}
-                  onChange={e => setReceiptTypeFilter(e.target.value as typeof receiptTypeFilter)}
-                >
-                  <option value="all">{t('all')}</option>
-                  <option value="installment">{t('installment')}</option>
-                  <option value="courtMoney">{t('courtMoney')}</option>
-                  <option value="others">{t('others')}</option>
-                </select>
+                <div className="flex items-center gap-3 h-9 rounded-md border border-input bg-background px-3 text-sm">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" className="h-4 w-4 accent-slate-700"
+                      checked={receiptTypeFilter.length === receiptTypeOptions.length}
+                      onChange={e => setReceiptTypeFilter(e.target.checked ? [...receiptTypeOptions] : [])} />
+                    {t('all')}
+                  </label>
+                  {receiptTypeOptions.map(type => (
+                    <label key={type} className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input type="checkbox" className="h-4 w-4 accent-slate-700"
+                        checked={receiptTypeFilter.includes(type)}
+                        onChange={() => toggleReceiptType(type)} />
+                      {t(type)}
+                    </label>
+                  ))}
+                </div>
               )}
               <Button variant="outline" size="sm" onClick={() => loadReport(selectedReport)}>
                 <Calendar className="h-4 w-4 me-1" /> {t('filter')}
@@ -668,6 +689,8 @@ export default function AccountingPage() {
                           {showCategoryCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('category')}>{t('category')}<SortIcon col="category" /></th>}
                           {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('received')}>{t('received')} ({t('kd')})<SortIcon col="received" /></th>}
                           {showBreakdownCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('discount')}>{t('discount')} ({t('kd')})<SortIcon col="discount" /></th>}
+                          {showQtyCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('quantity')}>{t('quantity')}<SortIcon col="quantity" /></th>}
+                          {showQtyCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('unitPrice')}>{t('unitPrice')} ({t('kd')})<SortIcon col="unitPrice" /></th>}
                           <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('amount')}>{showBreakdownCol ? t('netAmount') : t('amount')} ({t('kd')})<SortIcon col="amount" /></th>
                           {showStatusCol && <th className="text-start py-3 px-4 font-medium text-slate-600 cursor-pointer select-none hover:text-slate-900" onClick={() => toggleSort('status')}>{t('status')}<SortIcon col="status" /></th>}
                         </tr>
@@ -682,6 +705,8 @@ export default function AccountingPage() {
                             {showCategoryCol && <td className="py-3 px-4">{row.category || '-'}</td>}
                             {showBreakdownCol && <td className="py-3 px-4 text-slate-700">{fmt(row.received || 0)}</td>}
                             {showBreakdownCol && <td className="py-3 px-4 text-red-600">{(row.discount || 0) > 0 ? `(${fmt(row.discount || 0)})` : fmt(0)}</td>}
+                            {showQtyCol && <td className="py-3 px-4 text-slate-700">{row.quantity || 0}</td>}
+                            {showQtyCol && <td className="py-3 px-4 text-slate-700">{fmt(row.unitPrice || 0)}</td>}
                             <td className="py-3 px-4 font-semibold text-blue-600">{fmt(row.amount)}</td>
                             {showStatusCol && (
                               <td className="py-3 px-4">
@@ -706,9 +731,11 @@ export default function AccountingPage() {
                       {visibleRows.length > 0 && (
                         <tfoot>
                           <tr className="bg-slate-50 font-semibold border-t-2 border-slate-300">
-                            <td colSpan={footerColSpan - (showBreakdownCol ? 2 : 0)} className="py-3 px-4 text-end">{t('total')}:</td>
+                            <td colSpan={footerColSpan - (showBreakdownCol ? 2 : 0) - (showQtyCol ? 2 : 0)} className="py-3 px-4 text-end">{t('total')}:</td>
                             {showBreakdownCol && <td className="py-3 px-4 text-slate-700">{fmt(detailReceivedTotal)}</td>}
                             {showBreakdownCol && <td className="py-3 px-4 text-red-600">{detailDiscountTotal > 0 ? `(${fmt(detailDiscountTotal)})` : fmt(0)}</td>}
+                            {showQtyCol && <td className="py-3 px-4 text-slate-700">{detailQtyTotal}</td>}
+                            {showQtyCol && <td />}
                             <td className="py-3 px-4 text-blue-600">{fmt(detailTotal)} {t('kd')}</td>
                             {showStatusCol && <td />}
                           </tr>
