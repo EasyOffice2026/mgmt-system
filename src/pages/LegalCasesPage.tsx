@@ -76,12 +76,16 @@ export default function LegalCasesPage() {
   }
 
   async function handleSave() {
+    const caseNo = (form.case_no || '').trim();
+    const { data: sameNo } = await supabase.from('legal_cases').select('id, legal_case_no').eq('case_no', caseNo);
+    const clash = (sameNo || []).find(r => r.id !== editing?.id);
+    if (clash) { window.alert(`${t('duplicateCaseNo')} (${clash.legal_case_no})`); return; }
     const contract = contracts.find(c => c.id === form.contract_id);
     const data = {
       customer_id: form.customer_id || contract?.customer_id || '',
       customer_name: contract?.customer_name || '',
       contract_id: form.contract_id, contract_no: contract?.contract_no || '',
-      case_no: form.case_no, purchase_price: form.purchase_price || contract?.purchase_price || 0,
+      case_no: caseNo, purchase_price: form.purchase_price || contract?.purchase_price || 0,
       original_amount: form.original_amount || contract?.sale_price || 0,
       remaining_from_customer: form.remaining_from_customer || contract?.remaining_amount || 0,
       case_amount: form.case_amount, rcvd_from_customer: form.rcvd_from_customer,
@@ -115,6 +119,7 @@ export default function LegalCasesPage() {
     const { data } = await supabase.from('receipt_vouchers').select('*')
       .eq('receipt_type', 'courtMoney')
       .eq('court_case_no', c.case_no)
+      .eq('contract_id', c.contract_id)
       .order('receipt_date', { ascending: true });
     setCaseReceipts(data || []);
     setShowDialog(true);

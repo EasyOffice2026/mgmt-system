@@ -174,6 +174,7 @@ export const ar = {
   rcvdFromCustomer: 'المستلم من العميل',
   rcvdFromCourt: 'المستلم من المحكمة',
   rcvdFromCourtHint: 'يُسجّل تلقائياً من سندات قبض أموال المحكمة.',
+  duplicateCaseNo: 'رقم القضية مستخدم بالفعل في قضية أخرى',
   courtRecoveryReceipts: 'سندات تحصيل المحكمة',
   priorRecovery: 'تحصيل سابق (مجمّع)',
   excessAmount: 'المبلغ الزائد',
