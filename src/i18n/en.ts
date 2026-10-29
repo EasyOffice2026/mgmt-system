@@ -186,6 +186,7 @@ export const en = {
   rcvdFromCustomer: 'Received from Customer',
   rcvdFromCourt: 'Received from Court',
   rcvdFromCourtHint: 'Recorded automatically from Court Money receipt vouchers.',
+  duplicateCaseNo: 'This Case No. is already used by another legal case',
   courtRecoveryReceipts: 'Court Recovery Receipts',
   priorRecovery: 'Prior recovery (bulk)',
   excessAmount: 'Excess Amount',

@@ -167,9 +167,7 @@ export default function ReceiptsPage() {
     }
     if (formData.court_case_no && formData.receipt_type === 'courtMoney') {
       // Fetch fresh legal case data from DB to avoid stale state issues
-      const { data: freshLc } = await supabase.from('legal_cases')
-        .select('id, rcvd_from_court, rcvd_from_customer, discount, claimed_amount, case_amount')
-        .eq('case_no', formData.court_case_no).single();
+      const freshLc = await findLegalCase(formData.court_case_no, formData.contract_id);
       if (freshLc) {
         // Court recovery is the net cash received; the waived part is a case discount, not recovery.
         const newRcvd = (freshLc.rcvd_from_court || 0) + (formData.received_amount || 0) - (formData.discount_amount || 0);
@@ -178,6 +176,15 @@ export default function ReceiptsPage() {
         await supabase.from('legal_cases').update({ rcvd_from_court: newRcvd, discount: newDiscount, balance_amount: newBalance }).eq('id', freshLc.id);
       }
     }
+  }
+
+  // Case numbers are not guaranteed unique, so prefer the case on the receipt's contract.
+  async function findLegalCase(caseNo: string, contractId?: string) {
+    const { data } = await supabase.from('legal_cases')
+      .select('id, contract_id, rcvd_from_court, rcvd_from_customer, discount, claimed_amount, case_amount')
+      .eq('case_no', caseNo);
+    const rows = data || [];
+    return rows.find(r => contractId && r.contract_id === contractId) || (rows.length === 1 ? rows[0] : null);
   }
 
   // Reverse effects of a receipt (for edit/delete)
@@ -215,9 +222,7 @@ export default function ReceiptsPage() {
     }
     if (receipt.court_case_no && receipt.receipt_type === 'courtMoney') {
       // Fetch fresh legal case data from DB to avoid stale state issues
-      const { data: freshLc } = await supabase.from('legal_cases')
-        .select('id, rcvd_from_court, rcvd_from_customer, discount, claimed_amount, case_amount')
-        .eq('case_no', receipt.court_case_no).single();
+      const freshLc = await findLegalCase(receipt.court_case_no, receipt.contract_id);
       if (freshLc) {
         const receiptDiscount = (receipt as any).discount_amount || 0;
         const newRcvd = Math.max(0, (freshLc.rcvd_from_court || 0) - ((receipt.received_amount || 0) - receiptDiscount));
